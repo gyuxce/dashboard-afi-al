@@ -193,6 +193,38 @@ describe('buildPilotAgentRow', () => {
     expect(row.badCases[0]).toMatchObject({ score: 1, date: '2026-08-06' });
     expect(row.badCases.every((c) => c.score <= 2)).toBe(true);
     expect(row.goodCases[0]).toMatchObject({ score: 5, category: 'Ramah' });
+    // nothing in the 2 weeks before 2026-08-03 → the "sebelum" side is empty
+    expect(row.baselineDsat).toMatchObject({ validTotal: 0, count: 0, pct: null, byCategory: [] });
+    expect(row.baselineCases).toEqual([]);
+  });
+
+  it('splits DSAT + bad cases into before-batch vs during-batch windows', () => {
+    const agent = makeAgent({
+      csatHistory: csat([
+        // before window [2026-07-20 .. 2026-08-02]
+        ['2026-07-22', 1, 'Slow respon', 'lelet sebelum'],
+        ['2026-07-28', 2, 'Slow respon', 'masih lelet'],
+        ['2026-07-30', 5, 'Ramah', 'oke sih'],
+        // during window [2026-08-03 .. 2026-08-16]
+        ['2026-08-05', 2, 'Kurang empati', 'jutek pas project'],
+        ['2026-08-10', 5, 'Ramah', 'membaik'],
+      ]),
+      dailyHistory: {
+        csatScFull: [], csatScFair: [], productivity: [], csat: [], sla1m: [], sla3m: [], whu: [], schedule: [],
+      },
+    } as Partial<AgentKPI>);
+
+    const row = buildPilotAgentRow(entry, agent, '2026-08-31');
+    // before: 2 bad of 3 valid → 66.7%, top category "Slow respon"
+    expect(row.baselineDsat.count).toBe(2);
+    expect(row.baselineDsat.validTotal).toBe(3);
+    expect(row.baselineDsat.pct).toBeCloseTo((2 / 3) * 100);
+    expect(row.baselineDsat.byCategory[0]).toEqual({ category: 'Slow respon', count: 2 });
+    expect(row.baselineCases.map((c) => c.response)).toContain('lelet sebelum');
+    // during: 1 bad of 2 valid → 50%, "Kurang empati"; before-cases not mixed in
+    expect(row.dsatCount).toBe(1);
+    expect(row.dsatByCategory[0]).toEqual({ category: 'Kurang empati', count: 1 });
+    expect(row.badCases.map((c) => c.response)).toEqual(['jutek pas project']);
   });
 
   it('no CSAT SC data at all → no-data status', () => {
@@ -282,6 +314,7 @@ describe('summarizeBatch', () => {
     expect(s.weekAvgs).toEqual([55, 65]);    // wk1 (60,50)→55 ; wk2 (80,50)→65
     expect(s.dsatCount).toBe(2);             // a's two 1–2 ratings
     expect(s.dsatValidTotal).toBe(3);        // a's 3 valid ratings
+    expect(s.baselineDsatPct).toBeNull();    // no ratings before 2026-08-03 in the fixtures
     expect(s.topDsatCategories[0]).toEqual({ category: 'Slow respon', count: 2 });
     expect(s.repeatCategories).toEqual(['Slow respon']);
   });
@@ -290,7 +323,8 @@ describe('summarizeBatch', () => {
     const s = summarizeBatch([]);
     expect(s).toMatchObject({
       participants: 0, withData: 0, improved: 0, avgDelta: null,
-      dsatCount: 0, dsatPct: null, topDsatCategories: [], repeatCategories: [], weekAvgs: [],
+      dsatCount: 0, dsatPct: null, baselineDsatPct: null,
+      topDsatCategories: [], repeatCategories: [], weekAvgs: [],
     });
   });
 });
