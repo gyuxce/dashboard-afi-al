@@ -47,8 +47,6 @@ export type PilotAgentRow = {
   teamLeader: string;
   note: string;
   baseline: number | null;
-  /** Same baseline computed over several window lengths, for calibration. */
-  baselineByWindow: { days: number; pct: number | null; total: number }[];
   weeks: WeekBucket[];
   current: number | null;
   average: number | null;
@@ -68,12 +66,8 @@ export type PilotAgentRow = {
 /** LULUS threshold — "70–75% ke atas, yang penting ada tren kenaikan". */
 export const PILOT_LULUS_MIN = 70;
 
-/** Baseline window length (days before batch start) used for `baseline`/`delta`.
- *  Being calibrated against known-good values, hence `baselineByWindow` alongside. */
+/** Baseline = CSAT SC Full % over the 2 weeks before batch start. */
 export const PILOT_BASELINE_DAYS = 14;
-
-/** Window lengths (days) shown side by side while the baseline is being calibrated. */
-export const PILOT_BASELINE_WINDOWS = [7, 14, 21, 28] as const;
 
 /** Cohort-level roll-up of one batch, for comparing batches side by side. */
 export type BatchSummary = {
@@ -300,10 +294,6 @@ export function buildPilotAgentRow(
   const baseEnd = addDays(start, -1);
 
   const daily = agent?.dailyHistory?.csatScFull || [];
-  const baselineByWindow = PILOT_BASELINE_WINDOWS.map((days) => ({
-    days,
-    ...csatScFullPct(daily, addDays(start, -days), baseEnd),
-  }));
   const baseline = csatScFullPct(daily, addDays(start, -PILOT_BASELINE_DAYS), baseEnd).pct;
   const weeks = weekBuckets(daily, start, end);
   const filled = weeks.filter((w) => w.pct !== null) as (WeekBucket & { pct: number })[];
@@ -384,7 +374,6 @@ export function buildPilotAgentRow(
     teamLeader: agent?.teamLeader || '-',
     note: entry.note,
     baseline,
-    baselineByWindow,
     weeks,
     current,
     average,

@@ -127,17 +127,6 @@ const PilotDetail: React.FC<{ row: PilotAgentRow; onClose?: () => void }> = ({ r
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg border border-dashed border-border bg-surface/50 px-2 py-1.5 text-[10px] text-text-muted">
-        <span className="font-semibold uppercase tracking-wide">Baseline per window</span>
-        {row.baselineByWindow.map((b) => (
-          <span key={b.days} className="tabular-nums">
-            {b.days === 7 ? '1mgg' : b.days === 14 ? '2mgg' : b.days === 21 ? '3mgg' : `${b.days / 7}mgg`}{' '}
-            <span className="font-bold text-text-secondary">{b.pct === null ? '–' : `${formatNum(b.pct, 1)}%`}</span>
-            <span className="text-text-disabled"> ({b.total})</span>
-          </span>
-        ))}
-      </div>
-
       <div className="mt-4">
         <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">Tren mingguan</div>
         <WeekBars weeks={row.weeks} baseline={row.baseline} />
@@ -334,12 +323,20 @@ export const PilotCsat: React.FC<{
   const pickBatch = (name: string) => {
     setBatchName(name);
     setSelectedId(null);
-    setExpandedId(null);
+    setExpandedIds(new Set());
     setMobileDrawerOpen(false);
   };
 
   const selected = rows.find((r) => r.csId === selectedId) ?? null;
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // A Set, not a single id — expanding one row must not collapse the others;
+  // each chevron toggles only its own row.
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpanded = (csId: string) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.has(csId) ? next.delete(csId) : next.add(csId);
+      return next;
+    });
 
   // Default to the top-ranked participant so the detail panel is never a
   // blank "pilih peserta" placeholder — it only stays empty when the batch
@@ -549,7 +546,7 @@ export const PilotCsat: React.FC<{
             rows.map((r, i) => {
               const st = STATUS[r.status];
               const isSel = selectedId === r.csId;
-              const isExpanded = expandedId === r.csId;
+              const isExpanded = expandedIds.has(r.csId);
               const noMatch = mismatchedIds.includes(r.csId);
               return (
                 <div key={r.csId} className="min-w-[360px] border-b border-border/60">
@@ -593,13 +590,13 @@ export const PilotCsat: React.FC<{
                       aria-label={isExpanded ? 'Tutup tren mingguan' : 'Lihat tren mingguan'}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setExpandedId(isExpanded ? null : r.csId);
+                        toggleExpanded(r.csId);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           e.stopPropagation();
-                          setExpandedId(isExpanded ? null : r.csId);
+                          toggleExpanded(r.csId);
                         }
                       }}
                       className="flex items-center justify-center rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
