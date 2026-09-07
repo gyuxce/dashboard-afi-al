@@ -47,6 +47,9 @@ export type PilotAgentRow = {
   teamLeader: string;
   note: string;
   baseline: number | null;
+  /** Same baseline over 1/2/3/4-week windows, with the raw good/total behind
+   *  each — for checking which window matches a known-good manual number. */
+  baselineByWindow: { days: number; from: string; to: string; pct: number | null; good: number; total: number }[];
   weeks: WeekBucket[];
   current: number | null;
   average: number | null;
@@ -68,6 +71,9 @@ export const PILOT_LULUS_MIN = 70;
 
 /** Baseline = CSAT SC Full % over the 2 weeks before batch start. */
 export const PILOT_BASELINE_DAYS = 14;
+
+/** Window lengths (days) surfaced in the panel while the baseline is verified. */
+export const PILOT_BASELINE_WINDOWS = [7, 14, 21, 28] as const;
 
 /** Cohort-level roll-up of one batch, for comparing batches side by side. */
 export type BatchSummary = {
@@ -251,7 +257,7 @@ export function csatScFullPct(
   daily: { normDate?: string | null; date: string; score: number; count: number }[],
   start: string,
   end: string,
-): { pct: number | null; total: number } {
+): { pct: number | null; good: number; total: number } {
   let good = 0;
   let total = 0;
   for (const e of daily || []) {
@@ -260,7 +266,7 @@ export function csatScFullPct(
     good += e.score;
     total += e.count;
   }
-  return { pct: total > 0 ? (good / total) * 100 : null, total };
+  return { pct: total > 0 ? (good / total) * 100 : null, good, total };
 }
 
 /** Split [start, end] into consecutive 7-day buckets, each with its CSAT SC Full %. */
@@ -294,6 +300,10 @@ export function buildPilotAgentRow(
   const baseEnd = addDays(start, -1);
 
   const daily = agent?.dailyHistory?.csatScFull || [];
+  const baselineByWindow = PILOT_BASELINE_WINDOWS.map((days) => {
+    const from = addDays(start, -days);
+    return { days, from, to: baseEnd, ...csatScFullPct(daily, from, baseEnd) };
+  });
   const baseline = csatScFullPct(daily, addDays(start, -PILOT_BASELINE_DAYS), baseEnd).pct;
   const weeks = weekBuckets(daily, start, end);
   const filled = weeks.filter((w) => w.pct !== null) as (WeekBucket & { pct: number })[];
@@ -374,6 +384,7 @@ export function buildPilotAgentRow(
     teamLeader: agent?.teamLeader || '-',
     note: entry.note,
     baseline,
+    baselineByWindow,
     weeks,
     current,
     average,
