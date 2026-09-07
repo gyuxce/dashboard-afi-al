@@ -127,6 +127,23 @@ const PilotDetail: React.FC<{ row: PilotAgentRow; onClose?: () => void }> = ({ r
         </div>
       </div>
 
+      <div className="mt-2 rounded-lg border border-dashed border-border bg-surface/50 px-2 py-1.5">
+        <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-text-muted">
+          Cek baseline · window sebelum {row.baselineByWindow[0]?.to}
+        </div>
+        <div className="flex flex-col gap-0.5">
+          {row.baselineByWindow.map((b) => (
+            <div key={b.days} className="flex items-baseline justify-between gap-2 text-[10px] tabular-nums text-text-muted">
+              <span>{b.days / 7} mgg <span className="text-text-disabled">({b.from})</span></span>
+              <span>
+                <span className="font-bold text-text-secondary">{b.pct === null ? '–' : `${formatNum(b.pct, 1)}%`}</span>
+                <span className="text-text-disabled"> = {b.good}/{b.total} baik</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-4">
         <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">Tren mingguan</div>
         <WeekBars weeks={row.weeks} baseline={row.baseline} />

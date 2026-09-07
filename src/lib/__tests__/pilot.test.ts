@@ -80,10 +80,10 @@ describe('csatScFullPct', () => {
     ['2026-08-06', 6, 6],
   ]);
   it('sums good/total within the inclusive range', () => {
-    expect(csatScFullPct(d, '2026-08-01', '2026-08-31')).toEqual({ pct: 90, total: 10 });
+    expect(csatScFullPct(d, '2026-08-01', '2026-08-31')).toEqual({ pct: 90, good: 9, total: 10 });
   });
   it('null when no ratings in range', () => {
-    expect(csatScFullPct(d, '2026-09-01', '2026-09-30')).toEqual({ pct: null, total: 0 });
+    expect(csatScFullPct(d, '2026-09-01', '2026-09-30')).toEqual({ pct: null, good: 0, total: 0 });
   });
 });
 
