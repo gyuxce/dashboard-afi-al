@@ -128,6 +128,12 @@ describe('buildPilotAgentRow', () => {
     expect(row.delta).toBe(20);
     expect(row.trendUp).toBe(true);
     expect(row.status).toBe('lulus');
+    // baselineByWindow: only the 2026-07-25 rating (in every window that
+    // reaches back to it — 14/21/28d do, 7d ends 2026-07-27..starts 2026-07-27 no).
+    expect(row.baselineByWindow.map((b) => b.days)).toEqual([7, 14, 21, 28]);
+    expect(row.baselineByWindow.find((b) => b.days === 7)!.pct).toBeNull();     // 2026-07-27..08-02, no rating
+    expect(row.baselineByWindow.find((b) => b.days === 14)!.pct).toBe(60);      // 2026-07-20..08-02
+    expect(row.baselineByWindow.find((b) => b.days === 28)!.total).toBe(10);
   });
 
   it('flat / below-target trend → next-batch', () => {
