@@ -56,13 +56,34 @@ describe('parsePilotRows', () => {
     expect(parsePilotRows([])).toEqual([]);
     expect(parsePilotRows([['Batch', 'CS ID']])).toEqual([]);
   });
+
+  it('reads the optional Baseline column (percent, "%", 0–1 fraction, blank, junk)', () => {
+    const rows = [
+      ['Batch', 'CS ID', 'Tanggal Mulai', 'Tanggal Selesai', 'Catatan', 'Baseline'],
+      ['B', '3-1-1', '2026-08-03', '', '', '62'],
+      ['B', '3-1-2', '2026-08-03', '', '', '68.5%'],
+      ['B', '3-1-3', '2026-08-03', '', '', '0.7'],
+      ['B', '3-1-4', '2026-08-03', '', '', ''],
+      ['B', '3-1-5', '2026-08-03', '', '', 'n/a'],
+    ];
+    const out = parsePilotRows(rows);
+    expect(out.map((e) => e.baselineOverride)).toEqual([62, 68.5, 70, null, null]);
+  });
+
+  it('baselineOverride is null when there is no Baseline column', () => {
+    const out = parsePilotRows([
+      ['Batch', 'CS ID', 'Tanggal Mulai', 'Tanggal Selesai', 'Catatan'],
+      ['B', '3-1-1', '2026-08-03', '', ''],
+    ]);
+    expect(out[0].baselineOverride).toBeNull();
+  });
 });
 
 describe('getPilotBatches', () => {
   const entries: PilotEntry[] = [
-    { batch: 'Agu W1', csId: 'a', startDate: '2026-08-03', endDate: '2026-08-30', note: '' },
-    { batch: 'Agu W1', csId: 'b', startDate: '2026-08-03', endDate: '2026-08-30', note: '' },
-    { batch: 'Sep W1', csId: 'c', startDate: '2026-09-01', endDate: null, note: '' },
+    { batch: 'Agu W1', csId: 'a', startDate: '2026-08-03', endDate: '2026-08-30', note: '', baselineOverride: null },
+    { batch: 'Agu W1', csId: 'b', startDate: '2026-08-03', endDate: '2026-08-30', note: '', baselineOverride: null },
+    { batch: 'Sep W1', csId: 'c', startDate: '2026-09-01', endDate: null, note: '', baselineOverride: null },
   ];
   it('groups by batch, newest first, ongoing when an end date is missing', () => {
     const b = getPilotBatches(entries);
@@ -107,6 +128,7 @@ describe('buildPilotAgentRow', () => {
     startDate: '2026-08-03',
     endDate: '2026-08-16',
     note: 'Fokus empati',
+    baselineOverride: null,
   };
 
   it('computes baseline (2 wks before), weekly trend, delta, and LULUS on an upward trend past 70', () => {
@@ -180,6 +202,24 @@ describe('buildPilotAgentRow', () => {
     expect(row.current).toBeNull();
   });
 
+  it('manual baselineOverride from the sheet wins over the auto 2-week value', () => {
+    const agent = makeAgent({
+      dailyHistory: {
+        csatScFull: daily([
+          ['2026-07-25', 6, 10], // auto baseline would be 60
+          ['2026-08-05', 7, 10], // wk1 70
+        ]),
+        csatScFair: [], productivity: [], csat: [], sla1m: [], sla3m: [], whu: [], schedule: [],
+      },
+    } as Partial<AgentKPI>);
+    const row = buildPilotAgentRow({ ...entry, baselineOverride: 62 }, agent, '2026-08-31');
+    expect(row.baseline).toBe(62);
+    expect(row.baselineIsManual).toBe(true);
+    expect(row.delta).toBe(70 - 62);
+    // the auto windows are still exposed as a reference
+    expect(row.baselineByWindow.find((b) => b.days === 14)!.pct).toBe(60);
+  });
+
   it('baseline exists but no progress week yet → no-data, not next-batch', () => {
     const agent = makeAgent({
       dailyHistory: {
@@ -196,7 +236,7 @@ describe('buildPilotAgentRow', () => {
 
 describe('summarizeBatch', () => {
   const entry = (over: Partial<PilotEntry>): PilotEntry => ({
-    batch: 'B', csId: '3-1-1', startDate: '2026-08-03', endDate: '2026-08-16', note: '', ...over,
+    batch: 'B', csId: '3-1-1', startDate: '2026-08-03', endDate: '2026-08-16', note: '', baselineOverride: null, ...over,
   });
   const agentWith = (csId: string, full: Array<[string, number, number]>) =>
     makeAgent({

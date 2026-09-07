@@ -15,6 +15,8 @@ export type PilotEntry = {
   startDate: string;       // ISO YYYY-MM-DD
   endDate: string | null;  // ISO, or null while the batch is still running
   note: string;
+  /** Manual baseline % from the sheet's `Baseline` column; null → auto-compute. */
+  baselineOverride: number | null;
 };
 
 export type PilotBatch = {
@@ -47,8 +49,9 @@ export type PilotAgentRow = {
   teamLeader: string;
   note: string;
   baseline: number | null;
-  /** Same baseline over 1/2/3/4-week windows, with the raw good/total behind
-   *  each — for checking which window matches a known-good manual number. */
+  /** True when `baseline` came from the sheet's `Baseline` column, not auto-computed. */
+  baselineIsManual: boolean;
+  /** Auto 1/2/3/4-week windows with raw good/total — a hint for filling the sheet. */
   baselineByWindow: { days: number; from: string; to: string; pct: number | null; good: number; total: number }[];
   weeks: WeekBucket[];
   current: number | null;
@@ -173,7 +176,11 @@ const fmtRange = (a: string, b: string): string => {
     : `${da.getDate()} ${mo(da)} – ${db.getDate()} ${mo(db)}`;
 };
 
-/** Parse the raw PILOT sheet rows. Header row + `Batch | CS ID | Mulai | Selesai | Catatan`. */
+/**
+ * Parse the raw PILOT sheet rows. Columns resolved by header name:
+ * `Batch | CS ID | Tanggal Mulai | Tanggal Selesai | Catatan Coaching | Baseline`.
+ * `Baseline` is optional — a manual % override; blank means auto-compute.
+ */
 export function parsePilotRows(rows: unknown[][] | null | undefined): PilotEntry[] {
   if (!rows || rows.length < 2) return [];
   const header = rows[0].map((h) => String(h ?? '').trim().toLowerCase());
@@ -189,6 +196,16 @@ export function parsePilotRows(rows: unknown[][] | null | undefined): PilotEntry
   const cStart = col(['mulai', 'start'], 2);
   const cEnd = col(['selesai', 'end'], 3);
   const cNote = col(['catatan', 'note', 'coaching'], 4);
+  const cBaseline = col(['baseline', 'base line'], -1);
+
+  const parsePct = (v: unknown): number | null => {
+    const s = String(v ?? '').trim().replace('%', '').replace(',', '.');
+    if (!s) return null;
+    const n = Number(s);
+    if (!Number.isFinite(n)) return null;
+    // accept "0.62" or "62"
+    return n > 0 && n <= 1 ? n * 100 : n;
+  };
 
   const out: PilotEntry[] = [];
   for (let r = 1; r < rows.length; r++) {
@@ -203,6 +220,7 @@ export function parsePilotRows(rows: unknown[][] | null | undefined): PilotEntry
       startDate,
       endDate: toIso(row[cEnd]),
       note: String(row[cNote] ?? '').trim(),
+      baselineOverride: cBaseline >= 0 ? parsePct(row[cBaseline]) : null,
     });
   }
   return out;
@@ -304,7 +322,10 @@ export function buildPilotAgentRow(
     const from = addDays(start, -days);
     return { days, from, to: baseEnd, ...csatScFullPct(daily, from, baseEnd) };
   });
-  const baseline = csatScFullPct(daily, addDays(start, -PILOT_BASELINE_DAYS), baseEnd).pct;
+  const autoBaseline = csatScFullPct(daily, addDays(start, -PILOT_BASELINE_DAYS), baseEnd).pct;
+  // Manual value from the sheet's `Baseline` column wins when present.
+  const baselineIsManual = entry.baselineOverride !== null;
+  const baseline = baselineIsManual ? entry.baselineOverride : autoBaseline;
   const weeks = weekBuckets(daily, start, end);
   const filled = weeks.filter((w) => w.pct !== null) as (WeekBucket & { pct: number })[];
   const current = filled.length ? filled[filled.length - 1].pct : null;
@@ -384,6 +405,7 @@ export function buildPilotAgentRow(
     teamLeader: agent?.teamLeader || '-',
     note: entry.note,
     baseline,
+    baselineIsManual,
     baselineByWindow,
     weeks,
     current,
