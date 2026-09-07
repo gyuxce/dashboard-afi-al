@@ -26,6 +26,23 @@ const STATUS: Record<PilotStatus, { label: string; cls: string }> = {
 const pct = (v: number | null, d = 1) => (v === null ? '–' : `${formatNum(v, d)}%`);
 const signed = (v: number | null, d = 1) => (v === null ? '–' : `${v >= 0 ? '+' : ''}${formatNum(v, d)}`);
 
+/** "sebelum 30.4% → selama 18.2%" — DSAT going down is good (green), up is bad (red). */
+const dsatArrow = (before: number | null, during: number | null): React.ReactNode => {
+  const cls =
+    before === null || during === null
+      ? 'text-text-secondary'
+      : during < before
+        ? 'text-success'
+        : during > before
+          ? 'text-danger'
+          : 'text-text-secondary';
+  return (
+    <span className={cls}>
+      sebelum {pct(before)} <span className="text-text-muted">→</span> selama {pct(during)}
+    </span>
+  );
+};
+
 const gridCols = 'grid-cols-[24px_minmax(0,1fr)_60px_54px_50px_74px_20px]';
 
 /** Weekly bars with a Δ-vs-previous-point badge — used in the drawer and the inline row expand. */
@@ -152,38 +169,73 @@ const PilotDetail: React.FC<{ row: PilotAgentRow; onClose?: () => void }> = ({ r
       </div>
 
       <div className="mt-4 border-t border-border pt-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">DSAT (rating 1–2)</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">DSAT rate (rating 1–2)</span>
           <span className="text-[11px] tabular-nums text-text-secondary">
-            {row.dsatCount}
-            {row.dsatPct !== null ? ` · ${formatNum(row.dsatPct, 1)}%` : ''}
+            {dsatArrow(row.baselineDsat.pct, row.dsatPct)}
           </span>
         </div>
-        {row.dsatByCategory.length > 0 ? (
-          <ul className="mt-2 flex flex-col gap-1">
-            {row.dsatByCategory.slice(0, 6).map((c) => {
-              const repeat = row.repeatIndicators.includes(c.category);
-              return (
-                <li key={c.category} className="flex items-center justify-between gap-2 text-[11px]">
-                  <span className={cn('min-w-0 truncate', repeat ? 'font-semibold text-warning-text' : 'text-text-secondary')}>
-                    {c.category}
-                    {repeat ? ' ↻' : ''}
-                  </span>
-                  <span className="shrink-0 tabular-nums text-text-primary">{c.count}</span>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="mt-2 text-[11px] text-text-muted">Tidak ada rating buruk pada periode ini.</p>
-        )}
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <div>
+            <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-text-muted">
+              Kategori · sebelum <span className="text-text-disabled">({row.baselineDsat.count})</span>
+            </div>
+            {row.baselineDsat.byCategory.length ? (
+              <ul className="flex flex-col gap-0.5">
+                {row.baselineDsat.byCategory.slice(0, 5).map((c) => (
+                  <li key={c.category} className="flex items-start justify-between gap-1.5 text-[10px] text-text-secondary">
+                    <span className="min-w-0">{c.category}</span>
+                    <span className="shrink-0 tabular-nums text-text-primary">{c.count}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[10px] text-text-muted">—</p>
+            )}
+          </div>
+          <div>
+            <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-text-muted">
+              Kategori · selama <span className="text-text-disabled">({row.dsatCount})</span>
+            </div>
+            {row.dsatByCategory.length ? (
+              <ul className="flex flex-col gap-0.5">
+                {row.dsatByCategory.slice(0, 5).map((c) => {
+                  const repeat = row.repeatIndicators.includes(c.category);
+                  return (
+                    <li key={c.category} className="flex items-start justify-between gap-1.5 text-[10px]">
+                      <span className={cn('min-w-0', repeat ? 'font-semibold text-warning-text' : 'text-text-secondary')}>
+                        {c.category}{repeat ? ' ↻' : ''}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-text-primary">{c.count}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-[10px] text-text-muted">—</p>
+            )}
+          </div>
+        </div>
         {row.repeatIndicators.length > 0 && (
-          <p className="mt-2 text-[10px] text-text-muted">↻ = indikator berulang (muncul di ≥ 2 minggu)</p>
+          <p className="mt-2 text-[10px] text-text-muted">↻ = indikator berulang selama project (muncul di ≥ 2 minggu)</p>
         )}
       </div>
 
       <div className="mt-4 border-t border-border pt-3">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-danger-text">Bad handling (rating 1–2)</div>
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-danger-text">Case buruk · sebelum project</div>
+        {row.baselineCases.length ? (
+          <div className="flex flex-col gap-2">
+            {row.baselineCases.map((c, i) => (
+              <CaseCard key={i} c={c} tone="bad" />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-text-muted">Tidak ada rating buruk di 2 minggu sebelum project.</p>
+        )}
+      </div>
+
+      <div className="mt-4 border-t border-border pt-3">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-danger-text">Case buruk · selama project</div>
         {row.badCases.length ? (
           <div className="flex flex-col gap-2">
             {row.badCases.map((c, i) => (
@@ -196,7 +248,7 @@ const PilotDetail: React.FC<{ row: PilotAgentRow; onClose?: () => void }> = ({ r
       </div>
 
       <div className="mt-4 border-t border-border pt-3">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-success-text">Good handling (rating 4–5)</div>
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-success-text">Good handling · selama project (rating 4–5)</div>
         {row.goodCases.length ? (
           <div className="flex flex-col gap-2">
             {row.goodCases.map((c, i) => (
@@ -328,9 +380,24 @@ export const PilotCsat: React.FC<{
           </span>
         ),
       },
-      { label: 'DSAT rate (1–2)', get: (b) => (b.dsatPct === null ? dash : `${formatNum(b.dsatPct, 1)}%`) },
-      { label: 'Rating dinilai (buruk / total)', get: (b) => (b.dsatValidTotal ? `${b.dsatCount} / ${b.dsatValidTotal}` : dash) },
-      { label: 'Kategori DSAT teratas', get: catCell, align: 'left' },
+      {
+        label: 'DSAT rate · sebelum → selama',
+        get: (b) => {
+          if (b.baselineDsatPct === null && b.dsatPct === null) return dash;
+          const cls = b.baselineDsatPct !== null && b.dsatPct !== null
+            ? b.dsatPct < b.baselineDsatPct ? 'text-success' : b.dsatPct > b.baselineDsatPct ? 'text-danger' : ''
+            : '';
+          return (
+            <span className={cn('text-[10px]', cls)}>
+              {b.baselineDsatPct === null ? '–' : `${formatNum(b.baselineDsatPct, 1)}%`}
+              {' → '}
+              {b.dsatPct === null ? '–' : `${formatNum(b.dsatPct, 1)}%`}
+            </span>
+          );
+        },
+      },
+      { label: 'DSAT selama (buruk / total)', get: (b) => (b.dsatValidTotal ? `${b.dsatCount} / ${b.dsatValidTotal}` : dash) },
+      { label: 'Kategori DSAT teratas · selama', get: catCell, align: 'left' },
       { label: 'CSAT SC per minggu', get: () => null, section: true },
     ];
     for (let i = 0; i < maxCompareWeeks; i++) {

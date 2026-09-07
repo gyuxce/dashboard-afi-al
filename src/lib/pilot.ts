@@ -67,6 +67,10 @@ export type PilotAgentRow = {
   repeatIndicators: string[];
   badCases: PilotCase[];
   goodCases: PilotCase[];
+  /** Same DSAT analysis over the 2-week window BEFORE the batch — the "sebelum project" picture. */
+  baselineDsat: { validTotal: number; count: number; pct: number | null; byCategory: { category: string; count: number }[] };
+  /** Up to 5 worst-handling cases from that pre-batch window. */
+  baselineCases: PilotCase[];
 };
 
 /** LULUS threshold — "70–75% ke atas, yang penting ada tren kenaikan". */
@@ -89,10 +93,12 @@ export type BatchSummary = {
   avgBaseline: number | null;
   avgCurrent: number | null;
   avgDelta: number | null;
-  /** Cohort DSAT (ratings 1–2) rolled up across all participants. */
+  /** Cohort DSAT (ratings 1–2) during the batch, rolled up across all participants. */
   dsatCount: number;
   dsatValidTotal: number;
   dsatPct: number | null;
+  /** Same DSAT rate over the 2 weeks BEFORE each batch (the "sebelum" number). */
+  baselineDsatPct: number | null;
   /** Top DSAT categories across the whole cohort, most frequent first. */
   topDsatCategories: { category: string; count: number }[];
   /** Categories flagged as recurring for at least one participant. */
@@ -132,6 +138,8 @@ export function summarizeBatch(rows: PilotAgentRow[]): BatchSummary {
 
   const dsatCount = rows.reduce((s, r) => s + r.dsatCount, 0);
   const dsatValidTotal = rows.reduce((s, r) => s + r.dsatValidTotal, 0);
+  const bDsatCount = rows.reduce((s, r) => s + r.baselineDsat.count, 0);
+  const bDsatValid = rows.reduce((s, r) => s + r.baselineDsat.validTotal, 0);
 
   return {
     participants: rows.length,
@@ -144,6 +152,7 @@ export function summarizeBatch(rows: PilotAgentRow[]): BatchSummary {
     dsatCount,
     dsatValidTotal,
     dsatPct: dsatValidTotal > 0 ? (dsatCount / dsatValidTotal) * 100 : null,
+    baselineDsatPct: bDsatValid > 0 ? (bDsatCount / bDsatValid) * 100 : null,
     topDsatCategories,
     repeatCategories: Array.from(new Set(rows.flatMap((r) => r.repeatIndicators))),
     weekAvgs,
@@ -316,13 +325,14 @@ export function buildPilotAgentRow(
   const start = entry.startDate;
   const end = entry.endDate || (windowEnd && windowEnd >= start ? windowEnd : start);
   const baseEnd = addDays(start, -1);
+  const baseStart = addDays(start, -PILOT_BASELINE_DAYS);
 
   const daily = agent?.dailyHistory?.csatScFull || [];
   const baselineByWindow = PILOT_BASELINE_WINDOWS.map((days) => {
     const from = addDays(start, -days);
     return { days, from, to: baseEnd, ...csatScFullPct(daily, from, baseEnd) };
   });
-  const autoBaseline = csatScFullPct(daily, addDays(start, -PILOT_BASELINE_DAYS), baseEnd).pct;
+  const autoBaseline = csatScFullPct(daily, baseStart, baseEnd).pct;
   // Manual value from the sheet's `Baseline` column wins when present.
   const baselineIsManual = entry.baselineOverride !== null;
   const baseline = baselineIsManual ? entry.baselineOverride : autoBaseline;
@@ -338,29 +348,64 @@ export function buildPilotAgentRow(
     current !== null &&
     ((firstPct !== null && current > firstPct) || (baseline !== null && current > baseline));
 
-  // DSAT + sample cases from individual CSAT SC survey rows within the window.
-  const hist = (agent?.csatHistory || []).filter((h) => {
+  const allHist = (agent?.csatHistory || []).filter((h) => isValidCsatScScore(h.score));
+  const inRange = (h: CSATEntry, lo: string, hi: string) => {
     const k = dayKey(h);
-    return k !== null && k >= start && k <= end && isValidCsatScScore(h.score);
+    return k !== null && k >= lo && k <= hi;
+  };
+  const toCase = (h: CSATEntry): PilotCase => ({
+    date: dayKey(h) || h.date,
+    score: h.score,
+    category: String(h.category || '').trim() || '—',
+    response: String(h.response || '').trim(),
   });
-  const validTotal = hist.length;
-  const bad = hist.filter((h) => h.score === 1 || h.score === 2);
-  const goodH = hist.filter((h) => h.score === 4 || h.score === 5);
-  const dsatCount = bad.length;
-  const dsatPct = validTotal > 0 ? (dsatCount / validTotal) * 100 : null;
+  const cmpRecent = (a: CSATEntry, b: CSATEntry) =>
+    (dayKey(b) || '').localeCompare(dayKey(a) || '');
 
-  const catMap = new Map<string, number>();
-  for (const h of bad) {
-    const c = String(h.category || '').trim() || 'Tanpa kategori';
-    catMap.set(c, (catMap.get(c) || 0) + 1);
-  }
-  const dsatByCategory = Array.from(catMap.entries())
-    .map(([category, count]) => ({ category, count }))
-    .sort((a, b) => b.count - a.count);
+  /** DSAT rate, category breakdown and sample bad/good cases over one window. */
+  const analyzeWindow = (lo: string, hi: string) => {
+    const hist = allHist.filter((h) => inRange(h, lo, hi));
+    const bad = hist.filter((h) => h.score === 1 || h.score === 2);
+    const goodH = hist.filter((h) => h.score === 4 || h.score === 5);
+    const catMap = new Map<string, number>();
+    for (const h of bad) {
+      const c = String(h.category || '').trim() || 'Tanpa kategori';
+      catMap.set(c, (catMap.get(c) || 0) + 1);
+    }
+    return {
+      validTotal: hist.length,
+      dsatCount: bad.length,
+      dsatPct: hist.length > 0 ? (bad.length / hist.length) * 100 : null,
+      byCategory: Array.from(catMap.entries())
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count),
+      bad,
+      badCases: [...bad].sort((a, b) => a.score - b.score || cmpRecent(a, b)).slice(0, 5).map(toCase),
+      goodCases: [...goodH].sort((a, b) => b.score - a.score || cmpRecent(a, b)).slice(0, 5).map(toCase),
+    };
+  };
+
+  const during = analyzeWindow(start, end);
+  const before = analyzeWindow(baseStart, baseEnd);
+
+  const validTotal = during.validTotal;
+  const dsatCount = during.dsatCount;
+  const dsatPct = during.dsatPct;
+  const dsatByCategory = during.byCategory;
+  const badCases = during.badCases;
+  const goodCases = during.goodCases;
+
+  const baselineDsat = {
+    validTotal: before.validTotal,
+    count: before.dsatCount,
+    pct: before.dsatPct,
+    byCategory: before.byCategory,
+  };
+  const baselineCases = before.badCases;
 
   const weekIndexOf = (k: string) => weeks.findIndex((w) => k >= w.start && k <= w.end);
   const catWeeks = new Map<string, Set<number>>();
-  for (const h of bad) {
+  for (const h of during.bad) {
     const k = dayKey(h);
     if (!k) continue;
     const wi = weekIndexOf(k);
@@ -373,23 +418,6 @@ export function buildPilotAgentRow(
   const repeatIndicators = Array.from(catWeeks.entries())
     .filter(([, s]) => s.size >= 2)
     .map(([c]) => c);
-
-  const toCase = (h: CSATEntry): PilotCase => ({
-    date: dayKey(h) || h.date,
-    score: h.score,
-    category: String(h.category || '').trim() || '—',
-    response: String(h.response || '').trim(),
-  });
-  const cmpRecent = (a: CSATEntry, b: CSATEntry) =>
-    (dayKey(b) || '').localeCompare(dayKey(a) || '');
-  const badCases = [...bad]
-    .sort((a, b) => a.score - b.score || cmpRecent(a, b))
-    .slice(0, 5)
-    .map(toCase);
-  const goodCases = [...goodH]
-    .sort((a, b) => b.score - a.score || cmpRecent(a, b))
-    .slice(0, 5)
-    .map(toCase);
 
   // No progress data yet (batch not started, or nothing synced) → can't judge.
   // Only call someone "next-batch" once there's an actual result to look at.
@@ -420,5 +448,7 @@ export function buildPilotAgentRow(
     repeatIndicators,
     badCases,
     goodCases,
+    baselineDsat,
+    baselineCases,
   };
 }
