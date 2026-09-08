@@ -5,10 +5,11 @@ import { Sparkline } from '../ui/Sparkline';
 import { EmptyState } from '../ui/EmptyState';
 import { IncompleteDataNotice } from '../ui/IncompleteDataNotice';
 import { downloadCsv } from '../../lib/exportCsv';
-import { Rocket, X, Download, ChevronDown, Loader2 } from 'lucide-react';
+import { Rocket, X, Download, ChevronDown, Loader2, Copy, Check } from 'lucide-react';
 import {
   buildPilotAgentRow,
   getPilotBatches,
+  pilotBatchWindowEnd,
   summarizeBatch,
   type PilotEntry,
   type PilotAgentRow,
@@ -76,6 +77,29 @@ const WeekBars: React.FC<{ weeks: PilotAgentRow['weeks']; baseline: number | nul
   );
 };
 
+const CopyId: React.FC<{ label: string; value: string }> = ({ label, value }) => {
+  const [done, setDone] = useState(false);
+  if (!value) return null;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard?.writeText(value).then(() => {
+          setDone(true);
+          setTimeout(() => setDone(false), 1200);
+        });
+      }}
+      title={`Copy ${label}`}
+      className="inline-flex max-w-full items-center gap-1 rounded bg-surface-muted px-1.5 py-0.5 text-[9px] font-medium text-text-secondary transition-colors hover:bg-border-strong"
+    >
+      <span className="text-text-muted">{label}</span>
+      <span className="truncate tabular-nums">{value}</span>
+      {done ? <Check className="h-2.5 w-2.5 shrink-0 text-success" /> : <Copy className="h-2.5 w-2.5 shrink-0" />}
+    </button>
+  );
+};
+
 const CaseCard: React.FC<{ c: PilotCase; tone: 'bad' | 'good' }> = ({ c, tone }) => (
   <div
     className={cn(
@@ -98,11 +122,121 @@ const CaseCard: React.FC<{ c: PilotCase; tone: 'bad' | 'good' }> = ({ c, tone })
     {c.response && (
       <p className="mt-1 text-[11px] italic leading-relaxed text-text-muted">&ldquo;{c.response}&rdquo;</p>
     )}
+    {(c.ticketId || c.chatId || c.uid) && (
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        <CopyId label="Tiket" value={c.ticketId} />
+        <CopyId label="Chat" value={c.chatId} />
+        <CopyId label="UID" value={c.uid} />
+      </div>
+    )}
   </div>
 );
 
+/** Full case list, two windows side by side. */
+const PilotCaseModal: React.FC<{
+  title: string;
+  before: PilotCase[];
+  during: PilotCase[];
+  beforeTone?: 'bad' | 'good';
+  duringTone?: 'bad' | 'good';
+  onClose: () => void;
+}> = ({ title, before, during, beforeTone = 'bad', duringTone = 'bad', onClose }) => {
+  React.useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+  const Col: React.FC<{ heading: string; cases: PilotCase[]; tone: 'bad' | 'good' }> = ({ heading, cases, tone }) => (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{heading}</span>
+        <span className="text-[11px] tabular-nums text-text-secondary">{cases.length}</span>
+      </div>
+      <div className="flex flex-col gap-2 overflow-y-auto pr-1">
+        {cases.length ? (
+          cases.map((c, i) => <CaseCard key={i} c={c} tone={tone} />)
+        ) : (
+          <p className="text-[11px] text-text-muted">Tidak ada.</p>
+        )}
+      </div>
+    </div>
+  );
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-border bg-card p-4 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <h3 className="text-sm font-bold text-text-primary">{title}</h3>
+          <button onClick={onClose} aria-label="Tutup" className="shrink-0 rounded p-1 text-text-muted hover:bg-surface-muted hover:text-text-primary">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex min-h-0 flex-col gap-4 sm:flex-row">
+          <Col heading="Sebelum project" cases={before} tone={beforeTone} />
+          <div className="hidden w-px shrink-0 bg-border sm:block" />
+          <Col heading="Selama project" cases={during} tone={duringTone} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+type CaseModalState = {
+  title: string;
+  before: PilotCase[];
+  during: PilotCase[];
+  beforeTone?: 'bad' | 'good';
+  duringTone?: 'bad' | 'good';
+};
+
+const CASE_PREVIEW = 4;
+
 const PilotDetail: React.FC<{ row: PilotAgentRow; onClose?: () => void }> = ({ row, onClose }) => {
   const st = STATUS[row.status];
+  const [caseModal, setCaseModal] = useState<CaseModalState | null>(null);
+  const openCategory = (category: string) =>
+    setCaseModal({
+      title: `Case DSAT · ${category}`,
+      before: row.baselineCases.filter((c) => c.category === category),
+      during: row.badCases.filter((c) => c.category === category),
+    });
+
+  const CaseSection: React.FC<{
+    title: string;
+    tone: 'bad' | 'good';
+    cases: PilotCase[];
+    empty: string;
+    modal?: CaseModalState;
+  }> = ({ title, tone, cases, empty, modal }) => (
+    <div className="mt-4 border-t border-border pt-3">
+      <div className={cn('mb-2 text-[11px] font-medium uppercase tracking-wide', tone === 'bad' ? 'text-danger-text' : 'text-success-text')}>
+        {title}
+      </div>
+      {cases.length ? (
+        <>
+          <div className="flex flex-col gap-2">
+            {cases.slice(0, CASE_PREVIEW).map((c, i) => (
+              <CaseCard key={i} c={c} tone={tone} />
+            ))}
+          </div>
+          {cases.length > CASE_PREVIEW && modal && (
+            <button
+              type="button"
+              onClick={() => setCaseModal(modal)}
+              className="mt-2 text-[11px] font-semibold text-primary hover:underline"
+            >
+              Lihat semua {cases.length} case →
+            </button>
+          )}
+        </>
+      ) : (
+        <p className="text-[11px] text-text-muted">{empty}</p>
+      )}
+    </div>
+  );
+
   return (
     <>
       <div className="mb-4 flex items-start justify-between gap-2">
@@ -183,9 +317,15 @@ const PilotDetail: React.FC<{ row: PilotAgentRow; onClose?: () => void }> = ({ r
             {row.baselineDsat.byCategory.length ? (
               <ul className="flex flex-col gap-0.5">
                 {row.baselineDsat.byCategory.slice(0, 5).map((c) => (
-                  <li key={c.category} className="flex items-start justify-between gap-1.5 text-[10px] text-text-secondary">
-                    <span className="min-w-0">{c.category}</span>
-                    <span className="shrink-0 tabular-nums text-text-primary">{c.count}</span>
+                  <li key={c.category}>
+                    <button
+                      type="button"
+                      onClick={() => openCategory(c.category)}
+                      className="flex w-full items-start justify-between gap-1.5 rounded px-1 py-0.5 text-left text-[10px] text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary"
+                    >
+                      <span className="min-w-0">{c.category}</span>
+                      <span className="shrink-0 tabular-nums text-text-primary">{c.count}</span>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -202,11 +342,17 @@ const PilotDetail: React.FC<{ row: PilotAgentRow; onClose?: () => void }> = ({ r
                 {row.dsatByCategory.slice(0, 5).map((c) => {
                   const repeat = row.repeatIndicators.includes(c.category);
                   return (
-                    <li key={c.category} className="flex items-start justify-between gap-1.5 text-[10px]">
-                      <span className={cn('min-w-0', repeat ? 'font-semibold text-warning-text' : 'text-text-secondary')}>
-                        {c.category}{repeat ? ' ↻' : ''}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-text-primary">{c.count}</span>
+                    <li key={c.category}>
+                      <button
+                        type="button"
+                        onClick={() => openCategory(c.category)}
+                        className="flex w-full items-start justify-between gap-1.5 rounded px-1 py-0.5 text-left text-[10px] transition-colors hover:bg-surface-muted"
+                      >
+                        <span className={cn('min-w-0', repeat ? 'font-semibold text-warning-text' : 'text-text-secondary')}>
+                          {c.category}{repeat ? ' ↻' : ''}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-text-primary">{c.count}</span>
+                      </button>
                     </li>
                   );
                 })}
@@ -221,50 +367,44 @@ const PilotDetail: React.FC<{ row: PilotAgentRow; onClose?: () => void }> = ({ r
         )}
       </div>
 
-      <div className="mt-4 border-t border-border pt-3">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-danger-text">Case buruk · sebelum project</div>
-        {row.baselineCases.length ? (
-          <div className="flex flex-col gap-2">
-            {row.baselineCases.map((c, i) => (
-              <CaseCard key={i} c={c} tone="bad" />
-            ))}
-          </div>
-        ) : (
-          <p className="text-[11px] text-text-muted">Tidak ada rating buruk di 2 minggu sebelum project.</p>
-        )}
-      </div>
-
-      <div className="mt-4 border-t border-border pt-3">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-danger-text">Case buruk · selama project</div>
-        {row.badCases.length ? (
-          <div className="flex flex-col gap-2">
-            {row.badCases.map((c, i) => (
-              <CaseCard key={i} c={c} tone="bad" />
-            ))}
-          </div>
-        ) : (
-          <p className="text-[11px] text-text-muted">Tidak ada pada periode ini.</p>
-        )}
-      </div>
-
-      <div className="mt-4 border-t border-border pt-3">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-success-text">Good handling · selama project (rating 4–5)</div>
-        {row.goodCases.length ? (
-          <div className="flex flex-col gap-2">
-            {row.goodCases.map((c, i) => (
-              <CaseCard key={i} c={c} tone="good" />
-            ))}
-          </div>
-        ) : (
-          <p className="text-[11px] text-text-muted">Tidak ada pada periode ini.</p>
-        )}
-      </div>
+      <CaseSection
+        title="Case buruk · sebelum project"
+        tone="bad"
+        cases={row.baselineCases}
+        empty="Tidak ada rating buruk di 2 minggu sebelum project."
+        modal={{ title: 'Case buruk · sebelum vs selama', before: row.baselineCases, during: row.badCases }}
+      />
+      <CaseSection
+        title="Case buruk · selama project"
+        tone="bad"
+        cases={row.badCases}
+        empty="Tidak ada pada periode ini."
+        modal={{ title: 'Case buruk · sebelum vs selama', before: row.baselineCases, during: row.badCases }}
+      />
+      <CaseSection
+        title="Good handling · selama project (rating 4–5)"
+        tone="good"
+        cases={row.goodCases}
+        empty="Tidak ada pada periode ini."
+        modal={{ title: 'Good handling · selama project', before: [], during: row.goodCases, duringTone: 'good' }}
+      />
 
       {row.note && (
         <div className="mt-4 border-t border-border pt-3">
           <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">Catatan coaching</div>
           <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-text-secondary">{row.note}</p>
         </div>
+      )}
+
+      {caseModal && (
+        <PilotCaseModal
+          title={caseModal.title}
+          before={caseModal.before}
+          during={caseModal.during}
+          beforeTone={caseModal.beforeTone}
+          duringTone={caseModal.duringTone}
+          onClose={() => setCaseModal(null)}
+        />
       )}
     </>
   );
@@ -301,8 +441,9 @@ export const PilotCsat: React.FC<{
 
   const rows = useMemo<PilotAgentRow[]>(() => {
     if (!activeBatch) return [];
+    const winEnd = pilotBatchWindowEnd(activeBatch, periodEnd);
     return activeBatch.entries
-      .map((e) => buildPilotAgentRow(e, byCsId.get(e.csId), activeBatch.endDate || periodEnd))
+      .map((e) => buildPilotAgentRow(e, byCsId.get(e.csId), winEnd))
       .sort((a, b) => (b.current ?? -1) - (a.current ?? -1));
   }, [activeBatch, byCsId, periodEnd]);
 
@@ -322,7 +463,8 @@ export const PilotCsat: React.FC<{
   /** One cohort roll-up per batch (not just the active one) for side-by-side compare. */
   const batchSummaries = useMemo(() => {
     return batches.map((b) => {
-      const batchRows = b.entries.map((e) => buildPilotAgentRow(e, byCsId.get(e.csId), b.endDate || periodEnd));
+      const winEnd = pilotBatchWindowEnd(b, periodEnd);
+      const batchRows = b.entries.map((e) => buildPilotAgentRow(e, byCsId.get(e.csId), winEnd));
       return {
         name: b.name,
         startDate: b.startDate,
