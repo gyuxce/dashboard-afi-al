@@ -3,6 +3,7 @@ import type { AgentKPI, CSATEntry } from '../dataProcessor';
 import {
   parsePilotRows,
   getPilotBatches,
+  pilotBatchWindowEnd,
   csatScFullPct,
   weekBuckets,
   buildPilotAgentRow,
@@ -91,6 +92,19 @@ describe('getPilotBatches', () => {
     expect(b[0]).toMatchObject({ startDate: '2026-09-01', endDate: null });
     expect(b[1]).toMatchObject({ startDate: '2026-08-03', endDate: '2026-08-30' });
     expect(b[1].entries).toHaveLength(2);
+  });
+
+  it('pilotBatchWindowEnd: latest sibling end date, else the dashboard fallback', () => {
+    const mixed = getPilotBatches([
+      { batch: 'X', csId: 'a', startDate: '2026-08-03', endDate: '2026-08-16', note: '', baselineOverride: null },
+      { batch: 'X', csId: 'b', startDate: '2026-08-03', endDate: null, note: '', baselineOverride: null },
+      { batch: 'X', csId: 'c', startDate: '2026-08-03', endDate: '2026-08-30', note: '', baselineOverride: null },
+    ])[0];
+    expect(pilotBatchWindowEnd(mixed, '2026-09-30')).toBe('2026-08-30'); // b's blank cell tracks the batch, not today
+    const allOpen = getPilotBatches([
+      { batch: 'Y', csId: 'd', startDate: '2026-09-01', endDate: null, note: '', baselineOverride: null },
+    ])[0];
+    expect(pilotBatchWindowEnd(allOpen, '2026-09-30')).toBe('2026-09-30'); // nothing to anchor to → fallback
   });
 });
 

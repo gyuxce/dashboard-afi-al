@@ -39,6 +39,10 @@ export type PilotCase = {
   score: number;
   category: string;
   response: string;
+  /** Source-system identifiers so a coach can pull up the exact conversation. */
+  ticketId: string;
+  chatId: string;
+  uid: string;
 };
 
 export type PilotStatus = 'lulus' | 'berproses' | 'next-batch' | 'no-data';
@@ -65,11 +69,12 @@ export type PilotAgentRow = {
   dsatPct: number | null;
   dsatByCategory: { category: string; count: number }[];
   repeatIndicators: string[];
+  /** All bad (1–2) / good (4–5) handling cases during the batch, worst/best first. */
   badCases: PilotCase[];
   goodCases: PilotCase[];
   /** Same DSAT analysis over the 2-week window BEFORE the batch — the "sebelum project" picture. */
   baselineDsat: { validTotal: number; count: number; pct: number | null; byCategory: { category: string; count: number }[] };
-  /** Up to 5 worst-handling cases from that pre-batch window. */
+  /** All bad-handling cases from that pre-batch window, worst first. */
   baselineCases: PilotCase[];
 };
 
@@ -259,6 +264,17 @@ export function getPilotBatches(entries: PilotEntry[]): PilotBatch[] {
 }
 
 /**
+ * The end date to use for a participant whose row has no `Tanggal Selesai`:
+ * the latest end date among their batch-mates, so a blank cell tracks the
+ * batch instead of ballooning out to "today". Falls back to `fallback`
+ * (the dashboard date) only when the whole batch is still open-ended.
+ */
+export function pilotBatchWindowEnd(batch: PilotBatch, fallback: string): string {
+  const ends = batch.entries.map((e) => e.endDate).filter((d): d is string => !!d);
+  return ends.length ? ends.sort()[ends.length - 1] : fallback;
+}
+
+/**
  * The processKPIs date range the Pilot CSAT tab needs: from 2 weeks before the
  * earliest batch start (baseline window) through the latest batch end
  * (or the dashboard period end for still-running batches).
@@ -358,6 +374,9 @@ export function buildPilotAgentRow(
     score: h.score,
     category: String(h.category || '').trim() || '—',
     response: String(h.response || '').trim(),
+    ticketId: String(h.ticketId || '').trim(),
+    chatId: String(h.chatId || '').trim(),
+    uid: String(h.uid || '').trim(),
   });
   const cmpRecent = (a: CSATEntry, b: CSATEntry) =>
     (dayKey(b) || '').localeCompare(dayKey(a) || '');
@@ -380,8 +399,9 @@ export function buildPilotAgentRow(
         .map(([category, count]) => ({ category, count }))
         .sort((a, b) => b.count - a.count),
       bad,
-      badCases: [...bad].sort((a, b) => a.score - b.score || cmpRecent(a, b)).slice(0, 5).map(toCase),
-      goodCases: [...goodH].sort((a, b) => b.score - a.score || cmpRecent(a, b)).slice(0, 5).map(toCase),
+      // Full sorted lists — the panel previews the first few, the modal shows all.
+      badCases: [...bad].sort((a, b) => a.score - b.score || cmpRecent(a, b)).map(toCase),
+      goodCases: [...goodH].sort((a, b) => b.score - a.score || cmpRecent(a, b)).map(toCase),
     };
   };
 
