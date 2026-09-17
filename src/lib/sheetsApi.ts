@@ -53,7 +53,13 @@ function fetchWithTimeout(url: string, signal?: AbortSignal, timeoutMs = 25000):
     if (signal.aborted) controller.abort();
     else signal.addEventListener('abort', () => controller.abort(), { once: true });
   }
-  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
+  // `cache: 'no-store'` forces a real network hit every time. Without it the
+  // browser's HTTP cache can (and does, per user report) serve back an old
+  // response for the exact same values.get URL — "Sync sekarang" then
+  // reports success and even bumps lastSyncTime, but the row content that
+  // actually lands in the store is unchanged, so a sheet edit never shows
+  // up until a hard refresh happens to evict the cache some other way.
+  return fetch(url, { signal: controller.signal, cache: 'no-store' }).finally(() => clearTimeout(timeoutId));
 }
 
 async function readGoogleSheetsError(response: Response): Promise<string> {
