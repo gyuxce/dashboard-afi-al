@@ -91,7 +91,7 @@ const SummaryCard = ({
   </div>
 );
 
-/** One row in the rank list — normalised from either an agent or a TL row. */
+/** One row in the tier list — normalised from either an agent or a TL row. */
 type ListItem = {
   id: string;
   name: string;
@@ -115,12 +115,14 @@ const KpiBar = ({
   pct,
   points,
   maxPoints,
+  decimals = 1,
 }: {
   label: string;
   weight: string;
   pct: number | null;
   points: number;
   maxPoints: number;
+  decimals?: number;
 }) => {
   const width = Math.min((points / maxPoints) * 100, 100);
   return (
@@ -128,7 +130,7 @@ const KpiBar = ({
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium text-text-muted">{label} ({weight})</span>
         <span className="font-semibold tabular-nums text-text-primary">
-          {pct !== null ? `${formatNum(pct, 1)}%` : "–"}
+          {pct !== null ? `${formatNum(pct, decimals)}%` : "–"}
           <span className="ml-1 font-normal text-text-muted">· {formatNum(points, 1)}/{maxPoints}</span>
         </span>
       </div>
@@ -145,14 +147,12 @@ const IncentiveDetail = ({
   mode,
   rawAgent,
   rawTl,
-  rank,
   onClose,
 }: {
   item: ListItem;
   mode: "agent" | "tl";
   rawAgent?: IncentiveRow;
   rawTl?: TeamLeaderIncentiveRow;
-  rank: number;
   onClose: () => void;
 }) => {
   const breakdown: { label: string; value: string; tone?: "success" | "muted" }[] =
@@ -183,7 +183,6 @@ const IncentiveDetail = ({
             {mode === "agent" && rawAgent?.teamLeader ? ` · TL ${rawAgent.teamLeader}` : ""}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-border bg-surface-muted px-2 py-0.5 text-xs text-text-muted">Rank #{rank}</span>
             <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-text-secondary">
               Skor {item.score !== null ? formatNum(item.score, 1) : "–"}
             </span>
@@ -203,14 +202,15 @@ const IncentiveDetail = ({
 
       <div className="space-y-4">
         <h3 className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Skor KPI</h3>
-        <KpiBar label="QC audit" weight="55%" pct={item.qcPct} points={item.qcPts} maxPoints={55} />
-        <KpiBar label="CSAT (QC tagging)" weight="25%" pct={item.csatPct} points={item.csatPts} maxPoints={25} />
+        <KpiBar label="QC audit" weight="55%" pct={item.qcPct} points={item.qcPts} maxPoints={55} decimals={4} />
+        <KpiBar label="CSAT (QC tagging)" weight="25%" pct={item.csatPct} points={item.csatPts} maxPoints={25} decimals={4} />
         <KpiBar
           label="Produktivitas"
           weight="20%"
           pct={item.prodPct !== null ? Math.min(item.prodPct, 100) : null}
           points={item.prodPts}
           maxPoints={20}
+          decimals={2}
         />
         <p className="text-[10px] text-text-muted">
           Total skor {item.score !== null ? formatNum(item.score, 2) : "–"} / 100. Kuis &amp; training wajib, tidak menambah skor.
@@ -432,7 +432,7 @@ export const IncentiveSimulation: React.FC<{
     });
   }, [filteredAgents, simulationRoster]);
 
-  // One normalised shape for the rank list, whichever view is active.
+  // One normalised shape for the tier list, whichever view is active.
   const activeItems = useMemo<ListItem[]>(() => {
     if (viewMode === "agent") {
       return rows.map((row) => ({
@@ -476,7 +476,6 @@ export const IncentiveSimulation: React.FC<{
   });
 
   const selectedItem = selectedId ? activeItems.find((i) => i.id === selectedId) ?? null : null;
-  const selectedRank = selectedId ? activeItems.findIndex((i) => i.id === selectedId) + 1 : 0;
   const selectedRawAgent = viewMode === "agent" && selectedId
     ? rows.find((r) => r.csId === selectedId)
     : undefined;
@@ -513,7 +512,7 @@ export const IncentiveSimulation: React.FC<{
     0,
   );
 
-  const gridCols = "grid-cols-[32px_minmax(0,1fr)_104px_112px_104px]";
+  const gridCols = "grid-cols-[minmax(0,1fr)_104px_112px_104px]";
 
   return (
     <div className="flex flex-col gap-4 p-2">
@@ -646,13 +645,12 @@ export const IncentiveSimulation: React.FC<{
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-              {/* rank list */}
+              {/* tier list */}
               <div
                 ref={listScrollRef}
                 className="max-h-[calc(100vh-240px)] overflow-y-auto rounded-xl border border-border bg-card"
               >
                 <div className={cn("sticky top-0 z-10 grid gap-3 border-b border-border bg-surface px-4 py-2.5 text-[10px] font-medium uppercase tracking-wide text-text-muted", gridCols)}>
-                  <span className="text-center">#</span>
                   <span>{viewMode === "agent" ? "Agent" : "Team Leader"}</span>
                   <span>Kontribusi poin</span>
                   <span>QC · CSAT · Prod</span>
@@ -671,7 +669,6 @@ export const IncentiveSimulation: React.FC<{
                     {listVirtual.virtualIndexes.map((idx) => {
                       const item = activeItems[idx];
                       if (!item) return null;
-                      const rank = idx + 1;
                       const isSel = selectedId === item.id;
                       const rest = Math.max(0, 100 - item.qcPts - item.csatPts - item.prodPts);
                       return (
@@ -684,7 +681,6 @@ export const IncentiveSimulation: React.FC<{
                             isSel ? "bg-surface-muted" : "hover:bg-surface-muted/60",
                           )}
                         >
-                          <span className={cn("text-center text-[12px] font-bold tabular-nums", rank <= 3 ? "text-text-primary" : "text-text-muted")}>{rank}</span>
                           <span className="min-w-0">
                             <span className="block truncate text-[13px] font-semibold text-text-primary" title={item.name}>{item.name}</span>
                             <span className="block truncate text-[10px] text-text-muted">{item.meta}</span>
@@ -699,11 +695,11 @@ export const IncentiveSimulation: React.FC<{
                             <span className="bg-border" style={{ width: `${rest}%` }} />
                           </span>
                           <span className="truncate text-[11px] tabular-nums text-text-secondary">
-                            {item.qcPct !== null ? formatNum(item.qcPct, 1) : "–"}
+                            {item.qcPct !== null ? formatNum(item.qcPct, 4) : "–"}
                             <span className="text-text-disabled"> · </span>
-                            {item.csatPct !== null ? formatNum(item.csatPct, 1) : "–"}
+                            {item.csatPct !== null ? formatNum(item.csatPct, 4) : "–"}
                             <span className="text-text-disabled"> · </span>
-                            {item.prodPct !== null ? formatNum(Math.min(item.prodPct, 999), 0) + "%" : "–"}
+                            {item.prodPct !== null ? formatNum(Math.min(item.prodPct, 999), 2) + "%" : "–"}
                           </span>
                           <span className="text-right">
                             <span className="block text-[12px] font-bold tabular-nums text-text-primary">{formatCurrency(item.total)}</span>
@@ -734,7 +730,6 @@ export const IncentiveSimulation: React.FC<{
                       mode={viewMode}
                       rawAgent={selectedRawAgent}
                       rawTl={selectedRawTl}
-                      rank={selectedRank}
                       onClose={() => setSelectedId(null)}
                     />
                   ) : (
@@ -762,7 +757,6 @@ export const IncentiveSimulation: React.FC<{
                     mode={viewMode}
                     rawAgent={selectedRawAgent}
                     rawTl={selectedRawTl}
-                    rank={selectedRank}
                     onClose={() => setSelectedId(null)}
                   />
                 </div>
