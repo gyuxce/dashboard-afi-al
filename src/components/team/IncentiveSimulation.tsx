@@ -18,6 +18,13 @@ import { useVirtualRows } from "../../hooks/useVirtualRows";
 
 const TEAM_LEADER_ACCESS_PIN = "170845";
 
+/** QA/CSAT: full precision, but a clean 100 shows as "100" not "100.00". Prod (per-chat count) is always a whole number. */
+const formatKpiPct = (value: number | null, decimals: number): string => {
+  if (value === null) return "–";
+  const rounded = Number(value.toFixed(decimals));
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(decimals);
+};
+
 interface TeamLeaderIncentiveRow {
   teamLeader: string;
   agentCount: number;
@@ -130,7 +137,7 @@ const KpiBar = ({
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium text-text-muted">{label} ({weight})</span>
         <span className="font-semibold tabular-nums text-text-primary">
-          {pct !== null ? `${formatNum(pct, decimals)}%` : "–"}
+          {pct !== null ? `${formatKpiPct(pct, decimals)}%` : "–"}
           <span className="ml-1 font-normal text-text-muted">· {formatNum(points, 1)}/{maxPoints}</span>
         </span>
       </div>
@@ -202,15 +209,15 @@ const IncentiveDetail = ({
 
       <div className="space-y-4">
         <h3 className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Skor KPI</h3>
-        <KpiBar label="QC audit" weight="55%" pct={item.qcPct} points={item.qcPts} maxPoints={55} decimals={4} />
-        <KpiBar label="CSAT (QC tagging)" weight="25%" pct={item.csatPct} points={item.csatPts} maxPoints={25} decimals={4} />
+        <KpiBar label="QC audit" weight="55%" pct={item.qcPct} points={item.qcPts} maxPoints={55} decimals={2} />
+        <KpiBar label="CSAT (QC tagging)" weight="25%" pct={item.csatPct} points={item.csatPts} maxPoints={25} decimals={2} />
         <KpiBar
           label="Produktivitas"
           weight="20%"
           pct={item.prodPct !== null ? Math.min(item.prodPct, 100) : null}
           points={item.prodPts}
           maxPoints={20}
-          decimals={2}
+          decimals={0}
         />
         <p className="text-[10px] text-text-muted">
           Total skor {item.score !== null ? formatNum(item.score, 2) : "–"} / 100. Kuis &amp; training wajib, tidak menambah skor.
@@ -695,11 +702,11 @@ export const IncentiveSimulation: React.FC<{
                             <span className="bg-border" style={{ width: `${rest}%` }} />
                           </span>
                           <span className="truncate text-[11px] tabular-nums text-text-secondary">
-                            {item.qcPct !== null ? formatNum(item.qcPct, 4) : "–"}
+                            {formatKpiPct(item.qcPct, 2)}
                             <span className="text-text-disabled"> · </span>
-                            {item.csatPct !== null ? formatNum(item.csatPct, 4) : "–"}
+                            {formatKpiPct(item.csatPct, 2)}
                             <span className="text-text-disabled"> · </span>
-                            {item.prodPct !== null ? formatNum(Math.min(item.prodPct, 999), 2) + "%" : "–"}
+                            {item.prodPct !== null ? formatNum(Math.min(item.prodPct, 999), 0) + "%" : "–"}
                           </span>
                           <span className="text-right">
                             <span className="block text-[12px] font-bold tabular-nums text-text-primary">{formatCurrency(item.total)}</span>
