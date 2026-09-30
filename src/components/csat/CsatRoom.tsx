@@ -1027,7 +1027,8 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                           </div>
                           <DayStrip
                             kpiType={csatKpiType}
-                            format={(v) => `${formatNum(v, 0)}%`}
+                            format={(v) => `${formatNum(v, 2)}%`}
+                            chipWidth={56}
                             onSelect={(date) => setSelectedAgent({ agent, date, type: 'csat' })}
                             items={chronoDates.map((date, di) => {
                               const st = getByCalendarDate(scheduleByDate, date)?.status?.toUpperCase() || '';

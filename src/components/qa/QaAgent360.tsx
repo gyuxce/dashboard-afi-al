@@ -475,6 +475,8 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                           </div>
                           <DayStrip
                             kpiType="qa"
+                            format={(v) => formatNum(v, 2)}
+                            chipWidth={50}
                             items={uniqueDates.map((date, di) => ({ date, value: dailyAvgs[di] })).slice().reverse()}
                             onSelect={(date) => setSelectedAgent({ agent, date, type: 'defects' })}
                           />

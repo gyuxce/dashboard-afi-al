@@ -35,7 +35,9 @@ export const DayStrip: React.FC<{
   /** When set, non-empty non-off chips become buttons calling this with the date. */
   onSelect?: (date: string) => void;
   className?: string;
-}> = ({ items, kpiType, format = (v) => formatNum(v, 0), onSelect, className }) => {
+  /** Chip width in px — widen when `format` renders longer decimal text (default 40). */
+  chipWidth?: number;
+}> = ({ items, kpiType, format = (v) => formatNum(v, 0), onSelect, className, chipWidth = 40 }) => {
   let prevMonth = '';
   return (
     <div className={`flex flex-wrap gap-1 ${className ?? ''}`}>
@@ -45,7 +47,7 @@ export const DayStrip: React.FC<{
         prevMonth = mon;
 
         const base =
-          'flex h-[34px] w-[40px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border text-[10px] leading-none tabular-nums';
+          'flex h-[34px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border text-[10px] leading-none tabular-nums';
         const sep = monthBreak ? 'ml-2' : '';
 
         let tone: string;
@@ -82,6 +84,7 @@ export const DayStrip: React.FC<{
               type="button"
               title={it.date}
               onClick={(e) => { e.stopPropagation(); onSelect(it.date); }}
+              style={{ width: chipWidth }}
               className={`${cls} transition-colors hover:border-primary/60 hover:text-primary`}
             >
               {label}
@@ -90,7 +93,7 @@ export const DayStrip: React.FC<{
           );
         }
         return (
-          <span key={it.date} title={it.date} className={cls}>
+          <span key={it.date} title={it.date} style={{ width: chipWidth }} className={cls}>
             {label}
             {body}
           </span>
