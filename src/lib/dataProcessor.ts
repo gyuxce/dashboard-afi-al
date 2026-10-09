@@ -1,3 +1,18 @@
+import { cell, findLegacyCsIdIndex, isLegacyCsId } from './sheetHeaders';
+import { isAgentDictionaryPopulated } from './csid';
+import { normalizeDateStr } from './dates';
+import { processSchedule } from './processors/schedule';
+import { processProductivity } from './processors/productivity';
+import { processCsatSc } from './processors/csatSc';
+import { processSla } from './processors/sla';
+import { processQa } from './processors/qa';
+import { finalizeAgents } from './processors/finalize';
+import {
+  createAccumulators,
+  createDedupeSets,
+  type ProcessorContext,
+} from './processors/context';
+
 export interface CSATEntry {
   date: string;
   normDate?: string | null;
@@ -8,11 +23,17 @@ export interface CSATEntry {
   category: string;
   response: string;
   isTakeout: boolean;
+  rcaAgent?: string;
+  rcaCustomer?: string;
+  rcaAkulaku?: string;
+  agentName?: string;
+  csId?: string;
 }
 
 export interface QAEntry {
   date: string;
   normDate?: string | null;
+  systemCheckingType?: string;
   ticketId: string;
   chatId?: string;
   uid?: string;
@@ -21,16 +42,35 @@ export interface QAEntry {
   mistakeLevel: string;
   category: string;
   remarks: string;
-  deduction: number;
   score: number;
   hasScore?: boolean;
-  feedback: string;
+  crmKode?: string;
 }
 
 export interface HistoryEntry {
   date: string;
+  normDate?: string | null;
   value: number;
+  count?: number;
+  sum?: number;
 }
+
+export const CSAT_TAKEOUT_CATEGORIES = [
+  "tidak bisa transaksi namun memiliki limit",
+  "pengajuan limit kredit ditolak",
+  "pertanyaan belum bisa diidentifikasi",
+] as const;
+
+const normalizeCsatCategory = (value: unknown) =>
+  String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+
+export const isCsatTakeoutCategory = (category: unknown) =>
+  CSAT_TAKEOUT_CATEGORIES.includes(
+    normalizeCsatCategory(category) as (typeof CSAT_TAKEOUT_CATEGORIES)[number],
+  );
+
+export const isValidCsatScScore = (score: number) =>
+  score === 1 || score === 2 || score === 4 || score === 5;
 
 export interface AgentKPI {
   csId: string;
@@ -62,11 +102,17 @@ export interface AgentKPI {
   csatAsli: number | null;
   whu: number | null;
 
-  csatScFullScore: number;
   csatScFullCount: number;
+  csatScGoodCount: number;
+  csatScBadCount: number;
+  csatScTotalValid: number;
+  csatScFull: number | null;
 
-  csatScFairScore: number;
   csatScFairCount: number;
+  csatScFairGoodCount: number;
+  csatScFairBadCount: number;
+  csatScFairTotalValid: number;
+  csatScFair: number | null;
 
   csatScCategoriesFull: Record<string, number>;
   csatScCategoriesFair: Record<string, number>;
@@ -74,6 +120,12 @@ export interface AgentKPI {
 
   csatScBadScoreFullCount: number;
   csatScBadScoreFairCount: number;
+
+  // RCA (Root Cause Analysis)
+  rcaAgentAreaCounts: Record<string, number>;
+  rcaCustomerAreaCounts: Record<string, number>;
+  rcaAkulakuProcessCounts: Record<string, number>;
+  rcaTotalCases: number;
 
   sla1m: number | null;
   sla3m: number | null;
@@ -84,11 +136,13 @@ export interface AgentKPI {
   qaScoreCount: number;
   qaHistory: QAEntry[];
   csatHistory: CSATEntry[];
+  hourlyProductivity: number[];
+  hourlyCategoryCounts: Record<string, number>[];
   dailyHistory: {
     productivity: HistoryEntry[];
     csat: HistoryEntry[];
-    csatScFull: { date: string; score: number; count: number }[];
-    csatScFair: { date: string; score: number; count: number }[];
+    csatScFull: { date: string; normDate?: string | null; score: number; count: number }[];
+    csatScFair: { date: string; normDate?: string | null; score: number; count: number }[];
     sla1m: HistoryEntry[];
     sla3m: HistoryEntry[];
     whu: HistoryEntry[];
@@ -101,140 +155,277 @@ export interface AgentKPI {
   };
 }
 
-// Helpers
-const dateStrCache = new Map<string, string | null>();
+export interface AgentScopeFilters {
+  bpo?: string;
+  teamLeader?: string;
+  agent?: string;
+}
 
-function normalizeDateStr(raw: string): string | null {
-  if (!raw) return null;
-  const rawKey = String(raw).trim();
-  if (dateStrCache.has(rawKey))
-    return dateStrCache.get(rawKey) as string | null;
+const PERIOD_MONTH_CODES = [
+  "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+];
 
-  let result: string | null = null;
+const normalizeScopeValue = (value: unknown) =>
+  String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
 
-  // Try to parse DD MMM YYYY or DD-MMM-YYYY
-  const dashMatch = rawKey.match(
-    /^(\d{1,2})[-\s]([A-Za-z]+)(?:[-\s](\d{4}))?$/,
+/**
+ * Keep standalone BPOs distinct from the shared TCID × TIN roster.
+ * Source sheets use a few separators (`x`, `×`, `&`, `/`), so normalize
+ * them into one canonical combined value before strict scope comparison.
+ */
+const normalizeBpoScope = (value: unknown) => {
+  const normalized = normalizeScopeValue(value)
+    .replace(/[×&/+]/g, " X ")
+    .replace(/\s*X\s*/g, " X ")
+    .trim();
+  const tokens = new Set(normalized.split(" ").filter(Boolean));
+  if (tokens.has("TCID") && tokens.has("TIN")) return "TCID X TIN";
+  return normalized;
+};
+
+const matchesScopePersonName = (left: unknown, right: unknown) => {
+  const leftValue = normalizeScopeValue(left);
+  const rightValue = normalizeScopeValue(right);
+  if (!leftValue || !rightValue) return false;
+  if (leftValue === rightValue) return true;
+
+  const leftParts = leftValue.split(" ");
+  const rightParts = rightValue.split(" ");
+  return (leftParts.length === 1 && rightParts.includes(leftParts[0]))
+    || (rightParts.length === 1 && leftParts.includes(rightParts[0]));
+};
+
+const isAllScopeValue = (value: unknown, allValues: string[]) => {
+  const normalized = normalizeScopeValue(value);
+  return !normalized || allValues.includes(normalized);
+};
+
+export const matchesAgentScope = (
+  agent: Pick<AgentKPI, "bpo" | "teamLeader" | "name" | "csId">,
+  filters: AgentScopeFilters,
+) => {
+  const selectedBpo = normalizeBpoScope(filters.bpo);
+  const selectedTeamLeader = normalizeScopeValue(filters.teamLeader);
+  const selectedAgent = normalizeScopeValue(filters.agent);
+
+  const bpoMatches = isAllScopeValue(filters.bpo, ["ALL BPO"])
+    || normalizeBpoScope(agent.bpo) === selectedBpo;
+  const teamLeaderMatches = isAllScopeValue(filters.teamLeader, ["ALL TL", "ALL TEAM LEADERS"])
+    || matchesScopePersonName(agent.teamLeader, selectedTeamLeader);
+  const agentMatches = isAllScopeValue(filters.agent, ["ALL AGENTS"])
+    || normalizeScopeValue(agent.name) === selectedAgent
+    || normalizeScopeValue(agent.csId) === selectedAgent;
+
+  return bpoMatches && teamLeaderMatches && agentMatches;
+};
+
+export const getAgentDictionaryForPeriod = (
+  periodStart: string | undefined,
+  fallbackDictionary?: Record<string, { name: string; bpo: string; teamLeader: string }>,
+  dictionariesByMonth?: Record<string, Record<string, { name: string; bpo: string; teamLeader: string }>>,
+) => {
+  if (!dictionariesByMonth || Object.keys(dictionariesByMonth).length === 0) {
+    return fallbackDictionary;
+  }
+
+  const [year, month] = String(periodStart || "").split("-").map(Number);
+  if (!year || !month || month < 1 || month > 12) return fallbackDictionary;
+
+  const monthKey = `${PERIOD_MONTH_CODES[month - 1]}_${year}`;
+  const monthDictionary = dictionariesByMonth[monthKey];
+  const legacyDictionary = monthKey === "MAY_2026" ? dictionariesByMonth.legacy : undefined;
+  return (
+    (isAgentDictionaryPopulated(monthDictionary) ? monthDictionary : undefined)
+    || (isAgentDictionaryPopulated(legacyDictionary) ? legacyDictionary : undefined)
+    || fallbackDictionary
   );
-  if (dashMatch) {
-    const [, day, monthStr, yearStr] = dashMatch;
-    const monthMap: Record<string, number> = {
-      jan: 1,
-      feb: 2,
-      mar: 3,
-      apr: 4,
-      may: 5,
-      jun: 6,
-      jul: 7,
-      aug: 8,
-      sep: 9,
-      oct: 10,
-      nov: 11,
-      dec: 12,
-      januari: 1,
-      februari: 2,
-      maret: 3,
-      april: 4,
-      mei: 5,
-      juni: 6,
-      juli: 7,
-      agustus: 8,
-      september: 9,
-      oktober: 10,
-      november: 11,
-      desember: 12,
-    };
-    let mNum = monthMap[monthStr.toLowerCase()];
-    if (mNum === undefined) {
-      for (const [k, v] of Object.entries(monthMap)) {
-        if (monthStr.toLowerCase().startsWith(k)) {
-          mNum = v;
-          break;
-        }
-      }
-    }
-    if (mNum !== undefined) {
-      const y = yearStr ? parseInt(yearStr, 10) : new Date().getFullYear();
-      result = `${y}-${String(mNum).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    }
-  }
+};
 
-  if (!result) {
-    const clean = rawKey.split(" ")[0]; // Take only the date part if there's time
-    const parts = clean.split(/[-/]/);
+export const applyAgentRoster = (
+  agents: AgentKPI[],
+  roster?: Record<string, { name: string; bpo: string; teamLeader: string }>,
+) => agents.map((agent) => {
+  const rosterInfo = roster?.[agent.csId] || roster?.[String(agent.csId || "").trim()];
+  if (!rosterInfo) return agent;
 
-    if (parts.length >= 3) {
-      let y = 0,
-        m = 0,
-        d = 0;
-      if (parts[2].length === 4) {
-        // Could be DD/MM/YYYY or MM/DD/YYYY
-        y = parseInt(parts[2], 10);
-        const p1 = parseInt(parts[0], 10);
-        const p2 = parseInt(parts[1], 10);
-        if (p1 > 12) {
-          d = p1;
-          m = p2;
-        } else if (p2 > 12) {
-          m = p1;
-          d = p2;
-        } else {
-          d = p1;
-          m = p2;
-        }
-      } else if (parts[0].length === 4) {
-        y = parseInt(parts[0], 10);
-        m = parseInt(parts[1], 10);
-        d = parseInt(parts[2], 10);
-      }
+  return {
+    ...agent,
+    name: rosterInfo.name || agent.name,
+    bpo: rosterInfo.bpo || agent.bpo,
+    teamLeader: rosterInfo.teamLeader || agent.teamLeader,
+  };
+});
 
-      if (y > 0 && m > 0 && d > 0 && m <= 12 && d <= 31) {
-        result = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      }
-    }
+const normalizeQaIdentifier = (value: unknown) =>
+  String(value || "").trim().toLowerCase();
 
-    // Fallback to JS Date parser
-    if (!result) {
-      const dObj = new Date(clean);
-      if (!isNaN(dObj.getTime())) {
-        result = dObj.toISOString().split("T")[0];
-      }
-    }
-  }
+export const isBadCsatQaEntry = (entry: Pick<QAEntry, "systemCheckingType" | "mistakeLevel">) => {
+  const checkingType = normalizeQaIdentifier(entry.systemCheckingType).toUpperCase();
+  const mistakeLevel = normalizeQaIdentifier(entry.mistakeLevel).toUpperCase();
 
-  // Final fallback
-  if (!result) {
-    const dObj2 = new Date(rawKey);
-    if (!isNaN(dObj2.getTime())) {
-      result = dObj2.toISOString().split("T")[0];
-    }
-  }
+  return (
+    checkingType === "CSAT" &&
+    mistakeLevel !== "" &&
+    !mistakeLevel.includes("NO MISTAKE")
+  );
+};
 
-  dateStrCache.set(rawKey, result);
-  return result;
+export const getCsatBadRatingCount = (agent: Pick<AgentKPI, "qaHistory">) => {
+  const seenCases = new Set<string>();
+
+  return agent.qaHistory.reduce((count, entry) => {
+    if (!isBadCsatQaEntry(entry)) return count;
+
+    const primaryCaseId = [entry.ticketId, entry.chatId, entry.uid, entry.caseDate]
+      .map(normalizeQaIdentifier)
+      .find(Boolean);
+    const fallbackCaseId = [
+      entry.normDate || entry.date,
+      entry.qcName,
+      entry.mistakeLevel,
+      entry.category,
+    ].map(normalizeQaIdentifier).join("|");
+    const caseKey = primaryCaseId || fallbackCaseId;
+
+    if (seenCases.has(caseKey)) return count;
+    seenCases.add(caseKey);
+    return count + 1;
+  }, 0);
+};
+
+export const getOfficialCsatAggregate = (data: AgentKPI[]) => {
+  let points = 0;
+  let respondents = 0;
+
+  data.forEach((agent) => {
+    points +=
+      agent.csat5Count * 5 +
+      agent.csat4Count * 4 +
+      agent.csat3Count * 3 +
+      agent.csat2Count * 2 +
+      agent.csat1Count;
+    respondents += agent.csatRespondents;
+  });
+
+  return {
+    points,
+    respondents,
+    score: respondents > 0 ? points / respondents : null,
+  };
+};
+
+// Helpers
+export function getPreviousPeriod(startDate: string, endDate: string) {
+  if (!startDate || !endDate) return { start: '', end: '' };
+  const toLocalDate = (value: string) => {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+  const start = toLocalDate(startDate);
+  const end = toLocalDate(endDate);
+  
+  // Calculate duration in days
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  
+  const prevEnd = new Date(start);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+  
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - diffDays + 1);
+  
+  return {
+    start: toIsoDate(prevStart),
+    end: toIsoDate(prevEnd)
+  };
 }
 
-function findDateColumnIndex(data: any[][], startRow: number = 0) {
-  const headers = data[startRow] || [];
-  for (let c = 0; c < headers.length; c++) {
-    const h = String(headers[c]).toLowerCase();
-    if (
-      h.includes("date") ||
-      h.includes("tanggal") ||
-      h.includes("time") ||
-      h.includes("close")
-    )
-      return c;
-  }
-  // fallback scan
-  for (let i = startRow + 1; i < Math.min(data.length, startRow + 10); i++) {
-    const row = data[i];
-    for (let c = 0; c < row.length; c++) {
-      if (normalizeDateStr(String(row[c]))) return c;
-    }
-  }
-  return -1;
+export function toIsoDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
+
+function getPreviousMonthDate(date: Date) {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  const previousMonthLastDay = new Date(year, month, 0).getDate();
+  return new Date(year, month - 1, Math.min(day, previousMonthLastDay));
+}
+
+export function getPreviousMonthPeriod(startDate: string, endDate: string) {
+  if (!startDate || !endDate) return { start: '', end: '' };
+
+  return {
+    start: toIsoDate(getPreviousMonthDate(new Date(startDate))),
+    end: toIsoDate(getPreviousMonthDate(new Date(endDate))),
+  };
+}
+
+// normalizeDateStr moved to lib/dates.ts — re-exported for backward compat.
+export { normalizeDateStr } from './dates';
+
+
+/** Shift duty / man-day: numeric shift code, HH:MM time, or S (sakit). */
+export function isScheduleManDay(statusRaw: string): boolean {
+  const status = String(statusRaw || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+  if (!status) return false;
+  if (status === "S") return true;
+  if (status === "OFF" || status === "C" || status === "PULLOUT") return false;
+  // Pure shift number: 7, 14, 22, 8.0, etc.
+  if (/^\d+([.,]\d+)?$/.test(status)) return true;
+  // Time-format shift: 07:00, 22:00
+  if (/^\d{1,2}:\d{2}/.test(status)) return true;
+  return false;
+}
+
+export function normalizeScheduleStatus(statusRaw: string): string {
+  const status = String(statusRaw || "").trim().toUpperCase();
+  if (status.replace(/\s+/g, "") === "PULLOUT") return "PULLOUT";
+  return status;
+}
+
+export function readStarCount(row: unknown[] | undefined, index: number) {
+  const raw = cell(row, index);
+  if (!raw || isLegacyCsId(raw)) return 0;
+  return parseFloat(raw.replace(",", ".")) || 0;
+}
+
+export function transactionKey(parts: Array<string | number | null | undefined>) {
+  return parts.map((part) => String(part || "").trim().toLowerCase()).join("|");
+}
+
+export function ticketOccurrenceKey(
+  agentId: string,
+  normDate: string | null | undefined,
+  dateStr: string,
+  ticketId: string,
+  fallbackParts: Array<string | null | undefined> = [],
+) {
+  const agent = String(agentId || "").trim().toLowerCase();
+  const day = String(normDate || normalizeDateStr(dateStr) || dateStr || "").trim().toLowerCase();
+  const ticket = String(ticketId || "").trim().toLowerCase();
+  if (ticket) return `${agent}|${day}|${ticket}`;
+  const fallback = fallbackParts
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join("|")
+    .toLowerCase();
+  if (!fallback) return "";
+  return `${agent}|${day}|${fallback}`;
+}
+
+export function productivityDataStartRow(data: any[][]) {
+  if (data.length <= 1) return data.length;
+  const probe = data[1] || [];
+  const looksLikeData =
+    findLegacyCsIdIndex(probe) >= 0 || !!normalizeDateStr(String(probe[0] || ""));
+  return looksLikeData ? 1 : 2;
+}
+
 
 export const processKPIs = (
   prodData: any[][] = [],
@@ -248,21 +439,88 @@ export const processKPIs = (
     string,
     { name: string; bpo: string; teamLeader: string }
   >,
+  agentDictionaryByMonth?: Record<
+    string,
+    Record<string, { name: string; bpo: string; teamLeader: string }>
+  >,
 ): AgentKPI[] => {
   const agents: Record<string, AgentKPI> = {};
 
+  const periodDictionary = getAgentDictionaryForPeriod(
+    startDate || endDate,
+    agentDictionary,
+    agentDictionaryByMonth,
+  );
+
   const isWithin = (dStr: string | null) => {
     if (!startDate && !endDate) return true;
-    if (!dStr) return true; // If no date found in row, include by default? Or exclude it. Let's include if we can't parse to not lose empty dates.
+    if (!dStr) return false;
     if (startDate && dStr < startDate) return false;
     if (endDate && dStr > endDate) return false;
     return true;
   };
 
   const subtractOneDay = (dStr: string) => {
-    const d = new Date(dStr);
+    const parts = dStr.split("-").map((p) => parseInt(p, 10));
+    if (parts.length !== 3 || parts.some((n) => isNaN(n))) return dStr;
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
     d.setDate(d.getDate() - 1);
-    return d.toISOString().split("T")[0];
+    return toIsoDate(d);
+  };
+
+  const scheduleStatusByAgentDate = new Map<string, string>();
+  const scheduleDateLabelByAgentDate = new Map<string, string>();
+  const getScheduleKey = (agentId: string, normDate: string) =>
+    `${agentId}|${normDate}`;
+
+  const isShift22Status = (statusRaw: string) => {
+    const status = String(statusRaw || "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "")
+      .replace(",", ".");
+    return status === "22" || status === "22.0" || status === "22:00" || status === "22:00:00";
+  };
+
+  const extractTimestampHour = (rawTimestamp: unknown) => {
+    const match = String(rawTimestamp || "").match(
+      /(?:^|[T\s])(\d{1,2}):\d{2}(?::\d{2})?/,
+    );
+    if (!match) return -1;
+
+    const hour = Number(match[1]);
+    return hour >= 0 && hour < 24 ? hour : -1;
+  };
+
+  const getShiftAdjustedDate = (
+    agentId: string,
+    normDate: string | null,
+    hour: number,
+  ) => {
+    if (!normDate || hour < 0 || hour >= 7) return normDate;
+
+    const previousDate = subtractOneDay(normDate);
+    const previousStatus = scheduleStatusByAgentDate.get(
+      getScheduleKey(agentId, previousDate),
+    );
+
+    return previousStatus && isShift22Status(previousStatus)
+      ? previousDate
+      : normDate;
+  };
+
+  const getScheduleDateLabel = (agentId: string, normDate: string | null) => {
+    if (!normDate) return "";
+
+    const scheduleLabel = scheduleDateLabelByAgentDate.get(
+      getScheduleKey(agentId, normDate),
+    );
+    if (scheduleLabel) return scheduleLabel;
+
+    const parts = normDate.split("-");
+    return parts.length === 3
+      ? `${parts[2]}/${parts[1]}/${parts[0]}`
+      : normDate;
   };
 
   const getAgent = (id: string) => {
@@ -277,7 +535,7 @@ export const processKPIs = (
     )
       return null;
     if (!agents[cleanId]) {
-      const dictInfo = agentDictionary?.[cleanId] || {
+      const dictInfo = periodDictionary?.[cleanId] || {
         name: "",
         bpo: "",
         teamLeader: "",
@@ -309,10 +567,16 @@ export const processKPIs = (
         manDays: 0,
         csatAsli: null,
         whu: null,
-        csatScFullScore: 0,
         csatScFullCount: 0,
-        csatScFairScore: 0,
+        csatScGoodCount: 0,
+        csatScBadCount: 0,
+        csatScTotalValid: 0,
+        csatScFull: null,
         csatScFairCount: 0,
+        csatScFairGoodCount: 0,
+        csatScFairBadCount: 0,
+        csatScFairTotalValid: 0,
+        csatScFair: null,
         csatScCategoriesFull: {},
         csatScCategoriesFair: {},
         csatScScoreDistribution: {
@@ -325,6 +589,10 @@ export const processKPIs = (
         },
         csatScBadScoreFullCount: 0,
         csatScBadScoreFairCount: 0,
+        rcaAgentAreaCounts: {},
+        rcaCustomerAreaCounts: {},
+        rcaAkulakuProcessCounts: {},
+        rcaTotalCases: 0,
         sla1m: null,
         sla3m: null,
         sla1mCount: 0,
@@ -333,6 +601,8 @@ export const processKPIs = (
         qaScoreCount: 0,
         qaHistory: [],
         csatHistory: [],
+        hourlyProductivity: new Array(24).fill(0),
+        hourlyCategoryCounts: Array.from({ length: 24 }, () => ({})),
         dailyHistory: {
           productivity: [],
           csat: [],
@@ -348,548 +618,37 @@ export const processKPIs = (
     return agents[cleanId];
   };
 
-  if (agentDictionary) {
-    Object.keys(agentDictionary).forEach((csId) => {
+  if (periodDictionary) {
+    Object.keys(periodDictionary).forEach((csId) => {
       getAgent(csId);
     });
   }
 
-  // 0. Schedule Logic
-  if (schedData.length > 1) {
-    const headers = schedData[0] || [];
-    // Index 5 ke kanan adalah tanggal (Format DD/MM/YYYY)
-    for (let c = 5; c < headers.length; c++) {
-      const hd = String(headers[c]).trim();
-      if (!hd) continue;
-
-      const normDate = normalizeDateStr(hd);
-      if (normDate && !isWithin(normDate)) continue; // Filter by date range
-
-      for (let r = 1; r < schedData.length; r++) {
-        const row = schedData[r];
-        if (!row) continue;
-        const agentId = String(row[1] || "").trim(); // Index 1 is CS ID
-        const agent = getAgent(agentId);
-        if (!agent) continue;
-
-        const schedName = String(row[2] || "").trim(); // Index 2
-        const schedTL = String(row[3] || "").trim(); // Index 3
-        const schedBPO = String(row[4] || "").trim(); // Index 4
-
-        if (schedName && !agent.name) agent.name = schedName;
-        if (schedTL && !agent.teamLeader) agent.teamLeader = schedTL;
-        if (schedBPO && !agent.bpo) agent.bpo = schedBPO;
-
-        const statusRaw = String(row[c] || "").trim();
-        const status = statusRaw.toUpperCase();
-        const isNumber =
-          !isNaN(parseFloat(status.replace(",", "."))) && status !== "";
-        // Normalize PULL OUT
-        const normalizedStatus =
-          status.replace(/\s+/g, "") === "PULLOUT" ? "PULLOUT" : status;
-
-        let isManDay = false; // ManDay = Duty
-
-        // DUTY = Angka or S
-        if (status === "S" || isNumber) {
-          isManDay = true;
-        }
-
-        const existingSched = agent.dailyHistory.schedule.find(
-          (s) => s.date === hd,
-        );
-        if (!existingSched) {
-          agent.attendanceTotalDays += 1;
-
-          if (isManDay || normalizedStatus === "PULLOUT")
-            agent.attendanceDuty += 1;
-          if (isNumber || normalizedStatus === "PULLOUT")
-            agent.attendancePresence += 1;
-
-          if (status === "OFF") agent.attendanceOff += 1;
-          if (status === "S") agent.attendanceS += 1;
-          if (status === "C") agent.attendanceC += 1;
-          if (normalizedStatus === "PULLOUT") agent.attendancePullout += 1;
-
-          agent.dailyHistory.schedule.push({
-            date: hd,
-            status: normalizedStatus,
-            isManDay,
-            normDate,
-          });
-
-          if (isManDay) {
-            agent.manDays += 1;
-          }
-        }
-      }
-    }
-  }
-
-  // 1. Productivity, CSAT Asli, WHU
-  let totalProdCsatAsliSum: Record<string, { sum: number; count: number }> = {};
-  let totalWhuSum: Record<string, { sum: number; count: number }> = {};
-
-  let whuActualIdx = -1;
-  if (prodData.length > 0) {
-    for (let r = 0; r < 3 && r < prodData.length; r++) {
-      const idx = prodData[r].findIndex(
-        (cell) =>
-          String(cell || "")
-            .toLowerCase()
-            .trim() === "whu",
-      );
-      if (idx !== -1) {
-        whuActualIdx = idx;
-        break;
-      }
-    }
-  }
-
-  if (prodData.length > 2) {
-    for (let i = 2; i < prodData.length; i++) {
-      const row = prodData[i];
-      if (!row || row.length < 2) continue;
-
-      const idIdx = row.findIndex((cell) =>
-        String(cell || "")
-          .trim()
-          .startsWith("3-1-"),
-      );
-      if (idIdx === -1) continue;
-
-      const rawDateStr = idIdx > 0 ? String(row[0] || "") : "";
-      let normDate = rawDateStr ? normalizeDateStr(rawDateStr) : null;
-      if (!rawDateStr || !normDate) continue;
-
-      let targetDateLabel = rawDateStr;
-
-      const timeParts = rawDateStr.split(/[\s,T]+/);
-      let hour = -1;
-      if (timeParts.length > 1) {
-        const hp = timeParts[1].split(":");
-        if (hp.length > 0) {
-          hour = parseInt(hp[0], 10);
-        }
-      }
-
-      const agentId = String(row[idIdx]).trim();
-      const agent = getAgent(agentId);
-      if (!agent) continue;
-
-      if (hour >= 0 && hour < 7) {
-        const prevNorm = subtractOneDay(normDate);
-        const prevSched = agent.dailyHistory.schedule.find(
-          (s) => s.normDate === prevNorm,
-        );
-        if (prevSched && prevSched.status === "22") {
-          normDate = prevNorm;
-        }
-      }
-
-      const matchingSched = agent.dailyHistory.schedule.find(
-        (s) => s.normDate === normDate,
-      );
-      if (matchingSched) {
-        targetDateLabel = matchingSched.date;
-      } else {
-        const parts = normDate.split("-");
-        targetDateLabel = `${parts[2]}/${parts[1]}/${parts[0]}`;
-      }
-
-      if (!isWithin(normDate)) continue;
-
-      // Productivity: Column L (ID D + 8)
-      const prodBase =
-        parseFloat(String(row[idIdx + 8] || "").replace(",", ".")) || 0;
-      let csatAsliStr = String(row[idIdx + 1] || "").trim(); // Column E (ID D + 1)
-      let whuStr =
-        whuActualIdx !== -1
-          ? String(row[whuActualIdx] || "").trim()
-          : String(row[idIdx + 15] || "").trim();
-
-      if (csatAsliStr.includes("%")) csatAsliStr = csatAsliStr.replace("%", "");
-      csatAsliStr = csatAsliStr.replace(",", ".");
-      const csatAsliNum = parseFloat(csatAsliStr);
-
-      whuStr = whuStr.replace(",", ".");
-      const whuNum = parseFloat(whuStr);
-
-      const dVal = parseFloat(String(row[3] || "").replace(",", ".")) || 0;
-      const eVal = parseFloat(String(row[4] || "").replace(",", ".")) || 0;
-      const fVal = parseFloat(String(row[5] || "").replace(",", ".")) || 0;
-      const gVal = parseFloat(String(row[6] || "").replace(",", ".")) || 0;
-      const hVal = parseFloat(String(row[7] || "").replace(",", ".")) || 0;
-      const totalRes = dVal + eVal + fVal + gVal + hVal;
-
-      agent.csatRespondents += totalRes;
-      agent.csat5Count += dVal;
-      agent.csat4Count += eVal;
-      agent.csat3Count += fVal;
-      agent.csat2Count += gVal;
-      agent.csat1Count += hVal;
-
-      agent.productivityBase += prodBase;
-      let existingProd = agent.dailyHistory.productivity.find(
-        (h) => h.date === targetDateLabel,
-      );
-      if (existingProd) {
-        existingProd.value += prodBase;
-      } else {
-        agent.dailyHistory.productivity.push({
-          date: targetDateLabel,
-          value: prodBase,
-        });
-      }
-
-      if (!isNaN(csatAsliNum)) {
-        if (!totalProdCsatAsliSum[agent.csId])
-          totalProdCsatAsliSum[agent.csId] = { sum: 0, count: 0 };
-        totalProdCsatAsliSum[agent.csId].sum += csatAsliNum;
-        totalProdCsatAsliSum[agent.csId].count += 1;
-
-        // Using rolling average for CSAT and WHU since they are percentages/ratios
-        // However dailyHistory items track 'value'. For simplicity, if multiple exist, maybe we override or average?
-        // Since user said "jumlahkan", but CSAT is a percentage, they probably mean just Productivity is summed.
-        // Let's just average CSAT Asli if there are multiple.
-        let existingCsat = agent.dailyHistory.csat.find(
-          (h) => h.date === targetDateLabel,
-        );
-        if (existingCsat) {
-          existingCsat.value = (existingCsat.value + csatAsliNum) / 2;
-        } else {
-          agent.dailyHistory.csat.push({
-            date: targetDateLabel,
-            value: csatAsliNum,
-          });
-        }
-      }
-
-      if (!isNaN(whuNum)) {
-        let val = whuNum;
-        if (whuStr.includes("%")) {
-          val = parseFloat(whuStr.replace("%", ""));
-        } else {
-          val = whuNum * 100;
-        }
-        if (!totalWhuSum[agent.csId])
-          totalWhuSum[agent.csId] = { sum: 0, count: 0 };
-        totalWhuSum[agent.csId].sum += val;
-        totalWhuSum[agent.csId].count += 1;
-
-        let existingWhu = agent.dailyHistory.whu.find(
-          (h) => h.date === targetDateLabel,
-        );
-        if (existingWhu) {
-          existingWhu.value = (existingWhu.value + val) / 2;
-        } else {
-          agent.dailyHistory.whu.push({ date: targetDateLabel, value: val });
-        }
-      }
-    }
-  }
-
-  // 2. CSAT SC
-  if (csatData.length > 1) {
-    for (let i = 1; i < csatData.length; i++) {
-      const row = csatData[i];
-      if (!row || row.length < 2) continue;
-
-      const idIdx = row.findIndex((cell) =>
-        String(cell || "")
-          .trim()
-          .startsWith("3-1-"),
-      );
-      if (idIdx === -1) continue;
-
-      const dateStr = idIdx > 0 ? String(row[0] || "") : "";
-      const normDate = dateStr ? normalizeDateStr(dateStr) : null;
-      if (dateStr && normDate && !isWithin(normDate)) continue;
-
-      const agentId = String(row[idIdx]).trim();
-      const agent = getAgent(agentId);
-      if (!agent) continue;
-
-      // Score: Column O (ID D + 11)
-      const scoreStr = String(row[idIdx + 11] || "")
-        .replace(",", ".")
-        .trim();
-      const score = parseFloat(scoreStr);
-
-      // Category: Column L (ID D + 8)
-      const category = String(row[idIdx + 8] || "")
-        .toLowerCase()
-        .trim();
-        
-      const response = String(row[idIdx + 15] || "").trim();
-      const ticketId = String(row[idIdx + 1] || "").trim();
-      const chatId = String(row[idIdx - 1] || "").trim();
-      const uid = String(row[idIdx + 5] || "").trim();
-      
-      const isTakeoutRecord = [
-        "tidak bisa transaksi namun memiliki limit",
-        "chat/call terputus",
-        "permintaan kode pembayaran",
-        "pengajuan limit kredit ditolak",
-        "pertanyaan belum bisa diidentifikasi",
-      ].includes(category);
-      
-      if (dateStr) {
-         agent.csatHistory.push({
-            date: dateStr,
-            normDate,
-            ticketId,
-            chatId,
-            uid,
-            score: isNaN(score) ? 0 : score,
-            category: category.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
-            response,
-            isTakeout: isTakeoutRecord         });
-      }
-
-      // -- Score Distribution Logic --
-      const cleanCatForDist = category
-        ? category
-            .split(" ")
-            .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" ")
-        : "Unknown Case";
-      let scoreKey = "No Survey";
-      if (!isNaN(score) && score >= 1 && score <= 5) {
-        scoreKey = String(score);
-      }
-      if (!agent.csatScScoreDistribution[scoreKey]) {
-        agent.csatScScoreDistribution[scoreKey] = {};
-      }
-      if (!agent.csatScScoreDistribution[scoreKey][cleanCatForDist]) {
-        agent.csatScScoreDistribution[scoreKey][cleanCatForDist] = 0;
-      }
-      agent.csatScScoreDistribution[scoreKey][cleanCatForDist] += 1;
-      // --------------------------------
-
-      if (!isNaN(score)) {
-        // Only include if score != 3 for SC calculations as per previous rules (though user says "Tetap gunakan aturan EXCLUDE SCORE 3")
-        // Wait, if I exclude 3, I should skip adding it to these sums
-        if (score !== 3) {
-          agent.csatScFullScore += score;
-          agent.csatScFullCount += 1;
-
-          let fullDay = agent.dailyHistory.csatScFull.find(
-            (h) => h.date === dateStr,
-          );
-          if (!fullDay) {
-            fullDay = { date: dateStr, score: 0, count: 0 };
-            agent.dailyHistory.csatScFull.push(fullDay);
-          }
-          fullDay.score += score;
-          fullDay.count += 1;
-
-          const isTakeout = [
-            "tidak bisa transaksi namun memiliki limit",
-            "pengajuan limit kredit ditolak",
-            "pertanyaan belum bisa diidentifikasi",
-          ].includes(category);
-
-          if (!isTakeout) {
-            agent.csatScFairScore += score;
-            agent.csatScFairCount += 1;
-
-            let fairDay = agent.dailyHistory.csatScFair.find(
-              (h) => h.date === dateStr,
-            );
-            if (!fairDay) {
-              fairDay = { date: dateStr, score: 0, count: 0 };
-              agent.dailyHistory.csatScFair.push(fairDay);
-            }
-            fairDay.score += score;
-            fairDay.count += 1;
-          }
-
-          if (score === 1 || score === 2) {
-            agent.csatScBadScoreFullCount += 1;
-            if (!isTakeout) agent.csatScBadScoreFairCount += 1;
-
-            if (category) {
-              const cleanCat = category
-                .split(" ")
-                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-                .join(" ");
-              if (!agent.csatScCategoriesFull[cleanCat])
-                agent.csatScCategoriesFull[cleanCat] = 0;
-              agent.csatScCategoriesFull[cleanCat] += 1;
-
-              if (!isTakeout) {
-                if (!agent.csatScCategoriesFair[cleanCat])
-                  agent.csatScCategoriesFair[cleanCat] = 0;
-                agent.csatScCategoriesFair[cleanCat] += 1;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // 3. SLA (Index starts at 1)
-  let sla1mSum: Record<string, { sum: number; count: number }> = {};
-  let sla3mSum: Record<string, { sum: number; count: number }> = {};
-
-  if (slaData.length > 1) {
-    for (let i = 1; i < slaData.length; i++) {
-      const row = slaData[i];
-      if (!row || row.length < 2) continue;
-
-      const idIdx = row.findIndex((cell) =>
-        String(cell || "")
-          .trim()
-          .startsWith("3-1-"),
-      );
-      if (idIdx === -1) continue;
-
-      const dateStr = idIdx > 0 ? String(row[0] || "") : "";
-      const normDate = dateStr ? normalizeDateStr(dateStr) : null;
-      if (dateStr && normDate && !isWithin(normDate)) continue;
-
-      const agentId = String(row[idIdx]).trim();
-      const agent = getAgent(agentId);
-      if (!agent) continue;
-
-      const parseSla = (val: string) => {
-        let clean = val.replace(",", ".").trim();
-        if (!clean) return null;
-        if (clean.includes("%")) return parseFloat(clean.replace("%", ""));
-        const n = parseFloat(clean);
-        return isNaN(n) ? null : n * 100;
-      };
-
-      const sla1 = parseSla(String(row[idIdx + 11] || ""));
-      const sla3 = parseSla(String(row[idIdx + 13] || ""));
-
-      if (sla1 !== null && !isNaN(sla1)) {
-        if (!sla1mSum[agent.csId]) sla1mSum[agent.csId] = { sum: 0, count: 0 };
-        sla1mSum[agent.csId].sum += sla1;
-        sla1mSum[agent.csId].count += 1;
-        agent.dailyHistory.sla1m.push({ date: dateStr, value: sla1 });
-      }
-      if (sla3 !== null && !isNaN(sla3)) {
-        if (!sla3mSum[agent.csId]) sla3mSum[agent.csId] = { sum: 0, count: 0 };
-        sla3mSum[agent.csId].sum += sla3;
-        sla3mSum[agent.csId].count += 1;
-        agent.dailyHistory.sla3m.push({ date: dateStr, value: sla3 });
-      }
-    }
-  }
-
-  // 4. QA Score (Index starts at 1)
-  if (qaData.length > 1) {
-    for (let i = 1; i < qaData.length; i++) {
-      const row = qaData[i];
-      if (!row || row.length < 16) continue; // Changed from 18 to 16, to at least cover P (Mistake Level)
-
-      // Column N (Index 13) is Checking Date
-      const dateStr = String(row[13] || "");
-      const normDate = dateStr ? normalizeDateStr(dateStr) : null;
-      if (dateStr && normDate && !isWithin(normDate)) continue;
-
-      // Column A (Index 0) is CS ID
-      const agentId = String(row[0]).trim();
-      const agent = getAgent(agentId);
-      if (!agent) continue;
-
-      // QA Detail Extractor
-      const ticketId = String(row[4] || "").trim(); // E
-      const uid = String(row[5] || "").trim(); // F
-      const chatId = String(row[6] || "").trim(); // G
-      const caseDate = String(row[8] || "").trim(); // I
-      const qcName = String(row[14] || "").trim(); // O
-      const mistakeLevel = String(row[15] || "").trim(); // P
-      const deduction = 0; // Not mentioned, defaulting to 0
-      const category = String(row[30] || "").trim(); // AE
-      const remarks = String(row[32] || "").trim(); // AG
-      const feedback = ""; // Not mentioned, left empty
-
-      // Column R (Index 17) is QC Score
-      const scoreStr = String(row[17] || "")
-        .replace(",", ".")
-        .trim();
-      let score = Number.NaN;
-      if (scoreStr.includes("%")) {
-        score = parseFloat(scoreStr.replace("%", ""));
-      } else if (scoreStr !== "") {
-        score = parseFloat(scoreStr);
-      }
-
-      if (!isNaN(score)) {
-        agent.qaScoreSum += score;
-        agent.qaScoreCount += 1;
-      }
-      
-      agent.qaHistory.push({
-        date: dateStr,
-        normDate,
-        ticketId,
-        uid,
-        chatId,
-        caseDate,
-        qcName,
-        mistakeLevel,
-        category,
-        remarks,
-        deduction,
-        score: isNaN(score) ? 0 : score,
-        hasScore: !isNaN(score),
-        feedback,
-      });
-    }
-  }
-
-  // Final Computations
-  let resultData = Object.values(agents).map((agent) => {
-    agent.productivityTotal = agent.productivityBase;
-    if (agent.manDays > 0) {
-      agent.productivityAverage = agent.productivityTotal / agent.manDays;
-    } else {
-      agent.productivityAverage = 0;
-    }
-
-    agent.targetQuota = agent.manDays * 100;
-    agent.gap = agent.productivityTotal - agent.targetQuota;
-
-    if (agent.attendanceDuty > 0) {
-      agent.attendanceScore = Math.min(
-        100,
-        (agent.attendancePresence / agent.attendanceDuty) * 100,
-      );
-    } else {
-      agent.attendanceScore = 0;
-    }
-
-    if (
-      totalProdCsatAsliSum[agent.csId] &&
-      totalProdCsatAsliSum[agent.csId].count > 0
-    ) {
-      agent.csatAsli =
-        totalProdCsatAsliSum[agent.csId].sum /
-        totalProdCsatAsliSum[agent.csId].count;
-    }
-    if (totalWhuSum[agent.csId] && totalWhuSum[agent.csId].count > 0) {
-      agent.whu = totalWhuSum[agent.csId].sum / totalWhuSum[agent.csId].count;
-    }
-    if (sla1mSum[agent.csId] && sla1mSum[agent.csId].count > 0) {
-      agent.sla1m = sla1mSum[agent.csId].sum / sla1mSum[agent.csId].count;
-      agent.sla1mCount = sla1mSum[agent.csId].count;
-    }
-    if (sla3mSum[agent.csId] && sla3mSum[agent.csId].count > 0) {
-      agent.sla3m = sla3mSum[agent.csId].sum / sla3mSum[agent.csId].count;
-      agent.sla3mCount = sla3mSum[agent.csId].count;
-    }
-
-    return agent;
-  });
-
-  if (agentDictionary && Object.keys(agentDictionary).length > 0) {
-    resultData = resultData.filter((a) => !!agentDictionary[a.csId]);
-  }
-
-  return resultData.sort((a, b) => a.csId.localeCompare(b.csId));
+  const acc = createAccumulators();
+  const dedupes = createDedupeSets();
+
+  const ctx: ProcessorContext = {
+    agents,
+    getAgent,
+    isWithin,
+    periodDictionary,
+    scheduleStatusByAgentDate,
+    scheduleDateLabelByAgentDate,
+    getScheduleKey,
+    isShift22Status,
+    extractTimestampHour,
+    getShiftAdjustedDate,
+    getScheduleDateLabel,
+    subtractOneDay,
+    ...acc,
+    ...dedupes,
+  };
+
+  processSchedule(ctx, schedData);
+  processProductivity(ctx, prodData);
+  processCsatSc(ctx, csatData);
+  processSla(ctx, slaData);
+  processQa(ctx, qaData);
+
+  return finalizeAgents(ctx);
 };

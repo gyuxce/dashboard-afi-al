@@ -1,8 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { AgentKPI } from '../../lib/dataProcessor';
 import { formatNum } from '../../lib/utils';
-import { Search, Users, Activity, HeartPulse, UserMinus } from 'lucide-react';
-import { useStore } from '../../store';
+import { KpiValue, KpiLegend } from '../ui/KpiCue';
+import { Search, Users, HeartPulse, UserMinus, AlertTriangle } from 'lucide-react';
+import { EmptyState } from '../ui/EmptyState';
+import { MobileScrollHint } from '../ui/ChartScrollArea';
+import { VirtualizedTbody } from '../ui/VirtualizedTbody';
+import { useVirtualRows } from '../../hooks/useVirtualRows';
 
 export const AttendanceMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   const [search, setSearch] = useState('');
@@ -16,26 +20,34 @@ export const AttendanceMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
     return activeData.filter(a => a.csId.toLowerCase().includes(search.toLowerCase()) || (a.name || '').toLowerCase().includes(search.toLowerCase()));
   }, [activeData, search]);
 
-  const { avgTeamAttendance, totalSick, totalPullout, totalOff, totalC } = useMemo(() => {
+  const { avgTeamAttendance, totalSick, totalPullout, totalC, belowTarget } = useMemo(() => {
     let totDuty = 0;
     let totPresence = 0;
     let sick = 0;
     let pullout = 0;
-    let offDays = 0;
     let leaveDays = 0;
+    let agentsBelowTarget = 0;
     
     activeData.forEach(a => {
        totDuty += a.attendanceDuty;
        totPresence += a.attendancePresence;
        sick += a.attendanceS;
        pullout += a.attendancePullout;
-       offDays += a.attendanceOff;
        leaveDays += a.attendanceC;
+       if (a.attendanceDuty > 0 && a.attendanceScore < 95) agentsBelowTarget += 1;
     });
     
     const avg = totDuty > 0 ? Math.min(100, (totPresence / totDuty) * 100) : 0;
-    return { avgTeamAttendance: avg, totalSick: sick, totalPullout: pullout, totalOff: offDays, totalC: leaveDays };
+    return { avgTeamAttendance: avg, totalSick: sick, totalPullout: pullout, totalC: leaveDays, belowTarget: agentsBelowTarget };
   }, [activeData]);
+
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const tableVirtual = useVirtualRows({
+    count: tableData.length,
+    rowHeight: 52,
+    scrollRef: tableScrollRef,
+  });
+  const tableColSpan = 11;
 
   return (
     <div className="flex flex-col gap-4">
@@ -48,7 +60,8 @@ export const AttendanceMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
           <input 
             type="text" 
-            placeholder="Search CS ID or Name..." 
+            placeholder="Cari CS ID atau nama..."
+              aria-label="Cari CS ID atau nama..." 
             className="pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs focus:border-primary focus:outline-none w-full md:w-56"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -57,56 +70,61 @@ export const AttendanceMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       </div>
       
       {/* WIDGETS */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-         <div className="bg-card rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border border-border p-4 flex flex-col relative overflow-hidden group">
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+         <div className="bg-card rounded-lg border border-border p-4 flex flex-col relative overflow-hidden group">
             <div className="flex justify-between items-start mb-2">
-               <div className="text-[10px] font-bold text-text-secondary uppercase tracking-widest z-10">Avg Team Attendance</div>
-               <div className="w-7 h-7 rounded-full bg-primary-soft flex items-center justify-center z-10 shrink-0">
+               <div className="text-[11px] font-medium text-text-secondary tracking-wide z-10">Avg Team Attendance</div>
+               <div className="w-7 h-7 rounded-md bg-primary-soft flex items-center justify-center z-10 shrink-0">
                  <Users className="w-3.5 h-3.5 text-primary" />
                </div>
             </div>
-            <div className="text-2xl font-bold tracking-tight text-primary z-10">{formatNum(avgTeamAttendance, 1)}%</div>
+            <div className="text-2xl font-semibold tracking-tight text-primary z-10">{formatNum(avgTeamAttendance, 1)}%</div>
          </div>
-         <div className="bg-card rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border border-border p-4 flex flex-col relative overflow-hidden group">
+         <div className="bg-card rounded-lg border border-border p-4 flex flex-col relative overflow-hidden group">
             <div className="flex justify-between items-start mb-2">
-               <div className="text-[10px] font-bold text-text-secondary uppercase tracking-widest z-10">Total OFF</div>
-               <div className="w-7 h-7 rounded-full bg-surface-muted flex items-center justify-center z-10 shrink-0">
-                 <Activity className="w-3.5 h-3.5 text-text-muted" />
+               <div className="text-[11px] font-medium text-text-secondary tracking-wide z-10">Di Bawah Target</div>
+               <div className="w-7 h-7 rounded-md bg-danger-soft flex items-center justify-center z-10 shrink-0">
+                 <AlertTriangle className="w-3.5 h-3.5 text-danger" />
                </div>
             </div>
-            <div className="text-2xl font-bold tracking-tight text-text-primary z-10">{formatNum(totalOff, 0)}</div>
+            <div className="text-2xl font-semibold tracking-tight text-danger z-10">{formatNum(belowTarget, 0)}</div>
+            <p className="mt-1 text-[10px] text-text-muted">Target attendance 95%</p>
          </div>
-         <div className="bg-card rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border border-border p-4 flex flex-col relative overflow-hidden group">
+         <div className="bg-card rounded-lg border border-border p-4 flex flex-col relative overflow-hidden group">
             <div className="flex justify-between items-start mb-2">
-               <div className="text-[10px] font-bold text-text-secondary uppercase tracking-widest z-10">Total Cuti (C)</div>
-               <div className="w-7 h-7 rounded-full bg-warning-soft flex items-center justify-center z-10 shrink-0">
+               <div className="text-[11px] font-medium text-text-secondary tracking-wide z-10">Total Cuti (C)</div>
+               <div className="w-7 h-7 rounded-md bg-warning-soft flex items-center justify-center z-10 shrink-0">
                  <HeartPulse className="w-3.5 h-3.5 text-warning" />
                </div>
             </div>
-            <div className="text-2xl font-bold tracking-tight text-text-primary z-10">{formatNum(totalC, 0)}</div>
+            <div className="text-2xl font-semibold tracking-tight text-text-primary z-10">{formatNum(totalC, 0)}</div>
          </div>
-         <div className="bg-card rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border border-border p-4 flex flex-col relative overflow-hidden group">
+         <div className="bg-card rounded-lg border border-border p-4 flex flex-col relative overflow-hidden group">
             <div className="flex justify-between items-start mb-2">
-               <div className="text-[10px] font-bold text-text-secondary uppercase tracking-widest z-10">Total Sick (S)</div>
-               <div className="w-7 h-7 rounded-full bg-danger-soft flex items-center justify-center z-10 shrink-0">
+               <div className="text-[11px] font-medium text-text-secondary tracking-wide z-10">Total Sick (S)</div>
+               <div className="w-7 h-7 rounded-md bg-danger-soft flex items-center justify-center z-10 shrink-0">
                  <HeartPulse className="w-3.5 h-3.5 text-danger" />
                </div>
             </div>
-            <div className="text-2xl font-bold tracking-tight text-text-primary z-10">{formatNum(totalSick, 0)}</div>
+            <div className="text-2xl font-semibold tracking-tight text-text-primary z-10">{formatNum(totalSick, 0)}</div>
          </div>
-         <div className="bg-card rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border border-border p-4 flex flex-col relative overflow-hidden group">
+         <div className="bg-card rounded-lg border border-border p-4 flex flex-col relative overflow-hidden group">
             <div className="flex justify-between items-start mb-2">
-               <div className="text-[10px] font-bold text-text-secondary uppercase tracking-widest z-10">Total PULLOUT</div>
-               <div className="w-7 h-7 rounded-full bg-success-soft flex items-center justify-center z-10 shrink-0">
+               <div className="text-[11px] font-medium text-text-secondary tracking-wide z-10">Total PULLOUT</div>
+               <div className="w-7 h-7 rounded-md bg-success-soft flex items-center justify-center z-10 shrink-0">
                  <UserMinus className="w-3.5 h-3.5 text-success" />
                </div>
             </div>
-            <div className="text-2xl font-bold tracking-tight text-text-primary z-10">{formatNum(totalPullout, 0)}</div>
+            <div className="text-2xl font-semibold tracking-tight text-text-primary z-10">{formatNum(totalPullout, 0)}</div>
          </div>
       </div>
 
-      <div className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-280px)]">
-          <table className="w-full text-left text-[10px] whitespace-nowrap border-collapse">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <MobileScrollHint label="Geser → untuk lihat semua kolom" />
+        <KpiLegend />
+      </div>
+      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-200px)]">
+          <table className="kpi-data-table w-full text-left whitespace-nowrap border-collapse">
             <thead className="bg-surface text-text-secondary sticky top-0 z-30">
               <tr>
                 <th className="p-2 font-bold text-center  md:sticky md:left-0 z-40 bg-surface min-w-[60px] max-w-[60px]">No</th>
@@ -119,15 +137,17 @@ export const AttendanceMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                 <th className="p-2 font-bold text-center  bg-surface">S</th>
                 <th className="p-2 font-bold text-center  bg-surface">PULL OUT</th>
                 <th className="p-2 font-bold text-center  bg-surface">Total Days</th>
-                <th className="p-2 font-bold text-center bg-surface">Attendance %</th>
+                <th className="p-2 font-bold text-center bg-surface">Attendance % <span className="font-normal text-text-muted">· t 95%</span></th>
               </tr>
             </thead>
-            <tbody className="">
-              {tableData.map((agent, index) => {
-                 let colorScore = 'text-text-primary';
-                 if (agent.attendanceScore >= 100) colorScore = 'text-success';
-                 else if (agent.attendanceScore < 100) colorScore = 'text-danger';
-                 
+            <VirtualizedTbody
+              colSpan={tableColSpan}
+              paddingTop={tableVirtual.paddingTop}
+              paddingBottom={tableVirtual.paddingBottom}
+            >
+              {tableVirtual.virtualIndexes.map((index) => {
+                const agent = tableData[index];
+                if (!agent) return null;
                  const totalDays = agent.attendanceTotalDays;
                  const displayName = agent.name || agent.csId;
 
@@ -135,13 +155,9 @@ export const AttendanceMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                   <tr key={agent.csId} className="border-b border-border transition-colors group hover:bg-surface-muted">
                     <td className="p-2 text-center text-text-muted font-medium md:sticky md:left-0 z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[60px] max-w-[60px]">{index + 1}</td>
                     <td className="p-2 font-medium md:sticky md:left-[60px] z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[250px] max-w-[250px] truncate">
-                      <button 
-                        onClick={() => useStore.getState().setSelectedAgentFor360(agent.csId)}
-                        className="text-kpi-neutral-text hover:underline font-semibold"
-                      >
+                      <span className="text-kpi-neutral-text font-semibold" title={agent.csId}>
                         {displayName}
-                      </button>
-                      <div className="text-[9px] text-text-muted font-normal mt-0.5">{agent.csId}</div>
+                      </span>
                     </td>
                     <td className="p-2 font-medium text-text-primary truncate md:sticky md:left-[310px] z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[120px] max-w-[120px]">{agent.teamLeader || '-'}</td>
                     <td className="p-2 text-center font-bold text-[11px] text-text-primary z-10 relative">{agent.attendanceDuty}</td>
@@ -151,20 +167,28 @@ export const AttendanceMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                     <td className="p-2 text-center text-text-muted z-10 relative">{agent.attendanceS || '-'}</td>
                     <td className="p-2 text-center font-bold text-[11px] text-success z-10 relative">{agent.attendancePullout || '-'}</td>
                     <td className="p-2 text-center font-bold text-[11px] text-text-primary z-10 relative">{totalDays}</td>
-                    <td className={`p-2 text-center font-bold text-[11px] z-10 relative ${colorScore}`}>
-                      {formatNum(agent.attendanceScore, 1)}%
+                    <td className="p-2 text-center text-[11px] z-10 relative">
+                      <span className="inline-flex items-center justify-center gap-1">
+                        <KpiValue value={agent.attendanceScore} type="attendance" text={`${formatNum(agent.attendanceScore, 1)}%`} />
+                      </span>
                     </td>
                   </tr>
                 );
               })}
               {tableData.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="p-8 text-center text-text-muted text-sm z-10 relative">
-                    Tidak ada data yang sesuai filter.
+                  <td colSpan={tableColSpan} className="p-4 z-10 relative">
+                    <EmptyState
+                      title="Tidak ada data attendance"
+                      description="Coba ubah pencarian atau rentang tanggal. Jika data belum ada, sync dari File Center."
+                      variant="filter"
+                      className="border-0 bg-transparent py-6"
+                      showDataActions
+                    />
                   </td>
                 </tr>
               )}
-            </tbody>
+            </VirtualizedTbody>
           </table>
       </div>
     </div>

@@ -1,19 +1,40 @@
-import React, { useState, useMemo } from 'react';
-import { AgentKPI, QAEntry } from '../../lib/dataProcessor';
-import { formatNum, getKpiColor, parseDateForSort, cn } from '../../lib/utils';
-import { Search, Eye, X, BarChart2, AlertCircle, ChevronDown, ChevronUp, ChevronRight, Copy, Check } from 'lucide-react';
-import { useStore } from '../../store';
-import { KpiTicker, buildRankingItems, TickerItem } from '../ui/KpiTicker';
+import React, { useState, useMemo, useRef } from 'react';
+import { AgentKPI, QAEntry, normalizeDateStr } from '../../lib/dataProcessor';
+import { formatNum, getKpiStatus, groupByDate, uniqueCalendarDates, getGroupByCalendarDate, formatCalendarHeader, parseDateForSort } from '../../lib/utils';
+import { KpiValue, KpiCue, KpiLegend } from '../ui/KpiCue';
+import { Sparkline } from '../ui/Sparkline';
+import { DayStrip } from '../ui/DayStrip';
+import { Search, Eye, X, BarChart2, AlertCircle, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 
 import { SortableHeader } from '../ui/SortableHeader';
+import { EmptyState } from '../ui/EmptyState';
+import { MobileScrollHint } from '../ui/ChartScrollArea';
+import { KpiRankLists } from '../ui/KpiRankLists';
+import { SegmentedControl } from '../ui/SegmentedControl';
+import { VirtualizedTbody } from '../ui/VirtualizedTbody';
+import { useVirtualRows } from '../../hooks/useVirtualRows';
+
+const isQaDefect = (entry: QAEntry) => {
+  const level = (entry.mistakeLevel || '').toUpperCase();
+  return level.includes('LOW') || level.includes('MEDIUM') || level.includes('HIGH') || level.includes('VERY HIGH');
+};
 
 export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   const [search, setSearch] = useState('');
-  const [filterTL, setFilterTL] = useState<string | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<{agent: AgentKPI, date?: string, type?: 'all' | 'defects'} | null>(null);
+  const [filterTL] = useState<string | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<{agent: AgentKPI, date?: string, type?: 'all' | 'defects' | 'no_mistake'} | null>(null);
   const [viewMode, setViewMode] = useState<'performance' | 'defect'>('performance');
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const toggleRow = (csId: string) =>
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(csId)) next.delete(csId);
+      else next.add(csId);
+      return next;
+    });
   
   const [perfSortConfig, setPerfSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [defectSortConfig, setDefectSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -34,8 +55,6 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
     setDefectSortConfig({ key, direction });
   };
 
-  const dict = useStore(state => state.agentDictionary);
-
   React.useEffect(() => {
     if (selectedAgent) {
       setExpandedDates(new Set());
@@ -49,8 +68,6 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const { startDate, endDate, setDateRange } = useStore();
-
   const tableData = useMemo(() => {
     return data.filter(a => {
       const matchSearch = a.csId.toLowerCase().includes(search.toLowerCase()) || (a.name || '').toLowerCase().includes(search.toLowerCase());
@@ -60,20 +77,19 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   }, [data, search, filterTL]);
 
   const uniqueDates = useMemo(() => {
-    const dates = new Set<string>();
-    tableData.forEach(a => {
-      a.qaHistory?.forEach(h => dates.add(h.date));
-    });
-    return Array.from(dates).sort((a, b) => parseDateForSort(a) - parseDateForSort(b));
+    return uniqueCalendarDates(tableData.map((a) => a.qaHistory));
   }, [tableData]);
 
   const defectData = useMemo(() => {
     return tableData.map(agent => {
-      const defects = agent.qaHistory.filter((q) => {
-         const level = (q.mistakeLevel || '').toUpperCase();
-         return level.includes('MEDIUM') || level.includes('HIGH') || level.includes('VERY HIGH');
-      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const defects = agent.qaHistory
+        .filter(isQaDefect)
+        .sort((a, b) =>
+          parseDateForSort(b.normDate || b.date || '') -
+          parseDateForSort(a.normDate || a.date || ''),
+        );
 
+      let lowCount = 0;
       let mediumCount = 0;
       let highCount = 0;
       let veryHighCount = 0;
@@ -85,12 +101,13 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
         if (level.includes('VERY HIGH')) veryHighCount++;
         else if (level.includes('HIGH')) highCount++;
         else if (level.includes('MEDIUM')) mediumCount++;
+        else if (level.includes('LOW')) lowCount++;
 
         const category = d.category || '-';
         mistakeCounts[category] = (mistakeCounts[category] || 0) + 1;
       });
 
-      const totalDefect = mediumCount + highCount + veryHighCount;
+      const totalDefect = lowCount + mediumCount + highCount + veryHighCount;
       
       let mostFrequentMistake = '-';
       let maxCount = 0;
@@ -104,6 +121,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       return {
         ...agent,
         defects,
+        lowCount,
         mediumCount,
         highCount,
         veryHighCount,
@@ -112,84 +130,6 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       };
     }).sort((a, b) => b.totalDefect - a.totalDefect);
   }, [tableData]);
-
-  
-  const tickerItems: TickerItem[] = useMemo(() => {
-    let totalSum = 0;
-    let totalCount = 0;
-    const bpoStats: Record<string, { sum: number; count: number }> = {};
-    const tlStats: Record<string, { sum: number; count: number }> = {};
-
-    tableData.forEach(agent => {
-       if (viewMode === 'performance') {
-          if (agent.qaScoreCount > 0) {
-             const score = agent.qaScoreSum / agent.qaScoreCount;
-             totalSum += score * agent.qaScoreCount;
-             totalCount += agent.qaScoreCount;
-             const bpo = agent.bpo || 'Unknown';
-             if (!bpoStats[bpo]) bpoStats[bpo] = { sum: 0, count: 0 };
-             bpoStats[bpo].sum += score * agent.qaScoreCount;
-             bpoStats[bpo].count += agent.qaScoreCount;
-
-             const tl = agent.teamLeader || 'Unknown';
-             if (!tlStats[tl]) tlStats[tl] = { sum: 0, count: 0 };
-             tlStats[tl].sum += score * agent.qaScoreCount;
-             tlStats[tl].count += agent.qaScoreCount;
-          }
-       } else {
-          const defectCount = agent.qaHistory.filter(h => h.status !== 'Pass').length;
-          totalSum += defectCount;
-          totalCount += agent.qaHistory.length || 1; 
-          const bpo = agent.bpo || 'Unknown';
-          if (!bpoStats[bpo]) bpoStats[bpo] = { sum: 0, count: 0 };
-          bpoStats[bpo].sum += defectCount;
-          bpoStats[bpo].count += 1;
-
-          const tl = agent.teamLeader || 'Unknown';
-          if (!tlStats[tl]) tlStats[tl] = { sum: 0, count: 0 };
-          tlStats[tl].sum += defectCount;
-          tlStats[tl].count += 1;
-       }
-    });
-
-    if (viewMode === 'performance') {
-       const bpoArr = Object.entries(bpoStats).map(([bpo, st]) => ({ bpo, avg: st.sum / st.count })).sort((a,b) => b.avg - a.avg);
-       const tlArr = Object.entries(tlStats).map(([tl, st]) => ({ tl, avg: st.sum / st.count })).filter(x => x.tl !== 'Unknown' && x.tl !== '-').sort((a,b) => b.avg - a.avg);
-       const sortedTLs = tlArr.slice(0, 5);
-       const sortedAgents = [...tableData].filter(a => a.qaScoreCount > 0).map(a => ({ ...a, avg: a.qaScoreSum / a.qaScoreCount })).sort((a, b) => b.avg - a.avg).slice(0, 5);
-
-       const bpoArrStr = bpoArr.map(b => `${b.bpo} ${formatNum(b.avg, 1)}%`).join(' · ');
-       const overallAvg = totalCount > 0 ? formatNum(totalSum / totalCount, 1) + '%' : '-';
-
-       return [
-         
-         { label: 'BPO:', value: bpoArrStr, colorType: 'neutral' },
-         { isSeparator: true },
-         ...buildRankingItems(sortedTLs.map(t => ({ name: t.tl, value: formatNum(t.avg, 1) + '%' })), 'TL:', 3),
-         { isSeparator: true },
-         ...buildRankingItems(sortedAgents.map(a => {
-              return { name: (a.name || a.csId).split(' ')[0], value: formatNum(a.avg, 1) + '%' };
-         }), 'Agent:', 5), { isSeparator: true } ];
-    } else {
-       const bpoArr = Object.entries(bpoStats).map(([bpo, st]) => ({ bpo, count: st.sum })).sort((a,b) => a.count - b.count);
-       const tlArr = Object.entries(tlStats).map(([tl, st]) => ({ tl, count: st.sum })).filter(x => x.tl !== 'Unknown' && x.tl !== '-').sort((a,b) => a.count - b.count);
-       const sortedTLs = tlArr.slice(0, 5);
-       const sortedAgents = [...tableData].map(a => ({ ...a, defectCount: a.qaHistory.filter(h => h.status !== 'Pass').length })).sort((a, b) => a.defectCount - b.defectCount).slice(0, 5);
-       
-       const bpoArrStr = bpoArr.map(b => `${b.bpo} ${b.count} defect`).join(' · ');
-       const overallAvg = totalSum.toString();
-       
-       return [
-         
-         { label: 'BPO:', value: bpoArrStr, colorType: 'neutral' },
-         { isSeparator: true },
-         ...buildRankingItems(sortedTLs.map(t => ({ name: t.tl, value: `${t.count} defect` })), 'TL:', 3),
-         { isSeparator: true },
-         ...buildRankingItems(sortedAgents.map(a => {
-              return { name: (a.name || a.csId).split(' ')[0], value: `${a.defectCount} defect` };
-         }), 'Agent:', 5), { isSeparator: true } ];
-    }
-  }, [tableData, viewMode]);
 
   const sortedPerformanceData = useMemo(() => {
     let sortable = [...defectData];
@@ -213,8 +153,8 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
             break;
           case 'average':
           default:
-            aVal = a.qaScoreCount > 0 ? (a.qaScoreSum / a.qaScoreCount) * 100 : -1;
-            bVal = b.qaScoreCount > 0 ? (b.qaScoreSum / b.qaScoreCount) * 100 : -1;
+            aVal = a.qaScoreCount > 0 ? a.qaScoreSum / a.qaScoreCount : -1;
+            bVal = b.qaScoreCount > 0 ? b.qaScoreSum / b.qaScoreCount : -1;
             break;
         }
 
@@ -245,6 +185,10 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           case 'teamLeader':
             aVal = a.teamLeader || '';
             bVal = b.teamLeader || '';
+            break;
+          case 'low':
+            aVal = a.lowCount || 0;
+            bVal = b.lowCount || 0;
             break;
           case 'medium':
             aVal = a.mediumCount || 0;
@@ -278,38 +222,108 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
     return sortable;
   }, [defectData, defectSortConfig]);
 
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const activeTableData = viewMode === 'performance' ? sortedPerformanceData : sortedDefectData;
+  const tableVirtual = useVirtualRows({
+    count: activeTableData.length,
+    rowHeight: 52,
+    scrollRef: tableScrollRef,
+  });
+  const perfTableColSpan = 8;
+  const defectTableColSpan = 10;
+
+  const highlightStats = useMemo(() => {
+    const totalEvaluations = tableData.reduce((sum, agent) => sum + agent.qaScoreCount, 0);
+    const totalMistakes = defectData.reduce((sum, agent) => sum + agent.totalDefect, 0);
+    const categoryCounts: Record<string, number> = {};
+
+    defectData.forEach(agent => {
+      agent.defects.forEach(defect => {
+        const category = defect.category || 'Tidak ada kategori';
+        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      });
+    });
+
+    const categoriesByCount = Object.entries(categoryCounts)
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const agentsByQa = [...tableData]
+      .filter(agent => agent.qaScoreCount > 0)
+      .map(agent => ({
+        agent,
+        avg: agent.qaScoreSum / agent.qaScoreCount,
+      }))
+      .sort((a, b) => b.avg - a.avg);
+
+    const dailyMap = new Map<string, { scoreSum: number; scoreCount: number; mistakes: number }>();
+    tableData.forEach(agent => {
+      agent.qaHistory?.forEach(entry => {
+        const date = entry.normDate || normalizeDateStr(entry.date || '') || entry.date;
+        if (!date) return;
+        const current = dailyMap.get(date) || { scoreSum: 0, scoreCount: 0, mistakes: 0 };
+        if (entry.hasScore !== false && typeof entry.score === 'number' && !isNaN(entry.score)) {
+          current.scoreSum += entry.score;
+          current.scoreCount += 1;
+        }
+        if (isQaDefect(entry)) current.mistakes += 1;
+        dailyMap.set(date, current);
+      });
+    });
+
+    const daysByQa = Array.from(dailyMap.entries())
+      .map(([date, stats]) => ({
+        date,
+        avg: stats.scoreCount > 0 ? stats.scoreSum / stats.scoreCount : null,
+        mistakes: stats.mistakes,
+        scoreCount: stats.scoreCount,
+      }))
+      .filter(d => d.avg !== null && d.scoreCount > 0)
+      .sort((a, b) => (a.avg || 0) - (b.avg || 0));
+
+    return {
+      totalEvaluations,
+      totalMistakes,
+      mistakeRate: totalEvaluations > 0 ? (totalMistakes / totalEvaluations) * 100 : 0,
+      topCategories: categoriesByCount.slice(0, 3).map(c => ({
+        label: c.category,
+        value: `${formatNum(c.count, 0)} temuan`,
+      })),
+      bottomDays: daysByQa.slice(0, 3).map(d => ({
+        label: formatCalendarHeader(d.date),
+        subLabel: `${formatNum(d.mistakes, 0)} temuan · ${formatNum(d.scoreCount, 0)} evaluasi`,
+        value: `${formatNum(d.avg, 1)}%`,
+      })),
+      topAgents: agentsByQa.slice(0, 3).map(a => ({
+        label: a.agent.name || a.agent.csId,
+        subLabel: a.agent.teamLeader || a.agent.csId,
+        value: `${formatNum(a.avg, 1)}%`,
+      })),
+      bottomAgents:
+        agentsByQa.length > 3
+          ? agentsByQa.slice(Math.max(3, agentsByQa.length - 3)).reverse().map(a => ({
+              label: a.agent.name || a.agent.csId,
+              subLabel: a.agent.teamLeader || a.agent.csId,
+              value: `${formatNum(a.avg, 1)}%`,
+            }))
+          : [],
+    };
+  }, [tableData, defectData]);
+
   return (
     <div className="flex flex-col gap-4 relative">
       <div className="flex flex-col md:flex-row md:items-center justify-between xl:gap-8 gap-4 mb-4">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-bold text-text-primary">QA Agent 360</h1>
           
-          <div className="flex overflow-x-auto no-scrollbar bg-surface-muted p-1 rounded-lg w-full md:w-max gap-1">
-             <button 
-               onClick={() => setViewMode('performance')}
-               className={cn(
-                 "px-4 py-2 rounded-md text-[13px] transition-colors duration-150 flex items-center gap-2",
-                 viewMode === 'performance'
-                   ? "bg-card text-primary font-medium"
-                   : "bg-transparent text-text-muted font-medium hover:text-text-primary hover:bg-card/50"
-               )}
-             >
-                <BarChart2 className="w-3.5 h-3.5" />
-                Performance Overview
-             </button>
-             <button 
-               onClick={() => setViewMode('defect')}
-               className={cn(
-                 "px-4 py-2 rounded-md text-[13px] transition-colors duration-150 flex items-center gap-2",
-                 viewMode === 'defect'
-                   ? "bg-card text-primary font-medium"
-                   : "bg-transparent text-text-muted font-medium hover:text-text-primary hover:bg-card/50"
-               )}
-             >
-                <AlertCircle className="w-3.5 h-3.5" />
-                Defect Analysis
-             </button>
-          </div>
+          <SegmentedControl
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: 'performance', label: 'Ringkasan', icon: BarChart2 },
+              { value: 'defect', label: 'Analisis Defect', icon: AlertCircle },
+            ]}
+          />
         </div>
         
         <div className="flex items-center gap-4">
@@ -317,7 +331,8 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
             <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
             <input 
               type="text" 
-              placeholder="Search CS ID or Name..." 
+              placeholder="Cari CS ID atau nama..."
+              aria-label="Cari CS ID atau nama..." 
               className="pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs focus:border-primary focus:outline-none w-full md:w-56"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -326,164 +341,213 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
         </div>
       </div>
 
-      <KpiTicker items={tickerItems} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-medium tracking-wide text-text-muted">Total Evaluasi</span>
+            <BarChart2 className="h-4 w-4 text-primary" />
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-text-primary">{formatNum(highlightStats.totalEvaluations, 0)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-medium tracking-wide text-text-muted">Total Temuan</span>
+            <AlertCircle className="h-4 w-4 text-danger" />
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-danger">{formatNum(highlightStats.totalMistakes, 0)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-medium tracking-wide text-text-muted">% Temuan</span>
+            <AlertCircle className="h-4 w-4 text-warning" />
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-text-primary">{formatNum(highlightStats.mistakeRate, 1)}%</div>
+        </div>
+      </div>
+
+      <KpiRankLists
+        summaryLabel="Highlight KPI"
+        cards={[
+          { title: 'Top 3 Temuan', items: highlightStats.topCategories, tone: 'bad' },
+          { title: 'Bottom 3 Hari', items: highlightStats.bottomDays, tone: 'bad' },
+          { title: 'Top 3 Agent (QA)', items: highlightStats.topAgents, tone: 'good' },
+          { title: 'Bottom 3 Agent (QA)', items: highlightStats.bottomAgents, tone: 'bad' },
+        ]}
+      />
 
       {viewMode === 'performance' ? (
-        <div className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-280px)]">
-            <table className="w-full text-left text-[10px] whitespace-nowrap border-collapse">
+        <>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[11px] text-text-muted">Klik baris untuk rincian harian &middot; klik angka defect untuk audit trail</span>
+          <KpiLegend />
+        </div>
+      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-200px)]">
+            <table className="kpi-data-table w-full text-left border-collapse">
               <thead className="bg-surface text-text-secondary sticky top-0 z-30">
                 <tr>
-                  <th className="p-2 font-bold text-center border-b border-border md:sticky md:left-0 z-40 bg-surface min-w-[60px] max-w-[60px]">No</th>
-                  <SortableHeader label="Name / CS ID" sortKey="name" config={perfSortConfig} onSort={handlePerfSort} className="border-b border-border md:sticky md:left-[60px] z-40 bg-surface min-w-[250px] max-w-[250px]" />
-                  <SortableHeader label="BPO" sortKey="bpo" config={perfSortConfig} onSort={handlePerfSort} className="border-b border-border md:sticky md:left-[310px] z-40 bg-surface min-w-[80px] max-w-[80px]" />
-                  <SortableHeader label="Team Leader" sortKey="teamLeader" config={perfSortConfig} onSort={handlePerfSort} className="border-b border-border md:sticky md:left-[390px] z-40 bg-surface min-w-[120px] max-w-[120px]" />
-                  {uniqueDates.map(date => (
-                    <th key={date} className="p-2 font-bold text-center text-text-muted bg-surface border-b border-border">
-                      {date}
-                    </th>
-                  ))}
-                  <SortableHeader label="Total QA Average" sortKey="average" config={perfSortConfig} onSort={handlePerfSort} className="text-center text-text-primary border-b border-border bg-surface shrink-0 z-30 relative shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)]" />
-                  <th className="p-2 font-bold text-center text-text-muted border-b border-border bg-surface w-24">
-                    Action
-                  </th>
+                  <th className="p-2 font-bold text-center border-b border-border bg-surface w-[48px]">No</th>
+                  <SortableHeader label="Nama / CS ID" sortKey="name" config={perfSortConfig} onSort={handlePerfSort} className="border-b border-border bg-surface min-w-[200px]" />
+                  <SortableHeader label="BPO · TL" sortKey="teamLeader" config={perfSortConfig} onSort={handlePerfSort} className="border-b border-border bg-surface min-w-[130px]" />
+                  <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]">Tren 20 hari</th>
+                  <SortableHeader label="Rata-rata QA" sortKey="average" config={perfSortConfig} onSort={handlePerfSort} className="text-right text-text-primary border-b border-border bg-surface w-[112px]" />
+                  <th className="p-2 font-bold text-right text-text-muted border-b border-border bg-surface w-[72px]">vs&nbsp;92</th>
+                  <th className="p-2 font-bold text-right text-text-muted border-b border-border bg-surface w-[84px]">Defect</th>
+                  <th className="p-2 border-b border-border bg-surface w-[40px]" aria-hidden />
                 </tr>
               </thead>
-              <tbody className="">
-                {sortedPerformanceData.map((agent, index) => {
+              <VirtualizedTbody
+                colSpan={perfTableColSpan}
+                paddingTop={tableVirtual.paddingTop}
+                paddingBottom={tableVirtual.paddingBottom}
+              >
+                {tableVirtual.virtualIndexes.map((index) => {
+                  const agent = sortedPerformanceData[index];
+                  if (!agent) return null;
                   const displayName = agent.name || agent.csId;
+                  const qaByDate = groupByDate(agent.qaHistory);
+                  const dailyAvgs = uniqueDates.map((date) => {
+                    const valid = getGroupByCalendarDate(qaByDate, date).filter((h) => h.hasScore);
+                    if (valid.length === 0) return null;
+                    return valid.reduce((a, c) => a + c.score, 0) / valid.length;
+                  });
+                  const avg = agent.qaScoreCount > 0 ? agent.qaScoreSum / agent.qaScoreCount : null;
+                  const vsTarget = avg !== null ? avg - 92 : null;
+                  const vsStatus = getKpiStatus(avg, 'qa');
+                  const isOpen = expandedRows.has(agent.csId);
 
                   return (
-                    <tr key={agent.csId} className="border-b border-border transition-colors group hover:bg-surface-muted">
-                      <td className="p-2 text-center text-text-muted font-medium md:sticky md:left-0 z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[60px] max-w-[60px]">{index + 1}</td>
-                      <td className="p-2 font-medium md:sticky md:left-[60px] z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[250px] max-w-[250px] truncate">
-                        <button 
-                          onClick={() => useStore.getState().setSelectedAgentFor360(agent.csId)}
-                          className="text-kpi-neutral-text hover:underline font-semibold"
-                        >
-                          {displayName}
-                        </button>
-                        <div className="text-[9px] text-text-muted font-normal mt-0.5">{agent.csId}</div>
+                    <React.Fragment key={agent.csId}>
+                    <tr
+                      className="border-b border-border transition-colors group hover:bg-surface-muted cursor-pointer"
+                      onClick={() => toggleRow(agent.csId)}
+                    >
+                      <td className="p-2 text-center text-text-muted font-medium w-[48px]">{index + 1}</td>
+                      <td className="p-2 min-w-[200px]">
+                        <div className="font-semibold text-text-primary truncate" title={agent.csId}>{displayName}</div>
+                        <div className="text-[9px] text-text-muted truncate">{agent.csId}</div>
                       </td>
-                      <td className="p-2 font-medium text-text-primary uppercase md:sticky md:left-[310px] z-20 bg-card group-hover:bg-surface-muted min-w-[80px] max-w-[80px] truncate">
-                        {agent.bpo || '-'}
+                      <td className="p-2 text-text-secondary min-w-[130px] truncate">
+                        <span className="uppercase">{agent.bpo || '-'}</span>
+                        <span className="text-text-muted"> · {agent.teamLeader || '-'}</span>
                       </td>
-                      <td className="p-2 font-medium text-text-primary md:sticky md:left-[390px] z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[120px] max-w-[120px] truncate">{agent.teamLeader || '-'}</td>
-                      
-                      {uniqueDates.map(date => {
-                        const dailyQA = agent.qaHistory?.filter(h => h.date === date);
-                        const sched = agent.dailyHistory?.schedule?.find(h => h.date === date);
-                        const status = sched?.status?.toUpperCase() || '';
-                        
-                        const isOff = status === 'OFF' || status === 'C';
-                        const isPullout = status === 'PULLOUT';
-                        const bgClass = isOff ? 'text-text-muted' : '';
-                        
-                        const validQA = dailyQA.filter(h => h.hasScore);
-                        if (!dailyQA || dailyQA.length === 0) {
-                          return <td key={date} className={`p-2 text-center text-text-disabled z-10 ${bgClass} `}>-</td>;
-                        }
-                        
-                        let displayValue = '-';
-                        let avg = 0;
-                        if (validQA.length > 0) {
-                          const sum = validQA.reduce((acc, curr) => acc + curr.score, 0);
-                          avg = sum / validQA.length;
-                          displayValue = formatNum(avg, 1);
-                        }
-                        
-                        const baseColor = validQA.length > 0 ? getKpiColor(avg, 'qa') : 'text-text-disabled';
-                        const textColor = isPullout ? 'text-text-muted italic' : baseColor;
-                        return (
-                          <td key={date} className={`p-0 text-center font-semibold z-10   ${bgClass}`}>
-                            <button 
-                              onClick={() => setSelectedAgent({ agent, date, type: 'all' })} 
-                              className={`w-full h-full p-2 font-bold text-[11px] hover:bg-surface-muted transition-colors flex items-center justify-center gap-1 group/btn relative cursor-pointer ${textColor}`}
-                            >
-                              {displayValue}
-                              <Eye className="w-3 h-3 opacity-0 group-hover/btn:opacity-100 transition-opacity absolute right-1" />
-                            </button>
-                          </td>
-                        );
-                      })}
-
-                      <td className="p-2 text-center font-bold z-10 relative shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)]">
-                        <span className={`font-bold text-[11px] ${agent.qaScoreCount > 0 ? getKpiColor(agent.qaScoreSum / agent.qaScoreCount, 'qa') : 'text-text-disabled'}`}>
-                          {agent.qaScoreCount > 0 ? formatNum(agent.qaScoreSum / agent.qaScoreCount, 1) : '-'}
-                        </span>
+                      <td className="p-2 min-w-[150px]">
+                        <div className={vsStatus === 'miss' ? 'text-danger' : vsStatus === 'watch' ? 'text-warning' : 'text-text-muted'}>
+                          <Sparkline values={dailyAvgs} height={22} />
+                        </div>
                       </td>
-                      <td className="p-2 text-center flex items-center justify-center gap-2 z-10">
-                        <button 
-                          onClick={() => setSelectedAgent({ agent, type: 'defects' })}
-                          className="flex items-center gap-1 text-[10px] text-text-muted hover:text-primary transition-colors px-2 py-1 rounded hover:bg-surface-muted relative cursor-pointer"
-                          title="View All Defect Details"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          {agent.totalDefect > 0 && (
-                            <span className="text-danger text-[9px] font-bold px-1.5 py-0.5 rounded-full absolute -top-1 -right-2 leading-none shadow-[0_1px_3px_rgba(0,0,0,0.04)]">{agent.totalDefect}</span>
-                          )}
-                        </button>
+                      <td className="p-2 text-right w-[112px]">
+                        {avg !== null ? (
+                          <div className="flex flex-col items-end">
+                            <KpiValue value={avg} type="qa" text={formatNum(avg, 2)} className="justify-end" />
+                            <span className="text-[9px] text-text-muted tabular-nums">{agent.qaScoreCount} evaluasi</span>
+                          </div>
+                        ) : <span className="text-[11px] text-text-disabled">-</span>}
+                      </td>
+                      <td className="p-2 text-right w-[72px] text-[11px] tabular-nums">
+                        {vsTarget !== null ? (
+                          <span className={`inline-flex items-center justify-end gap-1 font-medium ${vsStatus === 'miss' ? 'text-danger' : vsStatus === 'watch' ? 'text-warning' : 'text-text-muted'}`}>
+                            <KpiCue status={vsStatus} />
+                            {vsTarget >= 0 ? '+' : '−'}{Math.abs(vsTarget).toFixed(1)}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td className="p-2 text-right w-[84px] text-[11px] tabular-nums">
+                        {agent.totalDefect > 0 ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedAgent({ agent, type: 'defects' }); }}
+                            className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-1.5 py-0.5 font-semibold text-text-secondary hover:border-primary hover:text-primary transition-colors cursor-pointer"
+                            title="Buka audit trail defect"
+                          >
+                            {agent.totalDefect}
+                            <ChevronRight className="h-3 w-3" aria-hidden />
+                          </button>
+                        ) : <span className="text-text-disabled">0</span>}
+                      </td>
+                      <td className="p-2 text-center w-[40px]">
+                        <ChevronDown className={`w-3.5 h-3.5 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                       </td>
                     </tr>
+                    {isOpen && (
+                      <tr className="bg-surface/40 border-b border-border">
+                        <td colSpan={perfTableColSpan} className="px-4 pb-4 pt-1">
+                          <div className="text-[9px] text-text-muted uppercase tracking-wide pt-3 pb-2">
+                            QA per hari &mdash; hanya di bawah target yang berwarna &middot; sel kosong = tidak ada audit &middot; klik untuk audit trail
+                          </div>
+                          <DayStrip
+                            kpiType="qa"
+                            format={(v) => formatNum(v, 2)}
+                            chipWidth={50}
+                            items={uniqueDates.map((date, di) => ({ date, value: dailyAvgs[di] })).slice().reverse()}
+                            onSelect={(date) => setSelectedAgent({ agent, date, type: 'defects' })}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
                 {sortedPerformanceData.length === 0 && (
                   <tr>
-                    <td colSpan={6 + uniqueDates.length} className="p-4 text-center text-text-muted text-sm z-10">
-                      Tidak ada data yang sesuai filter.
+                    <td colSpan={perfTableColSpan} className="p-4 z-10">
+                      <EmptyState
+                        title="Tidak ada data QA performance"
+                        description="Coba ubah pencarian, filter TL, view mode, atau rentang tanggal."
+                        variant="filter"
+                        className="border-0 bg-transparent py-6"
+                        showDataActions
+                      />
                     </td>
                   </tr>
                 )}
-              </tbody>
+              </VirtualizedTbody>
             </table>
         </div>
+        </>
       ) : (
-        <div className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-280px)]">
-            <table className="w-full text-left text-[10px] whitespace-nowrap border-collapse">
+        <>
+        <MobileScrollHint label="Geser → untuk lihat semua kolom" />
+      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-200px)]">
+            <table className="kpi-data-table w-full text-left whitespace-nowrap border-collapse">
               <thead className="bg-surface text-text-secondary sticky top-0 z-30">
                 <tr>
                   <th className="p-2 font-bold text-center border-b border-border md:sticky md:left-0 z-40 bg-surface min-w-[60px] max-w-[60px]">No</th>
-                  <SortableHeader label="Name / CS ID" sortKey="name" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border md:sticky md:left-[60px] z-40 bg-surface min-w-[250px] max-w-[250px]" />
+                  <SortableHeader label="Nama / CS ID" sortKey="name" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border md:sticky md:left-[60px] z-40 bg-surface min-w-[250px] max-w-[250px]" />
                   <SortableHeader label="BPO" sortKey="bpo" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border md:sticky md:left-[310px] z-40 bg-surface min-w-[80px] max-w-[80px]" />
-                  <SortableHeader label="Team Leader" sortKey="teamLeader" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border md:sticky md:left-[390px] z-40 bg-surface min-w-[120px] max-w-[120px]" />
+                  <SortableHeader label="TL" sortKey="teamLeader" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border md:sticky md:left-[390px] z-40 bg-surface min-w-[120px] max-w-[120px]" />
+                  <th className="p-2 font-bold text-center border-b border-border md:sticky md:left-[510px] z-40 bg-surface min-w-[72px] max-w-[72px] shadow-[10px_0_15px_-3px_rgba(0,0,0,0.05)]">Aksi</th>
+                  <SortableHeader label="Low" sortKey="low" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border text-center bg-surface text-text-primary" />
                   <SortableHeader label="Medium" sortKey="medium" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border text-center bg-surface text-text-primary" />
                   <SortableHeader label="High" sortKey="high" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border text-center bg-surface text-text-primary" />
                   <SortableHeader label="Very High" sortKey="veryHigh" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border text-center bg-surface text-text-primary" />
-                  <SortableHeader label="Most Frequent Mistake (Indicator)" sortKey="category" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border bg-surface text-text-secondary" />
-                  <th className="p-2 font-bold text-center border-b border-border bg-surface w-24">Action</th>
+                  <SortableHeader label="Temuan tersering" sortKey="category" config={defectSortConfig} onSort={handleDefectSort} className="border-b border-border bg-surface text-text-secondary" />
                 </tr>
               </thead>
-              <tbody className="">
-                {sortedDefectData.map((agent, index) => {
+              <VirtualizedTbody
+                colSpan={defectTableColSpan}
+                paddingTop={tableVirtual.paddingTop}
+                paddingBottom={tableVirtual.paddingBottom}
+              >
+                {tableVirtual.virtualIndexes.map((index) => {
+                  const agent = sortedDefectData[index];
+                  if (!agent) return null;
                   const displayName = agent.name || agent.csId;
 
                   return (
                     <tr key={agent.csId} className="border-b border-border transition-colors group hover:bg-surface-muted">
                       <td className="p-2 text-center text-text-muted font-medium md:sticky md:left-0 z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[60px] max-w-[60px]">{index + 1}</td>
                       <td className="p-2 font-medium md:sticky md:left-[60px] z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[250px] max-w-[250px] truncate">
-                        <button 
-                          onClick={() => useStore.getState().setSelectedAgentFor360(agent.csId)}
-                          className="text-kpi-neutral-text hover:underline font-semibold"
-                        >
+                        <span className="text-kpi-neutral-text font-semibold" title={agent.csId}>
                           {displayName}
-                        </button>
-                        <div className="text-[9px] text-text-muted font-normal mt-0.5">{agent.csId}</div>
+                        </span>
                       </td>
                       <td className="p-2 font-medium text-text-primary uppercase md:sticky md:left-[310px] z-20 bg-card group-hover:bg-surface-muted min-w-[80px] max-w-[80px] truncate">
                         {agent.bpo || '-'}
                       </td>
                       <td className="p-2 font-medium text-text-primary md:sticky md:left-[390px] z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[120px] max-w-[120px] truncate">{agent.teamLeader || '-'}</td>
-                      
-                      <td className={`p-2 text-center z-10 `}><span className={`inline-flex font-bold ${agent.mediumCount > 0 ? 'text-text-primary' : 'text-text-disabled'}`}>{agent.mediumCount || '-'}</span></td>
-                      <td className={`p-2 text-center z-10 `}><span className={`inline-flex font-bold ${agent.highCount > 0 ? 'text-text-primary' : 'text-text-disabled'}`}>{agent.highCount || '-'}</span></td>
-                      <td className={`p-2 text-center z-10 `}><span className={`inline-flex font-bold ${agent.veryHighCount > 0 ? 'text-text-primary' : 'text-text-disabled'}`}>{agent.veryHighCount || '-'}</span></td>
-                      
-                      <td className="p-2 font-medium text-text-primary z-10 truncate max-w-[200px]">
-                        {agent.mostFrequentMistake === '-' ? <span className="text-text-muted ml-4">-</span> : agent.mostFrequentMistake}
-                      </td>
-                      <td className="p-2 text-center flex items-center justify-center z-10">
+                      <td className="p-2 text-center md:sticky md:left-[510px] z-20 bg-card group-hover:bg-surface-muted min-w-[72px] max-w-[72px] shadow-[10px_0_15px_-3px_rgba(0,0,0,0.05)]">
                         <button 
                           onClick={() => setSelectedAgent({ agent, type: 'defects' })}
-                          className="flex items-center gap-1 text-[10px] text-text-muted hover:text-primary transition-colors px-2 py-1 rounded hover:bg-surface-muted relative cursor-pointer"
+                          className="inline-flex items-center gap-1 text-[10px] text-text-muted hover:text-primary transition-colors px-2 py-1 rounded hover:bg-surface-muted relative cursor-pointer"
                           title="View Defect Details"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -493,33 +557,55 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                           )}
                         </button>
                       </td>
+                      
+                      <td className={`p-2 text-center z-10 `}><span className={`inline-flex font-bold ${agent.lowCount > 0 ? 'text-text-primary' : 'text-text-disabled'}`}>{agent.lowCount || '-'}</span></td>
+                      <td className={`p-2 text-center z-10 `}><span className={`inline-flex font-bold ${agent.mediumCount > 0 ? 'text-text-primary' : 'text-text-disabled'}`}>{agent.mediumCount || '-'}</span></td>
+                      <td className={`p-2 text-center z-10 `}><span className={`inline-flex font-bold ${agent.highCount > 0 ? 'text-text-primary' : 'text-text-disabled'}`}>{agent.highCount || '-'}</span></td>
+                      <td className={`p-2 text-center z-10 `}><span className={`inline-flex font-bold ${agent.veryHighCount > 0 ? 'text-text-primary' : 'text-text-disabled'}`}>{agent.veryHighCount || '-'}</span></td>
+                      
+                      <td className="p-2 font-medium text-text-primary z-10 truncate max-w-[200px]">
+                        {agent.mostFrequentMistake === '-' ? <span className="text-text-muted ml-4">-</span> : agent.mostFrequentMistake}
+                      </td>
                     </tr>
                   );
                 })}
                 {sortedDefectData.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="p-8 text-center text-text-muted z-10">
-                      Tidak ada data yang sesuai filter.
+                    <td colSpan={defectTableColSpan} className="p-4 z-10">
+                      <EmptyState
+                        title="Tidak ada defect QA"
+                        description="Tidak ada defect pada filter dan view mode saat ini."
+                        variant="data"
+                        className="border-0 bg-transparent py-6"
+                      />
                     </td>
                   </tr>
                 )}
-              </tbody>
+              </VirtualizedTbody>
             </table>
         </div>
+        </>
       )}
 
       {selectedAgent && (() => {
         const currentAgentData = defectData.find(a => a.csId === selectedAgent.agent.csId);
-        const rawList = selectedAgent.type === 'all' 
-             ? (currentAgentData?.qaHistory || []) 
-             : (currentAgentData?.defects || []);
         
-        const defectsList = rawList.filter(q => {
-          const level = (q.mistakeLevel || '').toUpperCase();
-          return level.includes('MEDIUM') || level.includes('HIGH') || level.includes('VERY HIGH');
-        });
-
-        const filteredDefects = selectedAgent.date ? defectsList.filter(q => q.date === selectedAgent.date) : defectsList;
+        let filteredDefectsList = currentAgentData?.qaHistory || [];
+        if (selectedAgent.type === 'defects') {
+           filteredDefectsList = filteredDefectsList.filter(isQaDefect);
+        } else if (selectedAgent.type === 'no_mistake') {
+           filteredDefectsList = filteredDefectsList.filter(q => {
+              const level = (q.mistakeLevel || '').toUpperCase();
+              return level.includes('NO MISTAKE');
+           });
+        }
+        
+        const filteredDefects = selectedAgent.date
+          ? filteredDefectsList.filter((q) => {
+              const nd = q.normDate || normalizeDateStr(q.date || '');
+              return nd === selectedAgent.date || q.date === selectedAgent.date;
+            })
+          : filteredDefectsList;
 
         const categoryCounts: Record<string, number> = {};
         filteredDefects.forEach(d => {
@@ -541,200 +627,178 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
            return acc;
         }, {} as Record<string, typeof filteredDefects>);
         
-        const sortedDates = Object.keys(groupedDefects).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+        const sortedDates = Object.keys(groupedDefects).sort((a, b) => parseDateForSort(b) - parseDateForSort(a));
+
+        const typeColor = selectedAgent.type === 'defects' ? 'text-danger' : selectedAgent.type === 'no_mistake' ? 'text-success' : 'text-primary';
+        const countLabel = selectedAgent.type === 'defects' ? 'Total defect' : selectedAgent.type === 'no_mistake' ? 'Tanpa temuan' : 'Total evaluasi';
+        const titleLabel = selectedAgent.type === 'all' ? 'Riwayat evaluasi QA' : selectedAgent.type === 'no_mistake' ? 'Evaluasi tanpa temuan' : 'Riwayat audit';
+
+        const idChip = (label: string, value?: string) => value ? (
+          <button
+            key={label}
+            type="button"
+            onClick={(e) => handleCopy(e, value)}
+            className="inline-flex items-center gap-1 rounded border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] text-text-secondary transition-colors hover:border-primary"
+            title={`Salin ${label}`}
+          >
+            <span className="text-text-muted">{label}</span>
+            <span className="max-w-[150px] truncate">{value}</span>
+            {copiedId === value ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3 text-text-muted" />}
+          </button>
+        ) : null;
 
         return (
-          <div className="fixed inset-0 bg-text-primary/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
-            <div className="bg-card rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] flex flex-col overflow-hidden">
-              <div className="flex flex-col md:flex-row md:items-start justify-between p-4 md:p-5 border-b border-border bg-surface-muted relative gap-3 md:gap-4 pr-10 md:pr-5">
-                <div className="flex flex-col gap-2 md:gap-3">
-                  <div>
-                    <h3 className="font-bold text-base md:text-lg text-text-primary flex flex-wrap items-center gap-1.5 md:gap-2">
-                      <AlertCircle className={`w-4 h-4 md:w-5 md:h-5 ${selectedAgent.type === 'defects' ? 'text-danger' : 'text-primary'}`} />
-                      {selectedAgent.type === 'all' ? 'QA Evaluation History:' : 'Historical Audit Trail:'} {selectedAgent.agent.name || selectedAgent.agent.csId} 
-                      {selectedAgent.date && <span className="text-text-muted font-normal text-xs md:text-sm ml-1 md:ml-2">({selectedAgent.date})</span>}
+          <div
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-text-primary/50 p-4 backdrop-blur-sm"
+            onClick={() => setSelectedAgent(null)}
+          >
+            <div
+              className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* header */}
+              <div className="border-b border-border bg-surface-muted p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="flex flex-wrap items-center gap-2 text-base font-bold text-text-primary">
+                      <AlertCircle className={`h-4 w-4 shrink-0 ${typeColor}`} />
+                      <span>{titleLabel}</span>
+                      <span className="truncate text-text-secondary">{selectedAgent.agent.name || selectedAgent.agent.csId}</span>
+                      {selectedAgent.date && <span className="text-xs font-normal text-text-muted">&middot; {formatCalendarHeader(selectedAgent.date)}</span>}
                     </h3>
-                    <p className="text-[10px] md:text-xs text-text-muted mt-0.5 md:mt-1 ml-6 md:ml-7 flex flex-wrap items-center gap-1">
-                      <span>CS ID: <span className="font-semibold text-text-primary">{selectedAgent.agent.csId}</span></span>
-                      <span className="text-border">&bull;</span> 
-                      <span>Team Leader: <span className="font-semibold text-text-primary">{selectedAgent.agent.teamLeader || '-'}</span></span>
+                    <p className="mt-1 text-[11px] text-text-muted">
+                      CS ID <span className="font-semibold text-text-secondary">{selectedAgent.agent.csId}</span>
+                      <span className="mx-1.5 text-border">&bull;</span>
+                      TL <span className="font-semibold text-text-secondary">{selectedAgent.agent.teamLeader || '-'}</span>
                     </p>
                   </div>
-                  
-                  <div className="flex flex-wrap items-center gap-4 md:gap-8 ml-0 md:ml-7 mt-1 md:mt-0 pl-0 md:pl-4">
-                     <div className="flex flex-col bg-card md:bg-transparent border border-border md:border-transparent px-3 py-1.5 md:px-0 md:py-0 rounded-lg shrink-0 shadow-sm md:shadow-none">
-                        <span className="text-[9px] md:text-[10px] font-bold text-text-muted uppercase tracking-wider mb-0.5">{selectedAgent.type === 'defects' ? 'Total Defects' : 'Total Evaluations'}</span>
-                        <span className={`text-base md:text-lg font-black leading-none ${selectedAgent.type === 'defects' ? 'text-danger' : 'text-primary'}`}>{filteredDefects.length}</span>
-                     </div>
-                     
-                     <div className="flex md:hidden flex-col flex-1 min-w-[120px]">
-                        <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-1">Top Categories</span>
-                        <div className="flex flex-wrap gap-1">
-                          {topCategories.map((cat, i) => (
-                             <span key={i} className="text-[9px] font-medium bg-card border border-border px-1.5 py-0.5 rounded text-text-secondary truncate max-w-full" title={cat}>{cat}</span>
-                          ))}
-                        </div>
-                     </div>
-                  </div>
+                  <button
+                    onClick={() => setSelectedAgent(null)}
+                    aria-label="Tutup"
+                    className="shrink-0 rounded-full p-1.5 text-text-muted transition-colors hover:bg-card hover:text-text-primary"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-                
-                <div className="hidden md:flex gap-8 items-start">
-                  <div className="flex flex-col mr-4 mt-0.5">
-                      <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Top Categories (Max 3)</span>
-                      <ul className="flex flex-col gap-1.5 text-xs">
+
+                {!selectedAgent.date && (
+                  <div className="mt-3 inline-flex w-max gap-1 rounded-lg bg-card p-1">
+                    {([
+                      ['defects', 'Defect'],
+                      ['no_mistake', 'Tanpa temuan'],
+                      ['all', 'Semua evaluasi'],
+                    ] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedAgent({ ...selectedAgent, type: key })}
+                        className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${selectedAgent.type === key ? 'bg-surface-muted text-primary' : 'text-text-muted hover:text-text-primary'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-2">
+                  <div>
+                    <div className="text-[9px] font-bold uppercase tracking-wide text-text-muted">{countLabel}</div>
+                    <div className={`text-lg font-semibold leading-none ${typeColor}`}>{filteredDefects.length}</div>
+                  </div>
+                  {topCategories[0] !== '-' && (
+                    <div className="min-w-0">
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-text-muted">Top kategori</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
                         {topCategories.map((cat, i) => (
-                          <li key={i} className="font-semibold text-text-primary leading-tight max-w-[280px] truncate" title={cat}>
-                            {topCategories.length > 1 && topCategories[0] !== '-' && <span className="text-text-muted mr-1.5">{i + 1}.</span>}
-                            {cat}
-                          </li>
+                          <span key={i} className="max-w-[220px] truncate rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-text-secondary" title={cat}>{cat}</span>
                         ))}
-                      </ul>
-                  </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                
-                <button 
-                  onClick={() => setSelectedAgent(null)}
-                  className="absolute top-2 right-2 md:relative md:top-auto md:right-auto p-2 text-text-muted hover:text-text-primary hover:bg-surface-muted rounded-full transition-colors self-start shrink-0"
-                >
-                  <X className="w-4 h-4 md:w-5 md:h-5" />
-                </button>
               </div>
-              
-              <div className="p-0 overflow-y-auto flex-1 bg-card">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="sticky top-0 bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)] z-20 border-b border-border">
-                    <tr className="text-text-secondary">
-                      <th className="p-3.5 font-semibold w-24">Date</th>
-                      <th className="p-3.5 font-semibold w-32">Mistake Level</th>
-                      <th className="p-3.5 font-semibold min-w-[200px]">Category (Indicator)</th>
-                      <th className="p-3.5 font-semibold min-w-[250px]">Remarks & Feedback</th>
-                      <th className="p-3.5 font-semibold w-40">Ticket & Chat ID</th>
-                      <th className="p-3.5 font-semibold w-32">UID</th>
-                      <th className="p-3.5 font-semibold w-32">QC Name</th>
-                      <th className="p-3.5 font-semibold text-right w-24 pr-6">Case Date</th>
-                    </tr>
-                  </thead>
-                  
-                  {sortedDates.length > 0 ? (
-                    sortedDates.map(date => {
-                       const defects = groupedDefects[date];
-                       const isExpanded = expandedDates.has(date) || sortedDates.length === 1; // Auto-expand if only 1 date
-                       
-                       return (
-                         <tbody key={date} className="group">
-                            <tr 
-                              onClick={() => {
-                                setExpandedDates(prev => {
-                                   const next = new Set(prev);
-                                   if (next.has(date)) next.delete(date);
-                                   else next.add(date);
-                                   return next;
-                                });
-                              }}
-                              className="cursor-pointer bg-surface-muted hover:bg-surface border-b border-border transition-colors"
-                            >
-                               <td colSpan={8} className="p-3.5">
-                                  <div className="flex items-center gap-2">
-                                     {isExpanded ? <ChevronDown className="w-4 h-4 text-text-muted" /> : <ChevronRight className="w-4 h-4 text-text-muted" />}
-                                     <span className="font-bold text-text-primary">{date}</span>
-                                     <span className="text-danger text-[10px] font-bold px-2 py-0.5 rounded-full ml-2">
-                                        {defects.length} Defect{defects.length > 1 ? 's' : ''} Found
-                                     </span>
-                                  </div>
-                               </td>
-                            </tr>
-                            
-                            {isExpanded && defects.map((q, i) => {
+
+              {/* body — card list per date */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {sortedDates.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    {sortedDates.map(date => {
+                      const defects = groupedDefects[date];
+                      const isExpanded = expandedDates.has(date) || sortedDates.length === 1;
+                      return (
+                        <div key={date}>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedDates(prev => {
+                              const next = new Set(prev);
+                              if (next.has(date)) next.delete(date);
+                              else next.add(date);
+                              return next;
+                            })}
+                            className="flex w-full items-center gap-2 rounded-md bg-surface-muted px-3 py-2 text-left transition-colors hover:bg-surface"
+                          >
+                            {isExpanded ? <ChevronDown className="h-4 w-4 text-text-muted" /> : <ChevronRight className="h-4 w-4 text-text-muted" />}
+                            <span className="text-[13px] font-bold text-text-primary">{date}</span>
+                            <span className="ml-1 rounded-full bg-card px-2 py-0.5 text-[10px] font-bold text-text-muted">
+                              {defects.length} temuan
+                            </span>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="mt-2 flex flex-col gap-2 pl-2">
+                              {defects.map((q, i) => {
                                 const levelStr = (q.mistakeLevel || '').toUpperCase();
                                 let badgeClass = 'bg-surface-muted text-text-secondary';
                                 if (levelStr.includes('VERY HIGH')) badgeClass = 'text-danger border border-danger';
                                 else if (levelStr.includes('HIGH') || levelStr.includes('MAJOR')) badgeClass = 'bg-danger-soft text-danger border border-danger';
                                 else if (levelStr.includes('MEDIUM') || levelStr.includes('MINOR')) badgeClass = 'bg-warning-soft text-warning border border-warning';
-                                
+                                else if (levelStr.includes('LOW')) badgeClass = 'bg-primary-soft text-primary border border-primary';
+                                else if (levelStr.includes('NO MISTAKE')) badgeClass = 'bg-success-soft text-success border border-success';
+
                                 return (
-                                  <tr key={`${date}-${i}`} className="border-b border-border hover:bg-surface-muted/50 transition-colors last:border-b-0 text-text-primary group">
-                                    <td className="p-3.5 whitespace-nowrap font-medium pl-8">
-                                       <div className="flex items-center">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-text-disabled mr-3"></div>
-                                          {q.date}
-                                       </div>
-                                    </td>
-                                    <td className="p-3.5">
-                                      <span className={`px-2 py-0.5 rounded text-[10px] uppercase shadow-[0_1px_3px_rgba(0,0,0,0.04)] ${badgeClass}`}>
+                                  <div key={`${date}-${i}`} className="rounded-lg border border-border bg-surface/40 p-3">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${badgeClass}`}>
                                         {q.mistakeLevel || 'N/A'}
                                       </span>
-                                    </td>
-                                    <td className="p-3.5 leading-relaxed font-medium">
-                                      {q.category || '-'}
-                                    </td>
-                                    <td className="p-3.5 text-text-secondary leading-relaxed max-w-sm whitespace-pre-wrap">
-                                      <div className="flex flex-col gap-1">
-                                        {q.remarks && <div>{q.remarks}</div>}
-                                        {q.feedback && <div className="italic text-text-muted mt-1">{q.feedback}</div>}
-                                        {(!q.remarks && !q.feedback) && <span>-</span>}
-                                      </div>
-                                    </td>
-                                    <td className="p-3.5 text-text-primary text-xs font-mono">
-                                      <div className="flex flex-col gap-1">
-                                        {q.ticketId && 
-                                          <div className="flex items-center gap-1.5 group/copy">
-                                            <span className="text-text-muted select-none">T:</span>
-                                            <span title="Ticket ID" className="truncate max-w-[120px]">{q.ticketId}</span>
-                                            <button onClick={(e) => handleCopy(e, q.ticketId!)} className="p-1 hover:bg-surface-muted rounded text-text-muted opacity-0 group-hover/copy:opacity-100 transition-opacity focus:opacity-100">
-                                              {copiedId === q.ticketId ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
-                                            </button>
-                                          </div>
-                                        }
-                                        {q.chatId && 
-                                          <div className="flex items-center gap-1.5 group/copy">
-                                            <span className="text-text-muted select-none">C:</span>
-                                            <span title="Chat ID" className="truncate max-w-[120px]">{q.chatId}</span>
-                                            <button onClick={(e) => handleCopy(e, q.chatId!)} className="p-1 hover:bg-surface-muted rounded text-text-muted opacity-0 group-hover/copy:opacity-100 transition-opacity focus:opacity-100">
-                                              {copiedId === q.chatId ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
-                                            </button>
-                                          </div>
-                                        }
-                                        {(!q.ticketId && !q.chatId) && <span>-</span>}
-                                      </div>
-                                    </td>
-                                    <td className="p-3.5 text-text-primary font-mono text-xs">
-                                      <div className="flex items-center gap-1.5 group/copy w-max">
-                                        <span title="UID" className="truncate">{q.uid || '-'}</span>
-                                        {q.uid && (
-                                          <button onClick={(e) => handleCopy(e, q.uid!)} className="p-1 hover:bg-surface-muted rounded text-text-muted opacity-0 group-hover/copy:opacity-100 transition-opacity focus:opacity-100">
-                                            {copiedId === q.uid ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
-                                          </button>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="p-3.5 text-text-primary text-xs">
-                                      {q.qcName || '-'}
-                                    </td>
-                                    <td className="p-3.5 text-right text-text-primary text-xs pr-6 whitespace-nowrap">
-                                      {q.caseDate || '-'}
-                                    </td>
-                                  </tr>
+                                      <span className="text-[13px] font-semibold text-text-primary">{q.category || '-'}</span>
+                                      <span className="ml-auto shrink-0 text-[10px] tabular-nums text-text-muted">
+                                        {q.date}{q.caseDate && q.caseDate !== q.date ? ` · kasus ${q.caseDate}` : ''}
+                                      </span>
+                                    </div>
+
+                                    {q.remarks && (
+                                      <p className="mt-2 whitespace-pre-wrap text-[12px] leading-relaxed text-text-secondary">{q.remarks}</p>
+                                    )}
+
+                                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-text-muted">
+                                      {q.crmKode && <span>CRM <strong className="text-text-secondary">{q.crmKode}</strong></span>}
+                                      {q.qcName && <span>QC <strong className="text-text-secondary">{q.qcName}</strong></span>}
+                                      {idChip('Ticket', q.ticketId)}
+                                      {idChip('Chat', q.chatId)}
+                                      {idChip('UID', q.uid)}
+                                    </div>
+                                  </div>
                                 );
-                            })}
-                         </tbody>
-                       );
-                    })
-                  ) : (
-                    <tbody>
-                      <tr>
-                        <td colSpan={8} className="p-16 text-center">
-                          <div className="flex flex-col items-center justify-center">
-                            <div className="w-16 h-16 bg-surface-muted border border-border rounded-full flex items-center justify-center mb-4">
-                               <BarChart2 className="w-8 h-8 text-text-disabled" />
+                              })}
                             </div>
-                            <div className="text-text-secondary font-bold text-base">{selectedAgent.type === 'defects' ? 'No defects found for this agent.' : 'No evaluations found.'}</div>
-                            <div className="text-text-muted mt-1 max-w-sm">{selectedAgent.type === 'defects' ? 'Excellent performance with zero recorded defects in the selected period.' : 'No QA evaluation data to display.'}</div>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  )}
-                </table>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-border bg-surface-muted">
+                      <BarChart2 className="h-8 w-8 text-text-disabled" />
+                    </div>
+                    <div className="text-base font-bold text-text-secondary">
+                      {selectedAgent.type === 'defects' ? 'Tidak ada defect untuk agent ini.' : 'Tidak ada evaluasi.'}
+                    </div>
+                    <div className="mt-1 max-w-sm text-text-muted">
+                      {selectedAgent.type === 'defects' ? 'Tidak ada temuan tercatat pada periode terpilih.' : 'Belum ada data evaluasi QA untuk ditampilkan.'}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

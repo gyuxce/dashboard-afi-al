@@ -1,175 +1,196 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
+/* Geist Sans (Vercel) — variable font via local package */
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  /* Base Surfaces */
-  --background: 248 250 252;          /* #F8FAFC */
+  /* Base Surfaces — light off-white (Cursor-like, not blue-slate) */
+  --background: 250 250 249;          /* #FAFAF9 */
   --surface: 255 255 255;             /* #FFFFFF */
-  --surface-muted: 249 250 251;       /* #F9FAFB */
+  --surface-muted: 245 245 244;       /* #F5F5F4 */
   --card: 255 255 255;                /* #FFFFFF */
-  --border: 238 242 247;              /* #EEF2F7 */
-  --border-strong: 229 231 235;       /* #E5E7EB */
-  
+  --border: 231 229 228;              /* #E7E5E4 */
+  --border-strong: 214 211 209;       /* #D6D3D1 */
+
   /* Text */
-  --text-primary: 31 41 55;           /* #1F2937 */
-  --text-secondary: 107 114 128;      /* #6B7280 */
-  --text-muted: 156 163 175;          /* #9CA3AF */
-  --text-disabled: 209 213 219;       /* #D1D5DB */
-  
-  /* Brand - Akulaku Red */
+  --text-primary: 28 25 23;           /* #1C1917 */
+  --text-secondary: 87 83 78;         /* #57534E */
+  --text-muted: 168 162 158;          /* #A8A29E */
+  --text-disabled: 214 211 209;       /* #D6D3D1 */
+
+  /* Brand - Akulaku Red (chrome / CTA) */
   --primary: 227 30 36;               /* #E31E24 */
-  --primary-hover: 239 68 68;         /* #EF4444 */
-  --primary-soft: 254 226 226;        /* #FEE2E2 */
-  --primary-soft-hover: 252 165 165;  /* #FCA5A5 */
+  --primary-hover: 200 25 30;         /* #C8191E */
+  --primary-soft: 254 242 242;        /* #FEF2F2 */
+  --primary-soft-hover: 254 226 226;  /* #FEE2E2 */
   --primary-text: 227 30 36;          /* #E31E24 */
-  
-  /* Semantic */
+
+  /* Semantic — keep KPI traffic lights; danger distinct from brand soft */
   --success: 22 163 74;               /* #16A34A */
   --success-soft: 220 252 231;
   --success-text: 21 128 61;
-  --danger: 227 30 36;                /* #E31E24 */
+  --danger: 185 28 28;                /* #B91C1C — under-target, not brand soft */
   --danger-soft: 254 226 226;
-  --danger-text: 185 28 28;
-  --warning: 245 158 11;              /* #F59E0B */
+  --danger-text: 153 27 27;
+  --warning: 217 119 6;               /* #D97706 */
   --warning-soft: 254 243 199;
   --warning-text: 180 83 9;
-  
+
   /* Sidebar */
-  --sidebar-bg: 255 255 255;          /* Light Mode */
-  --sidebar-bg-hover: 243 244 246;    /* #F3F4F6 */
-  --sidebar-bg-active: 254 226 226;   /* #FEE2E2 */
-  --sidebar-text: 71 85 105;          /* #475569 */
-  --sidebar-text-hover: 15 23 42;     /* #0F172A */
-  --sidebar-text-active: 227 30 36;   /* #E31E24 */
-  --sidebar-border: 238 242 247;
+  --sidebar-bg: 255 255 255;
+  --sidebar-bg-hover: 245 245 244;    /* #F5F5F4 */
+  --sidebar-bg-active: 250 250 249;   /* quiet active — not loud red fill */
+  --sidebar-text: 87 83 78;           /* #57534E */
+  --sidebar-text-hover: 28 25 23;     /* #1C1917 */
+  --sidebar-text-active: 28 25 23;    /* #1C1917 — accent bar carries brand */
+  --sidebar-border: 231 229 228;
   --sidebar-accent: 227 30 36;        /* #E31E24 */
 
+  /* Radius & elevation */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+
   /* KPI Color Identity */
-  --kpi-productivity: 227 30 36;       /* #E31E24 */
-  --kpi-productivity-soft: 254 226 226; /* #FEE2E2 */
-  --kpi-productivity-text: 227 30 36;   /* #E31E24 */
+  --kpi-productivity: 227 30 36;
+  --kpi-productivity-soft: 254 226 226;
+  --kpi-productivity-text: 227 30 36;
 
-  --kpi-productivity-avg: 227 30 36;    /* #E31E24 */
-  --kpi-productivity-avg-soft: 254 226 226; /* #FEE2E2 */
-  --kpi-productivity-avg-text: 227 30 36;   /* #E31E24 */
+  --kpi-productivity-avg: 227 30 36;
+  --kpi-productivity-avg-soft: 254 226 226;
+  --kpi-productivity-avg-text: 227 30 36;
 
-  --kpi-csat: 245 158 11;              /* #F59E0B */
-  --kpi-csat-soft: 254 243 199;        /* #FEF3C7 */
-  --kpi-csat-text: 245 158 11;         /* #F59E0B */
-  
-  --kpi-qa: 245 158 11;                /* #F59E0B */
-  --kpi-qa-soft: 254 243 199;          /* #FEF3C7 */
-  --kpi-qa-text: 245 158 11;           /* #F59E0B */
+  --kpi-csat: 217 119 6;
+  --kpi-csat-soft: 254 243 199;
+  --kpi-csat-text: 217 119 6;
 
-  --kpi-sla: 22 163 74;                /* #16A34A */
-  --kpi-sla-soft: 220 252 231;         /* #DCFCE7 */
-  --kpi-sla-text: 22 163 74;           /* #16A34A */
+  --kpi-qa: 217 119 6;
+  --kpi-qa-soft: 254 243 199;
+  --kpi-qa-text: 217 119 6;
 
-  --kpi-whu: 22 163 74;                /* #16A34A */
-  --kpi-whu-soft: 220 252 231;         /* #DCFCE7 */
-  --kpi-whu-text: 22 163 74;           /* #16A34A */
+  --kpi-sla: 22 163 74;
+  --kpi-sla-soft: 220 252 231;
+  --kpi-sla-text: 22 163 74;
 
-  --kpi-neutral: 37 99 235;            /* #2563EB */
-  --kpi-neutral-soft: 219 234 254;     /* #DBEAFE */
-  --kpi-neutral-text: 37 99 235;       /* #2563EB */
-  --chart-primary: 37 99 235;          /* Blue in Light Mode */
+  --kpi-whu: 22 163 74;
+  --kpi-whu-soft: 220 252 231;
+  --kpi-whu-text: 22 163 74;
+
+  --kpi-neutral: 82 82 91;            /* zinc — quieter than blue */
+  --kpi-neutral-soft: 244 244 245;
+  --kpi-neutral-text: 63 63 70;
+  --chart-primary: 82 82 91;
 }
 
 .dark {
-  /* Base Surfaces */
-  --background: 15 23 42;             /* #0F172A */
-  --surface: 30 41 59;                /* #1E293B */
-  --surface-muted: 39 53 73;          /* #273549 */
-  --card: 30 41 59;                   /* #1E293B */
-  --border: 51 65 85;                 /* #334155 */
-  --border-strong: 71 85 105;         /* #475569 */
-  
-  /* Text */
-  --text-primary: 241 245 249;        /* #F1F5F9 */
-  --text-secondary: 203 213 245;      /* #CBD5F5 */
-  --text-muted: 148 163 184;          /* #94A3B8 */
-  --text-disabled: 71 85 105;         /* #475569 */
-  
-  /* Brand - Akulaku Red Dark */
-  --primary: 239 68 68;               /* #EF4444 */
-  --primary-hover: 220 38 38;         /* #DC2626 */
-  --primary-soft: 127 29 29;          /* #7F1D1D */
-  --primary-soft-hover: 153 27 27;    /* #991B1B */
-  --primary-text: 241 245 249;        /* #F1F5F9 */
-  
-  /* Semantic */
-  --success: 34 197 94;               /* #22C55E */
-  --success-soft: 20 83 45;           /* #14532D */
-  --success-text: 34 197 94;          /* #22C55E */
-  --danger: 239 68 68;                /* #EF4444 */
-  --danger-soft: 127 29 29;           /* #7F1D1D */
-  --danger-text: 239 68 68;           /* #EF4444 */
-  --warning: 251 191 36;              /* #FBBF24 */
-  --warning-soft: 120 53 15;          /* #78350F */
-  --warning-text: 251 191 36;         /* #FBBF24 */
-  
-  /* Sidebar */
-  --sidebar-bg: 2 6 23;               /* #020617 */
-  --sidebar-bg-hover: 30 41 59;       /* #1E293B */
-  --sidebar-bg-active: transparent;
-  --sidebar-text: 148 163 184;        /* #94A3B8 */
-  --sidebar-text-hover: 241 245 249;  /* #F1F5F9 */
-  --sidebar-text-active: 239 68 68;   /* #EF4444 */
-  --sidebar-border: 51 65 85;         /* #334155 */
-  --sidebar-accent: 239 68 68;        /* #EF4444 */
+  /* Base Surfaces — 4-step elevation so regions don't blur into one flat black */
+  --background: 12 12 14;             /* #0C0C0E — canvas */
+  --surface: 20 20 23;               /* #141417 — sidebar, filter bar */
+  --surface-muted: 35 35 41;         /* #232329 — row hover, popovers */
+  --card: 28 28 33;                  /* #1C1C21 — cards, tables */
+  --border: 42 42 49;               /* #2A2A31 */
+  --border-strong: 58 58 67;        /* #3A3A43 */
 
-  /* KPI Color Identity */
-  --kpi-productivity: 239 68 68;        /* #EF4444 */
-  --kpi-productivity-soft: 127 29 29;   /* #7F1D1D */
-  --kpi-productivity-text: 239 68 68;   /* #EF4444 */
+  /* Text — brighter secondary/muted (muted ~3.1:1 → ~4.6:1 on card) */
+  --text-primary: 244 244 245;       /* #F4F4F5 */
+  --text-secondary: 180 180 189;     /* #B4B4BD */
+  --text-muted: 138 138 148;         /* #8A8A94 */
+  --text-disabled: 90 90 99;         /* #5A5A63 */
 
-  --kpi-productivity-avg: 239 68 68;        /* #EF4444 */
-  --kpi-productivity-avg-soft: 127 29 29; /* #7F1D1D */
-  --kpi-productivity-avg-text: 239 68 68; /* #EF4444 */
+  /* Brand — one job: active nav, primary action, focus ring */
+  --primary: 240 69 75;              /* #F0454B */
+  --primary-hover: 245 103 109;      /* #F5676D */
+  --primary-soft: 56 22 26;          /* #38161A */
+  --primary-soft-hover: 74 30 34;    /* #4A1E22 */
+  --primary-text: 255 154 160;       /* #FF9AA0 */
 
-  --kpi-csat: 251 191 36;               /* #FBBF24 */
-  --kpi-csat-soft: 120 53 15;           /* #78350F */
-  --kpi-csat-text: 251 191 36;          /* #FBBF24 */
-  
-  --kpi-qa: 251 191 36;                 /* #FBBF24 */
-  --kpi-qa-soft: 120 53 15;             /* #78350F */
-  --kpi-qa-text: 251 191 36;            /* #FBBF24 */
+  /* Semantic — disciplined trio (green sparingly, amber = watch, red = miss) */
+  --success: 61 214 140;             /* #3DD68C */
+  --success-soft: 18 48 39;          /* #123027 */
+  --success-text: 111 227 176;       /* #6FE3B0 */
+  --danger: 242 106 106;             /* #F26A6A */
+  --danger-soft: 56 25 26;           /* #38191A */
+  --danger-text: 245 142 142;        /* #F58E8E */
+  --warning: 245 184 75;             /* #F5B84B */
+  --warning-soft: 56 41 15;          /* #38290F */
+  --warning-text: 247 201 121;       /* #F7C979 */
 
-  --kpi-sla: 34 197 94;                 /* #22C55E */
-  --kpi-sla-soft: 20 83 45;             /* #14532D */
-  --kpi-sla-text: 34 197 94;            /* #22C55E */
+  /* Sidebar — aligned with new surfaces */
+  --sidebar-bg: 20 20 23;
+  --sidebar-bg-hover: 28 28 33;
+  --sidebar-bg-active: 35 35 41;
+  --sidebar-text: 138 138 148;
+  --sidebar-text-hover: 244 244 245;
+  --sidebar-text-active: 244 244 245;
+  --sidebar-border: 42 42 49;
+  --sidebar-accent: 240 69 75;
 
-  --kpi-whu: 34 197 94;                 /* #22C55E */
-  --kpi-whu-soft: 20 83 45;             /* #14532D */
-  --kpi-whu-text: 34 197 94;            /* #22C55E */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px -4px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.35);
 
-  --kpi-neutral: 96 165 250;            /* #60A5FA */
-  --kpi-neutral-soft: 30 58 138;        /* #1E3A8A */
-  --kpi-neutral-text: 96 165 250;       /* #60A5FA */
-  --chart-primary: 239 68 68;           /* Red in Dark Mode */
+  /* KPI Color Identity — quieted: metrics read neutral, status carries meaning */
+  --kpi-productivity: 138 138 148;
+  --kpi-productivity-soft: 35 35 41;
+  --kpi-productivity-text: 180 180 189;
+
+  --kpi-productivity-avg: 138 138 148;
+  --kpi-productivity-avg-soft: 35 35 41;
+  --kpi-productivity-avg-text: 180 180 189;
+
+  --kpi-csat: 245 184 75;
+  --kpi-csat-soft: 56 41 15;
+  --kpi-csat-text: 247 201 121;
+
+  --kpi-qa: 245 184 75;
+  --kpi-qa-soft: 56 41 15;
+  --kpi-qa-text: 247 201 121;
+
+  --kpi-sla: 61 214 140;
+  --kpi-sla-soft: 18 48 39;
+  --kpi-sla-text: 111 227 176;
+
+  --kpi-whu: 61 214 140;
+  --kpi-whu-soft: 18 48 39;
+  --kpi-whu-text: 111 227 176;
+
+  --kpi-neutral: 138 138 148;
+  --kpi-neutral-soft: 35 35 41;
+  --kpi-neutral-text: 180 180 189;
+  --chart-primary: 138 138 148;
 }
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  
+  --font-sans: "Geist Sans", "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
   --color-background: rgb(var(--background));
   --color-surface: rgb(var(--surface));
   --color-surface-muted: rgb(var(--surface-muted));
   --color-card: rgb(var(--card));
   --color-border: rgb(var(--border));
   --color-border-strong: rgb(var(--border-strong));
-  
+
   --color-text-primary: rgb(var(--text-primary));
   --color-text-secondary: rgb(var(--text-secondary));
   --color-text-muted: rgb(var(--text-muted));
   --color-text-disabled: rgb(var(--text-disabled));
-  
+
   --color-primary: rgb(var(--primary));
   --color-primary-hover: rgb(var(--primary-hover));
   --color-primary-soft: rgb(var(--primary-soft));
   --color-primary-soft-hover: rgb(var(--primary-soft-hover));
   --color-primary-text: rgb(var(--primary-text));
-  
+
   --color-success: rgb(var(--success));
   --color-success-soft: rgb(var(--success-soft));
   --color-success-text: rgb(var(--success-text));
@@ -179,7 +200,7 @@
   --color-warning: rgb(var(--warning));
   --color-warning-soft: rgb(var(--warning-soft));
   --color-warning-text: rgb(var(--warning-text));
-  
+
   --color-sidebar-bg: rgb(var(--sidebar-bg));
   --color-sidebar-bg-hover: rgb(var(--sidebar-bg-hover));
   --color-sidebar-bg-active: rgb(var(--sidebar-bg-active));
@@ -220,6 +241,14 @@
   --color-chart-primary: rgb(var(--chart-primary));
 }
 
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -228,12 +257,69 @@
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
   }
-}
 
-@keyframes ticker {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-.animate-ticker {
-  animation: ticker 30s linear infinite;
+  /* Comfortable agent/KPI tables on 13–14" laptops */
+  .kpi-data-table {
+    font-size: 11px;
+  }
+  .kpi-data-table :is(th, td) {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+  }
+  .kpi-data-table thead th {
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    position: sticky;
+    top: 0;
+  }
+  .kpi-data-table tbody tr:nth-child(even):not(:hover) {
+    background-color: rgb(var(--surface-muted));
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  @keyframes brand-walk {
+    0% { transform: translateX(-48px) translateY(0) rotate(-5deg); }
+    25% { transform: translateX(-16px) translateY(-4px) rotate(5deg); }
+    50% { transform: translateX(16px) translateY(0) rotate(-5deg); }
+    75% { transform: translateX(48px) translateY(-4px) rotate(5deg); }
+    100% { transform: translateX(-48px) translateY(0) rotate(-5deg); }
+  }
+
+  @keyframes brand-dot {
+    0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+    40% { opacity: 1; transform: translateY(-2px); }
+  }
+
+  .brand-walk-logo {
+    animation: brand-walk 1.6s ease-in-out infinite;
+    transform-origin: center bottom;
+  }
+
+  .brand-dot {
+    animation: brand-dot 1s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .brand-walk-logo,
+    .brand-dot {
+      animation: none !important;
+    }
+
+    .brand-walk-logo {
+      transform: none;
+    }
+  }
 }

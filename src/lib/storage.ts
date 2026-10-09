@@ -2,12 +2,18 @@ import { openDB } from 'idb';
 
 const DB_NAME = 'kpi-dashboard';
 const STORE_NAME = 'csv-data';
+// v2: drop snapshots that collapsed QA tickets to the empty follow-up row.
+const DB_VERSION = 2;
+export const SHEETS_SNAPSHOT_REVISION = 4;
 
 export async function initDB() {
-  return openDB(DB_NAME, 1, {
-    upgrade(db) {
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db, oldVersion, _newVersion, transaction) {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+      }
+      if (oldVersion < 2 && db.objectStoreNames.contains(STORE_NAME)) {
+        transaction.objectStore(STORE_NAME).clear();
       }
     },
   });
@@ -62,14 +68,5 @@ export async function listKeys(): Promise<string[]> {
   }
 }
 
-export async function getStorageSize(): Promise<number> {
-  try {
-    const db = await initDB();
-    const allData = await db.getAll(STORE_NAME);
-    const sizeBytes = new Blob([JSON.stringify(allData)]).size;
-    return Number((sizeBytes / (1024 * 1024)).toFixed(2));
-  } catch (error) {
-    console.warn(`Failed to calculate storage size`, error);
-    return 0;
-  }
-}
+// getStorageSize removed — was unused
+

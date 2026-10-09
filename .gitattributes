@@ -1,0 +1,13 @@
+# Normalize line endings to LF in the repo; let Git convert to the
+# platform's native line ending on checkout (CRLF on Windows).
+* text=auto eol=lf
+
+# Binary assets — never touch line endings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ico binary

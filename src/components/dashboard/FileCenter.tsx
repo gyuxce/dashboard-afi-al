@@ -1,28 +1,23 @@
 import React from 'react';
 import Papa from 'papaparse';
+import { useShallow } from 'zustand/react/shallow';
 import { useStore, AppState } from '../../store';
-import { UploadCloud, CheckCircle2, FileText, DownloadCloud, Loader2, DatabaseBackup, AlertTriangle, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle2, FileText, DownloadCloud, Loader2, DatabaseBackup, AlertTriangle, AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { getSheetConfigForMonth, getSheetMonthOption, getSheetMonthOptions } from '../../lib/sheetsApi';
 import { 
+  countDataRows,
   validateCsidFile, 
   validateProductivityFile, 
   validateCsatScFile, 
   validateSlaFile, 
   validateScheduleFile, 
-  validateQaFile 
+  validateQaFile,
+  ValidationResult
 } from '../../lib/csvValidator';
+import { formatRelativeTime, isStaleSync } from '../../lib/dataQuality';
 
-function formatRelativeTime(date: Date): string {
-  const diffMs = Date.now() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'baru saja';
-  if (diffMin < 60) return `${diffMin} menit lalu`;
-  const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour} jam lalu`;
-  return date.toLocaleDateString('id-ID');
-}
-
-const validators: Record<string, (data: any[][]) => any> = {
+const validators: Record<string, (data: any[][]) => ValidationResult> = {
   csidFile: validateCsidFile,
   productivityFile: validateProductivityFile,
   csatScFile: validateCsatScFile,
@@ -31,8 +26,185 @@ const validators: Record<string, (data: any[][]) => any> = {
   qaFile: validateQaFile,
 };
 
+const dataSources = [
+  { label: 'Master CSID', fileKey: 'csidFile', dataKey: 'csidData' },
+  { label: 'Productivity, CSAT, WHU', fileKey: 'productivityFile', dataKey: 'productivityData' },
+  { label: 'CSAT SC Raw Data', fileKey: 'csatScFile', dataKey: 'csatScData' },
+  { label: 'SLA Responses', fileKey: 'slaFile', dataKey: 'slaData' },
+  { label: 'Agent Scheduling', fileKey: 'scheduleFile', dataKey: 'scheduleData' },
+  { label: 'QA Score', fileKey: 'qaFile', dataKey: 'qaData' },
+] as const;
+
+type HealthStatus = 'ok' | 'warning' | 'error' | 'missing';
+
+const getHealthStyles = (status: HealthStatus) => {
+  switch (status) {
+    case 'ok':
+      return {
+        icon: <CheckCircle2 className="w-4 h-4 text-success" />,
+        label: 'OK',
+        className: 'border-success/20 bg-success/5 text-success',
+      };
+    case 'warning':
+      return {
+        icon: <AlertTriangle className="w-4 h-4 text-warning" />,
+        label: 'Warning',
+        className: 'border-warning/20 bg-warning/5 text-warning',
+      };
+    case 'error':
+      return {
+        icon: <AlertCircle className="w-4 h-4 text-danger" />,
+        label: 'Error',
+        className: 'border-danger/20 bg-danger/5 text-danger',
+      };
+    default:
+      return {
+        icon: <FileText className="w-4 h-4 text-text-muted" />,
+        label: 'Missing',
+        className: 'border-border bg-surface/40 text-text-muted',
+      };
+  }
+};
+
+const DataHealthPanel = ({ isSheetMode }: { isSheetMode: boolean }) => {
+  const store = useStore(useShallow((s) => ({
+    csidData: s.csidData,
+    productivityData: s.productivityData,
+    csatScData: s.csatScData,
+    slaData: s.slaData,
+    scheduleData: s.scheduleData,
+    qaData: s.qaData,
+    activeMonthRowCounts: s.activeMonthRowCounts,
+    fileValidations: s.fileValidations,
+  }))) as any;
+
+  const healthItems = React.useMemo(() => {
+    return dataSources.map((source) => {
+      const data = (store[source.dataKey] || []) as any[][];
+      const rows = store.activeMonthRowCounts?.[source.dataKey] ?? countDataRows(data);
+      const hasData = data.length > 0 && rows > 0;
+      const persistedValidation = store.fileValidations?.[source.fileKey] as ValidationResult | null | undefined;
+      const validation = hasData
+        ? (isSheetMode ? validators[source.fileKey](data) : persistedValidation || validators[source.fileKey](data))
+        : null;
+      const status: HealthStatus = !hasData
+        ? 'missing'
+        : validation?.severity === 'error'
+          ? 'error'
+          : validation?.severity === 'warning'
+            ? 'warning'
+            : 'ok';
+
+      return {
+        ...source,
+        rows,
+        status,
+        message: validation?.message || '',
+        errorType: validation?.errorType || '',
+        fileName: store.fileNames?.[source.fileKey] || '',
+      };
+    });
+  }, [
+    isSheetMode,
+    store.csidData,
+    store.productivityData,
+    store.csatScData,
+    store.slaData,
+    store.scheduleData,
+    store.qaData,
+    store.fileValidations,
+    store.fileNames,
+  ]);
+
+  const summary = healthItems.reduce(
+    (acc, item) => {
+      acc[item.status] += 1;
+      acc.rows += item.rows;
+      return acc;
+    },
+    { ok: 0, warning: 0, error: 0, missing: 0, rows: 0 } as Record<HealthStatus, number> & { rows: number },
+  );
+
+  const agentCount = React.useMemo(() => Object.keys(store.agentDictionary || {}).length, [store.agentDictionary]);
+
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+      <div className="p-4 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-text-primary">Data Health</h2>
+          <p className="text-[11px] text-text-muted mt-1">
+            Status input data bulan aktif sebelum KPI diproses.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:flex gap-2 text-[11px] font-bold">
+          <span className="px-2 py-1 rounded-lg bg-success/5 text-success border border-success/20">OK {summary.ok}</span>
+          <span className="px-2 py-1 rounded-lg bg-warning/5 text-warning border border-warning/20">Warning {summary.warning}</span>
+          <span className="px-2 py-1 rounded-lg bg-danger/5 text-danger border border-danger/20">Error {summary.error}</span>
+          <span className="px-2 py-1 rounded-lg bg-surface text-text-muted border border-border">Missing {summary.missing}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 border-b border-border bg-surface/30">
+        <div>
+          <div className="text-[11px] tracking-wide text-text-muted font-medium">Total baris</div>
+          <div className="text-lg font-semibold text-text-primary mt-0.5">{summary.rows}</div>
+          <div className="text-[10px] text-text-muted mt-0.5">Bulan aktif saja</div>
+        </div>
+        <div>
+          <div className="text-[11px] tracking-wide text-text-muted font-medium">Agent dikenal</div>
+          <div className="text-lg font-semibold text-text-primary mt-0.5">{agentCount}</div>
+        </div>
+        <div>
+          <div className="text-[11px] tracking-wide text-text-muted font-medium">Mode</div>
+          <div className="text-lg font-semibold text-text-primary mt-0.5">{isSheetMode ? 'Google Sheets' : 'CSV Upload'}</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
+        {healthItems.map((item) => {
+          const style = getHealthStyles(item.status);
+          return (
+            <div key={item.fileKey} className="border border-border rounded-lg p-3 bg-surface/20">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-text-primary truncate">{item.label}</div>
+                  <div className="text-[10px] text-text-muted mt-1">
+                    {item.rows > 0 ? `${item.rows} rows detected bulan aktif` : 'No data detected'}
+                  </div>
+                  {item.fileName && (
+                    <div className="text-[10px] text-text-muted mt-1 truncate" title={item.fileName}>
+                      {item.fileName}
+                    </div>
+                  )}
+                </div>
+                <div className={cn('shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-bold', style.className)}>
+                  {style.icon}
+                  {style.label}
+                </div>
+              </div>
+              {item.message && (
+                <div className="mt-3 text-[10px] leading-relaxed text-text-secondary bg-card border border-border rounded-lg p-2">
+                  {item.errorType && <span className="font-bold">{item.errorType}: </span>}
+                  {item.message}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const UploadCard = ({ title, fileKey }: { title: string, fileKey: keyof AppState }) => {
-  const store = useStore() as any;
+  const store = useStore(useShallow((s) => ({
+    [fileKey]: (s as any)[fileKey],
+    setFile: s.setFile,
+    persistedKeys: s.persistedKeys,
+    fileValidations: s.fileValidations,
+    isPersisting: s.isPersisting,
+    fileNames: s.fileNames,
+  }))) as any;
   const file = store[fileKey] as File | null;
   const setFile = store.setFile;
   const persistedKeys = store.persistedKeys || [];
@@ -54,7 +226,7 @@ const UploadCard = ({ title, fileKey }: { title: string, fileKey: keyof AppState
         if (valResult && valResult.severity !== 'ok') {
            console.warn(`Validation warning for ${fileKey}:`, valResult);
         }
-        setFile(fileKey, selectedFile, results.data, valResult);
+        setFile(fileKey, selectedFile, results.data as string[][], valResult);
       },
       error: (error) => {
         console.error('Error parsing CSV: ' + error.message);
@@ -72,7 +244,7 @@ const UploadCard = ({ title, fileKey }: { title: string, fileKey: keyof AppState
     <div className="bg-card border border-border rounded-xl p-5 flex flex-col items-center text-center shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative overflow-hidden group">
       {/* Saved Indicator */}
       {isPersisted && (
-        <div className="absolute top-2 right-2 flex items-center gap-1 text-[9px] font-bold text-success  px-1.5 py-0.5 rounded uppercase tracking-wider backdrop-blur-sm mt-0.5">
+        <div className="absolute top-2 right-2 flex items-center gap-1 text-[9px] font-bold text-success  px-1.5 py-0.5 rounded tracking-wide backdrop-blur-sm mt-0.5">
            <DatabaseBackup className="w-3 h-3" />
            Saved
         </div>
@@ -127,7 +299,23 @@ const UploadCard = ({ title, fileKey }: { title: string, fileKey: keyof AppState
 };
 
 export const FileCenter = () => {
-  const { clearFiles, fetchFromSheets, isFetchingSheets, sheetsFetchError, lastSyncTime } = useStore();
+  const {
+    clearFiles,
+    fetchFromSheets,
+    isFetchingSheets,
+    sheetsFetchError,
+    lastSyncTime,
+    selectedSheetMonth,
+    setSelectedSheetMonth,
+  } = useStore(useShallow((s) => ({
+    clearFiles: s.clearFiles,
+    fetchFromSheets: s.fetchFromSheets,
+    isFetchingSheets: s.isFetchingSheets,
+    sheetsFetchError: s.sheetsFetchError,
+    lastSyncTime: s.lastSyncTime,
+    selectedSheetMonth: s.selectedSheetMonth,
+    setSelectedSheetMonth: s.setSelectedSheetMonth,
+  })));
 
   const [isConfirming, setIsConfirming] = React.useState(false);
 
@@ -142,14 +330,25 @@ export const FileCenter = () => {
   };
 
   const isSheetMode = !!import.meta.env.VITE_SHEETS_API_KEY;
+  const activeMonth = getSheetMonthOption(selectedSheetMonth);
+  const activeSheetConfig = getSheetConfigForMonth(selectedSheetMonth);
+  const sheetMonthOptions = getSheetMonthOptions();
+  const failedSheetName = sheetsFetchError?.match(/"([^"]+)"/)?.[1] || null;
+  const hasSuccessfulSync = !!lastSyncTime && !sheetsFetchError;
+  const syncStatusText = isFetchingSheets
+    ? 'Menyinkronkan data...'
+    : hasSuccessfulSync
+      ? ''
+      : `Sheet belum aktif: ${activeMonth.label}`;
+  const syncIsStale = isStaleSync(lastSyncTime);
 
   const sheetNames = [
-    { label: 'Master CSID', tabName: import.meta.env.VITE_SHEET_CSID || 'CSID' },
-    { label: 'Productivity, CSAT, WHU', tabName: import.meta.env.VITE_SHEET_PRODUCTIVITY || 'Productivity CSAT WHU' },
-    { label: 'CSAT SC Raw Data', tabName: import.meta.env.VITE_SHEET_CSAT_SC || 'CSAT SC' },
-    { label: 'SLA Responses', tabName: import.meta.env.VITE_SHEET_SLA || 'SLA' },
-    { label: 'Agent Scheduling', tabName: import.meta.env.VITE_SHEET_SCHEDULE || 'Schedule' },
-    { label: 'QA Score', tabName: import.meta.env.VITE_SHEET_QA || 'QA' },
+    { label: 'Master CSID', tabName: activeSheetConfig.csidSheetName },
+    { label: 'Productivity, CSAT, WHU', tabName: activeSheetConfig.productivitySheetName },
+    { label: 'CSAT SC Raw Data', tabName: activeSheetConfig.csatScSheetName },
+    { label: 'SLA Responses', tabName: activeSheetConfig.slaSheetName },
+    { label: 'Agent Scheduling', tabName: activeSheetConfig.scheduleSheetName },
+    { label: 'QA Score', tabName: activeSheetConfig.qaSheetName },
   ];
 
   if (isSheetMode) {
@@ -164,7 +363,22 @@ export const FileCenter = () => {
               Data otomatis diambil dari Google Sheets
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <label className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
+              <span className="whitespace-nowrap">Data Bulan</span>
+              <select
+                value={selectedSheetMonth}
+                onChange={(event) => setSelectedSheetMonth(event.target.value)}
+                disabled={isFetchingSheets}
+                className="h-9 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-text-primary outline-none transition-colors hover:border-primary/40 focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {sheetMonthOptions.map(option => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button 
               onClick={handleClear}
               className="px-3 py-1.5 border-danger/20 border text-danger text-xs hover:bg-danger-soft transition-colors rounded-lg font-bold"
@@ -178,56 +392,130 @@ export const FileCenter = () => {
                 ${isFetchingSheets ? 'bg-primary/70 cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}
             >
               <RefreshCw className={`w-4 h-4 ${isFetchingSheets ? 'animate-spin' : ''}`} />
-              {isFetchingSheets ? 'Syncing...' : 'Sync Now'}
+              {isFetchingSheets ? 'Menyinkronkan...' : 'Sync sekarang'}
             </button>
           </div>
         </div>
         
         {/* Error state */}
         {sheetsFetchError && (
-          <div className="bg-danger-soft border border-danger/50 rounded-xl p-4 text-danger text-sm flex gap-3 items-center">
+          <div className="bg-danger-soft border border-danger/50 rounded-xl p-4 text-danger text-sm flex gap-3 items-start">
             <AlertCircle className="w-5 h-5 shrink-0" />
-            <p>{sheetsFetchError}</p>
+            <div>
+              <p>{sheetsFetchError}</p>
+              <p className="text-xs mt-1 text-danger/80">
+                Data yang sedang tampil tidak dihapus. Setelah tab dibuat, klik Sync sekarang lagi.
+              </p>
+            </div>
           </div>
         )}
+
+        <div className={cn(
+          "rounded-xl p-4 text-sm border",
+          hasSuccessfulSync
+            ? syncIsStale
+              ? "bg-warning/10 border-warning/30"
+              : "bg-success/10 border-success/30"
+            : "bg-warning/10 border-warning/30"
+        )}>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+            <div>
+              <p className={cn(
+                "font-medium",
+                isFetchingSheets ? "text-primary" : syncIsStale ? "text-warning" : "text-text-primary"
+              )}>
+                {syncStatusText || (syncIsStale ? 'Data perlu di-refresh' : 'Data tersinkron')}
+              </p>
+              <p className="text-xs text-text-muted mt-1">
+                {isFetchingSheets
+                  ? 'Mohon tunggu, dashboard sedang membaca tab Google Sheets.'
+                  : hasSuccessfulSync
+                    ? syncIsStale
+                      ? `Data terakhir sync ${formatRelativeTime(lastSyncTime)}, klik Sync sekarang untuk update.`
+                      : `Sinkron ${formatRelativeTime(lastSyncTime)}. ${activeMonth.description}`
+                    : 'Dashboard akan otomatis sync saat dibuka. Klik Sync sekarang jika ingin memaksa update manual.'}
+              </p>
+            </div>
+            <span className={cn(
+              "text-[11px] font-medium tracking-wide px-2 py-1 rounded-lg border",
+              hasSuccessfulSync
+                ? syncIsStale
+                  ? "text-warning border-warning/30 bg-warning/10"
+                  : "text-success border-success/30 bg-success/10"
+                : "text-warning border-warning/30 bg-warning/10"
+            )}>
+              {isFetchingSheets ? 'Menyinkronkan' : hasSuccessfulSync ? syncIsStale ? 'Perlu refresh' : 'Synced' : 'Belum sync'}
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-text-primary">Monthly Sheet Setup</h3>
+                <p className="text-xs text-text-muted mt-1">
+                  {activeMonth.suffix
+                    ? 'Buat tab berikut sebelum sync bulan baru. Sync memuat bulan aktif + 3 bulan sebelumnya (cukup untuk Bandingkan MoM & Insentif).'
+                    : 'Mei 2026 masih memakai nama tab dari env Vercel, jadi tidak perlu rename tab.'}
+                </p>
+              </div>
+              <span className={cn(
+                "text-[10px] font-medium tracking-wide px-2 py-1 rounded-lg border",
+                hasSuccessfulSync
+                  ? "text-success border-success/30 bg-success/10"
+                  : activeMonth.suffix
+                    ? "text-warning border-warning/30 bg-warning/10"
+                    : "text-success border-success/30 bg-success/10"
+              )}>
+                {hasSuccessfulSync ? 'Synced' : activeMonth.suffix ? 'Setup needed' : 'Ready'}
+              </span>
+            </div>
+
+            {activeMonth.suffix ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                  {sheetNames.map(sheet => (
+                    <div
+                      key={sheet.tabName}
+                      className={cn(
+                        "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs",
+                        failedSheetName === sheet.tabName
+                          ? "border-danger/40 bg-danger-soft text-danger"
+                          : "border-border bg-surface/40 text-text-secondary"
+                      )}
+                    >
+                      <span className="font-medium truncate">{sheet.label}</span>
+                      <span className="font-bold text-text-primary truncate max-w-[180px]" title={sheet.tabName}>
+                        {sheet.tabName}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-text-muted">
+                  <div className="rounded-lg bg-surface/50 border border-border px-3 py-2">1. Copy tab bulan sebelumnya.</div>
+                  <div className="rounded-lg bg-surface/50 border border-border px-3 py-2">2. Rename sesuai nama tab di atas.</div>
+                  <div className="rounded-lg bg-surface/50 border border-border px-3 py-2">3. Kosongkan data lama, header jangan diubah.</div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-lg bg-surface/50 border border-border px-3 py-2 text-xs text-text-muted">
+                Dashboard akan membaca tab env default yang sudah tersimpan di Vercel.
+              </div>
+            )}
+          </div>
+        </div>
         
         {/* Loading state */}
         {isFetchingSheets && (
           <div className="flex flex-col items-center justify-center py-12 text-text-muted bg-card/50 rounded-xl border border-border mt-4">
             <Loader2 className="w-8 h-8 animate-spin mb-3 text-primary"/>
-            <p className="font-medium text-text-primary">Mengambil data dari Google Sheets...</p>
+            <p className="font-medium text-text-primary">Menyinkronkan data dari Google Sheets...</p>
             <p className="text-xs mt-1">Mohon tunggu sebentar</p>
           </div>
         )}
 
-        {!isFetchingSheets && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sheetNames.map((sheet, idx) => (
-              <div key={idx} className="bg-card border border-border rounded-xl p-5 flex flex-col relative overflow-hidden group hover:border-primary/30 transition-colors shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 rounded bg-primary-soft flex items-center justify-center shrink-0">
-                    <CheckCircle2 size={18} className="text-primary"/>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-text-primary text-sm">{sheet.label}</h3>
-                  </div>
-                </div>
-                <div className="space-y-1.5 mt-auto border-t border-border/50 pt-3">
-                  <p className="text-[11px] text-text-muted flex justify-between">
-                    <span>Google Sheet Tab:</span>
-                    <span className="font-medium text-text-primary">"{sheet.tabName}"</span>
-                  </p>
-                  <p className="text-[11px] text-text-muted flex justify-between">
-                    <span>Status:</span>
-                    <span className="font-medium text-success">
-                      {lastSyncTime ? `Synced ${formatRelativeTime(lastSyncTime)}` : 'Belum di-sync'}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <DataHealthPanel isSheetMode={isSheetMode} />
       </div>
     );
   }
@@ -246,6 +534,8 @@ export const FileCenter = () => {
           {isConfirming ? 'Click Again to Confirm' : 'Reset All Data'}
         </button>
       </div>
+
+      <DataHealthPanel isSheetMode={isSheetMode} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <UploadCard title="Master CSID" fileKey="csidFile" />

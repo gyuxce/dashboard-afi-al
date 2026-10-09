@@ -1,3 +1,15 @@
+import { resolveCsidColumns } from './csid';
+import {
+  cell,
+  missingHeaderLabels,
+  pickColumn,
+  resolveCsatScColumns,
+  resolveProductivityColumns,
+  resolveQaColumns,
+  resolveRowCsId,
+  resolveSlaColumns,
+} from './sheetHeaders';
+
 export type ValidationSeverity = 'ok' | 'warning' | 'error';
 
 export interface ValidationResult {
@@ -73,10 +85,13 @@ export function validateCsidFile(parsedData: any[][]): ValidationResult {
   if (base && base.errorType !== 'FEW_ROWS') return base;
 
   const headers = extractHeaders(parsedData);
-  const hasId = hasAnyHeader(headers, ['CS ID', 'csid', 'id', 'cs_id']);
-  const hasName = hasAnyHeader(headers, ['Agent Name', 'name', 'Nama']);
-  const hasBpo = hasAnyHeader(headers, ['BPO', 'company', 'Perusahaan']);
-  const hasTl = hasAnyHeader(headers, ['Team Leader', 'TL', 'leader']);
+  // Parser and validator intentionally share aliases so a file cannot be
+  // shown as valid while its CSID columns are read from different positions.
+  const columns = resolveCsidColumns(headers);
+  const hasId = columns.id >= 0;
+  const hasName = columns.name >= 0;
+  const hasBpo = columns.bpo >= 0;
+  const hasTl = columns.teamLeader >= 0;
 
   if (!hasId || !hasName || !hasBpo || !hasTl) {
     let missing = [];
@@ -89,7 +104,7 @@ export function validateCsidFile(parsedData: any[][]): ValidationResult {
       isValid: false,
       errorType: 'MISSING_COLUMN',
       message: `Kolom wajib tidak ditemukan: ${missing.join(', ')}.`,
-      severity: 'warning'
+      severity: 'error'
     };
   }
 
@@ -110,40 +125,52 @@ export function validateProductivityFile(parsedData: any[][]): ValidationResult 
   const base = getBaseIssues(parsedData);
   if (base && base.errorType !== 'FEW_ROWS') return base;
 
-  const headers = extractHeaders(parsedData);
-  const topRowsContent = parsedData.slice(0, 10).map(row => row.join(' ').toLowerCase()).join(' ');
-  const hasProdKeyword = topRowsContent.includes('productivity') || topRowsContent.includes('whu');
+  const columns = resolveProductivityColumns(parsedData);
+  const missing = missingHeaderLabels(columns, {
+    date: 'Date / Tanggal',
+    csId: 'CS ID',
+    productivity: 'Productivity',
+  });
 
-  // Find date format in first few rows (DD/MM/YYYY or MM/DD/YYYY or YYYY-MM-DD format approximation)
-  let hasDateColumn = false;
-  let maxCols = 0;
-  for (let i = 0; i < Math.min(parsedData.length, 10); i++) {
+  let rowsWithCsId = 0;
+  let rowsWithProdValue = 0;
+  const startRow = parsedData.length > 2 ? 2 : 1;
+  for (let i = startRow; i < parsedData.length; i++) {
     const row = parsedData[i];
-    if (row && row.length > maxCols) maxCols = row.length;
-    for (let j = 0; j < row.length; j++) {
-      const cell = String(row[j] || '').trim();
-      if (/^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}/.test(cell)) {
-        hasDateColumn = true;
-        break;
-      }
-    }
+    const resolved = resolveRowCsId(row, columns.csId);
+    if (!resolved.id) continue;
+    rowsWithCsId++;
+    const prodIdx = pickColumn(columns.productivity, resolved.index >= 0 ? resolved.index + 8 : -1);
+    const prodRaw = cell(row, prodIdx).replace(',', '.');
+    if (prodRaw && !Number.isNaN(parseFloat(prodRaw))) rowsWithProdValue++;
   }
 
-  if (maxCols < 7) {
+  if (columns.date < 0 && columns.csId < 0 && columns.productivity < 0 && rowsWithCsId === 0) {
     return {
       isValid: false,
-      errorType: 'FEW_COLUMNS',
-      message: `Jumlah minimal kolom untuk Productivity kurang dari yg diharapkan (Punya: ${maxCols}, Butuh: 7+).`,
-      severity: 'warning'
+      errorType: 'MISSING_COLUMN',
+      message: `Kolom wajib Productivity tidak ditemukan: ${missing.join(', ')}.`,
+      severity: 'error',
     };
   }
 
-  if (!hasProdKeyword && !hasDateColumn) {
+  if (rowsWithCsId === 0) {
     return {
       isValid: false,
-      errorType: 'INVALID_FORMAT',
-      message: 'Format mencurigakan: tidak menemukan tanggal atau indikator Productivity.',
-      severity: 'warning'
+      errorType: 'MISSING_CSID',
+      message: 'Tidak menemukan baris Productivity dengan CS ID.',
+      severity: 'error',
+    };
+  }
+
+  if (rowsWithProdValue === 0) {
+    return {
+      isValid: false,
+      errorType: 'MISSING_PRODUCTIVITY_VALUE',
+      message: columns.productivity < 0
+        ? 'CS ID ditemukan, tapi kolom Productivity tidak terbaca dari header maupun offset lama.'
+        : 'CS ID ditemukan, tapi nilai Productivity kosong/tidak numerik.',
+      severity: 'error',
     };
   }
   
@@ -164,15 +191,18 @@ export function validateCsatScFile(parsedData: any[][]): ValidationResult {
   const base = getBaseIssues(parsedData);
   if (base && base.errorType !== 'FEW_ROWS') return base;
 
-  const keywords = ['CSAT', 'Score', 'Rating', 'Tanggal', 'Date', 'Agent', 'CS', 'Survey', 'Star', 'Rate'];
-  const hasKeyword = scanRowsForKeyword(parsedData, keywords, 5);
+  const columns = resolveCsatScColumns(extractHeaders(parsedData));
+  let rowsWithCsId = 0;
+  for (let i = 1; i < parsedData.length; i++) {
+    if (resolveRowCsId(parsedData[i], columns.csId).id) rowsWithCsId++;
+  }
 
-  if (!hasKeyword) {
+  if (rowsWithCsId === 0 && columns.score < 0 && columns.ticketId < 0) {
     return {
       isValid: false,
       errorType: 'MISSING_COLUMN',
-      message: 'Indikator file CSAT (misal: CSAT, Score, Rating, Agent) tidak ditemukan di awal file.',
-      severity: 'warning'
+      message: 'Kolom CSAT SC tidak lengkap: butuh CS ID, Score, atau Ticket ID.',
+      severity: 'error'
     };
   }
 
@@ -193,35 +223,54 @@ export function validateSlaFile(parsedData: any[][]): ValidationResult {
   const base = getBaseIssues(parsedData);
   if (base && base.errorType !== 'FEW_ROWS') return base;
 
-  const slaKeywords = [
-    'sla', '1m', '3m', '1 menit', '3 menit', '1min', '3min',
-    'time', 'response', 'tanggal', 'date', 'agent', 'cs id',
-    'menit', 'min', 'tiket', 'ticket', 'duration', 'durasi',
-    'first', 'reply', 'respond', 'wait', 'pickup', 'antri',
-    'queue', 'csid', 'company', 'csat'
-  ];
-
-  const rowsToScan = parsedData.slice(0, 10);
-  let keywordFound = false;
-
-  for (const row of rowsToScan) {
-    if (!row || !Array.isArray(row)) continue;
-    for (const cell of row) {
-      const cellText = String(cell || '').toLowerCase().trim();
-      if (slaKeywords.some(kw => cellText.includes(kw))) {
-        keywordFound = true;
-        break;
-      }
+  const parseSlaLikeProcessor = (value: unknown): number | null => {
+    const clean = String(value || '').replace(',', '.').trim();
+    if (!clean) return null;
+    if (clean.includes('%')) {
+      const pct = parseFloat(clean.replace('%', ''));
+      return Number.isNaN(pct) ? null : pct;
     }
-    if (keywordFound) break;
+    const n = parseFloat(clean);
+    return Number.isNaN(n) ? null : n * 100;
+  };
+
+  const columns = resolveSlaColumns(parsedData);
+  let rowsWithCsId = 0;
+  let rowsWithSlaValue = 0;
+
+  for (let i = 1; i < parsedData.length; i++) {
+    const row = parsedData[i];
+    if (!row || !Array.isArray(row)) continue;
+
+    const resolved = resolveRowCsId(row, columns.csId);
+    if (!resolved.id) continue;
+
+    rowsWithCsId++;
+
+    const sla1Idx = pickColumn(columns.sla1m, resolved.index >= 0 ? resolved.index + 11 : -1);
+    const sla3Idx = pickColumn(columns.sla3m, resolved.index >= 0 ? resolved.index + 13 : -1);
+    const sla1 = parseSlaLikeProcessor(cell(row, sla1Idx));
+    const sla3 = parseSlaLikeProcessor(cell(row, sla3Idx));
+    if (sla1 !== null || sla3 !== null) rowsWithSlaValue++;
   }
 
-  if (!keywordFound) {
+  if (rowsWithCsId === 0) {
     return {
       isValid: false,
-      errorType: 'MISSING_COLUMN',
-      message: 'Indikator file SLA tidak ditemukan.',
-      severity: 'warning'
+      errorType: 'MISSING_CSID',
+      message: 'Tidak menemukan baris SLA dengan CS ID.',
+      severity: 'error'
+    };
+  }
+
+  if (rowsWithSlaValue === 0) {
+    return {
+      isValid: false,
+      errorType: 'MISSING_SLA_VALUE',
+      message: columns.sla1m < 0 && columns.sla3m < 0
+        ? 'CS ID ditemukan, tapi header SLA 1m/3m tidak ada dan offset lama +11/+13 kosong.'
+        : 'CS ID ditemukan, tapi nilai SLA 1m/3m tidak terbaca.',
+      severity: 'error'
     };
   }
   
@@ -253,7 +302,7 @@ export function validateScheduleFile(parsedData: any[][]): ValidationResult {
       isValid: false,
       errorType: 'FEW_COLUMNS',
       message: `File ini terlalu sempit (hanya ${maxCols} kolom) untuk menjadi file Schedule.`,
-      severity: 'warning'
+      severity: 'error'
     };
   }
 
@@ -279,7 +328,7 @@ export function validateScheduleFile(parsedData: any[][]): ValidationResult {
       isValid: false,
       errorType: 'INVALID_FORMAT',
       message: 'Format mencurigakan: tidak ada data shift atau OFF/PULLOUT di beberapa baris pertama.',
-      severity: 'warning'
+      severity: 'error'
     };
   }
 
@@ -299,6 +348,8 @@ export function validateQaFile(parsedData: any[][]): ValidationResult {
   const base = getBaseIssues(parsedData);
   if (base && base.errorType !== 'FEW_ROWS') return base;
 
+  const columns = resolveQaColumns(extractHeaders(parsedData));
+  const hasIdentity = columns.csId >= 0 || columns.date >= 0 || columns.score >= 0;
   const keywords = ['QA', 'Score', 'Defect', 'CSAT', 'QC', 'Mistake', 'Quality', 'Audit', 'Indicator', 'KODE', 'Banding'];
   
   const rowsToScan = parsedData.slice(0, 5);
@@ -311,12 +362,28 @@ export function validateQaFile(parsedData: any[][]): ValidationResult {
     }
   }
 
-  if (matchCount < 2) {
+  if (!hasIdentity && matchCount < 2) {
     return {
       isValid: false,
       errorType: 'MISSING_COLUMN',
-      message: 'Kolom indikator QA (butuh min 2 seperti: QA, QC, Score, Defect) tidak cukup.',
-      severity: 'warning'
+      message: 'Kolom indikator QA (CS ID, Checking Date, QC Score, atau keyword QA/Defect) tidak cukup.',
+      severity: 'error'
+    };
+  }
+
+  // Legacy exports need 33 columns when headers are missing. Header-mapped
+  // files can be narrower without silently dropping QC score / category.
+  const maxColumns = parsedData.reduce(
+    (max, row) => Math.max(max, Array.isArray(row) ? row.length : 0),
+    0,
+  );
+  const mappedCore = columns.csId >= 0 && columns.date >= 0 && columns.score >= 0;
+  if (!mappedCore && maxColumns < 33) {
+    return {
+      isValid: false,
+      errorType: 'SCHEMA_TOO_NARROW',
+      message: `Struktur QA kurang kolom (Punya: ${maxColumns}, butuh header CS ID/Checking Date/QC Score atau minimal 33 sampai kolom AG).`,
+      severity: 'error',
     };
   }
   
