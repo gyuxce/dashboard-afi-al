@@ -43,9 +43,9 @@ Dedupe per **calendar day** (normDate), bukan raw header string.
 | Tampilan | Dasar tanggal |
 |---|---|
 | QA harian, QA Agent 360, tren Summary | **Checking Date** (kolom N) |
-| **Simulasi Insentif** (QA % dan CSAT % dari penandaan QA) | **Tanggal Case** (kolom I) |
+| **Simulasi Insentif — hanya QA %** | **Tanggal Case** (kolom I) |
 
-Untuk insentif, baris tanpa Tanggal Case yang terbaca memakai Checking Date. Kasus bulan yang sudah ditutup yang dicek bulan berikutnya ada di tab QA bulan berikutnya, jadi tab itu ikut dimuat saat sync (hanya untuk bulan yang sudah lewat). Aturan dedupe dan rata-rata sama; hanya kolom tanggalnya yang berbeda.
+CSAT % dan produktivitas di Simulasi Insentif **tidak berubah** (tetap sama seperti tab lain). Untuk QA % insentif, baris tanpa Tanggal Case yang terbaca memakai Checking Date. Kasus bulan yang sudah ditutup yang dicek bulan berikutnya ada di tab QA bulan berikutnya, jadi tab itu ikut dimuat saat sync (hanya untuk bulan yang sudah lewat). Aturan dedupe dan rata-rata sama; hanya kolom tanggalnya yang berbeda.
 
 Aturan Checking Date untuk tampilan harian:
 

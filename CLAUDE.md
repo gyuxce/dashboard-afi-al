@@ -50,7 +50,7 @@ CSV upload OR Google Sheets ──▶ Zustand store (src/store.ts) ──▶ Ind
 
 - **Shift-22**: chats timestamped before 07:00 are attributed to the previous calendar day *only if* that day's schedule is shift `22`. Applies to Productivity, CSAT SC, SLA — **never QA** (QA buckets by the sheet's Checking Date, not schedule).
 - **Man-days**: numeric shift codes and `S` count; `OFF`/`C` don't; `PULLOUT` is attendance duty but not a man-day. Dedupe per normalized calendar day.
-- **QA date basis**: daily QA views bucket by Checking Date (col N); Simulasi Insentif buckets by Tanggal Case (col I) via a separate `processKPIs(..., { qaDateBasis: 'case' })` pass (`incentiveRawData`, only run on the incentive tab). Sync also loads the *next* month's QA tab for closed months so late-checked cases count.
+- **QA date basis**: daily QA views bucket by Checking Date (col N); Simulasi Insentif takes ONLY its QA score (qaScoreSum/qaScoreCount) from Tanggal Case (col I) via a separate `processKPIs(..., { qaDateBasis: 'case' })` pass (`incentiveRawData`, only run on the incentive tab). Sync also loads the *next* month's QA tab for closed months so late-checked cases count.
 - **CSAT "Fair / After Takeout"** excludes three hardcoded categories (`CSAT_TAKEOUT_CATEGORIES`); "Full" keeps all valid ratings.
 - **Ticket dedupe** is per `agent + calendar day + ticket`, not global.
 - **CSAT means different things per tab**: Summary uses Official CSAT (star counts) + SC survey; Leaderboard and Incentive use QA CSAT/DSAT tagging from `qaHistory`; Pilot CSAT deliberately uses CSAT SC survey data only (`dailyHistory.csatScFull` / `csatHistory`), never QA tagging. Divergent numbers are intentional.

@@ -73,6 +73,7 @@ export function useFilteredKpis(args: Args): FilteredKpis {
     };
 
     const filteredData = applyFilters(data);
+    const incentiveByCsId = new Map(incentiveRawData.map((agent) => [agent.csId, agent]));
     const filteredPrevData = applyFilters(previousRawData);
     const filteredPrevData2 = applyFilters(previousRawData2);
     const filteredPrevData3 = applyFilters(previousRawData3);
@@ -105,9 +106,17 @@ export function useFilteredKpis(args: Args): FilteredKpis {
       previousKpiData: filteredPrevData,
       previousKpiData2: filteredPrevData2,
       previousKpiData3: filteredPrevData3,
-      // QA bucketed by Tanggal Case (own pass); empty until that pass lands.
-      incentiveKpiData: activeTab === 'incentive'
-        ? applyFilters(applyAgentRoster(incentiveRawData, selectedMonthRoster))
+      // Only the QA score comes from the Tanggal Case pass; CSAT, productivity and
+      // everything else stay exactly as on the other tabs. Empty until that pass lands.
+      incentiveKpiData: activeTab === 'incentive' && incentiveRawData.length > 0
+        ? filteredData.map((agent) => {
+            const byCaseDate = incentiveByCsId.get(agent.csId);
+            return {
+              ...agent,
+              qaScoreSum: byCaseDate?.qaScoreSum ?? 0,
+              qaScoreCount: byCaseDate?.qaScoreCount ?? 0,
+            };
+          })
         : [],
       incentivePeriod: { start: startDate || '', end: endDate || '' },
       // Roster overlay only — pilot participants are picked explicitly, not scope-filtered.

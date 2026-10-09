@@ -295,19 +295,6 @@ export const IncentiveSimulation: React.FC<{
   const safeData = Array.isArray(data) ? data : [];
   const safePeriod = simulationPeriod || { start: '', end: '' };
 
-  // Reconciliation hint: scored QA tickets whose Checking Date falls outside the
-  // period although their Tanggal Case is inside it.
-  const outsidePeriodChecks = useMemo(() => {
-    if (!safePeriod.start || !safePeriod.end) return 0;
-    let count = 0;
-    for (const agent of safeData) {
-      for (const entry of agent.qaHistory || []) {
-        const checked = entry.checkingNormDate;
-        if (entry.hasScore && checked && (checked < safePeriod.start || checked > safePeriod.end)) count += 1;
-      }
-    }
-    return count;
-  }, [safeData, safePeriod.start, safePeriod.end]);
 
   const filteredAgents = useMemo(
     () => safeData.filter((agent) => !isInactiveAgent(agent, safePeriod.end || '')),
@@ -547,10 +534,7 @@ export const IncentiveSimulation: React.FC<{
         </span>
       </div>
       <p className="-mt-2 text-[11px] text-text-muted">
-        QA &amp; CSAT dihitung dari <span className="font-medium text-text-secondary">Tanggal Case</span>
-        {outsidePeriodChecks > 0
-          ? ` — ${outsidePeriodChecks} tiket dicek di luar periode ini (tetap dihitung di periode kasusnya).`
-          : '.'}
+        QA % dihitung dari <span className="font-medium text-text-secondary">Tanggal Case</span>.
       </p>
 
       {!hasData ? (
