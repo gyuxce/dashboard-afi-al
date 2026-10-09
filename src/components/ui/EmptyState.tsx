@@ -1,3 +1,4 @@
+import { isAdminMode } from "../../lib/adminMode";
 import React from "react";
 import { CircleAlert, FolderOpen, RefreshCw, Search } from "lucide-react";
 import { useStore } from "../../store";
@@ -30,14 +31,16 @@ export function useDataEmptyActions(): EmptyStateAction[] {
   const isFetchingSheets = useStore((s) => s.isFetchingSheets);
   const hasSheetsKey = Boolean(import.meta.env.VITE_SHEETS_API_KEY);
 
-  const actions: EmptyStateAction[] = [
-    {
-      label: "Buka File Center",
-      onClick: () => openTab("files"),
-      tone: "primary",
-      icon: "files",
-    },
-  ];
+  const actions: EmptyStateAction[] = isAdminMode()
+    ? [
+        {
+          label: "Buka File Center",
+          onClick: () => openTab("files"),
+          tone: "primary",
+          icon: "files",
+        },
+      ]
+    : [];
 
   if (hasSheetsKey) {
     actions.push({

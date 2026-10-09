@@ -13,7 +13,10 @@ let inFlightSheetsFetch: { month: string; promise: Promise<void> } | null = null
 let storageEpoch = 0;
 let sheetsPersistChain: Promise<void> = Promise.resolve();
 
-const defaultDateRange = getCurrentMonthRange();
+/** A cached Sheets snapshot older than this is ignored on boot. */
+const SHEETS_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
+
+const defaultDateRange =getCurrentMonthRange();
 
 export interface AppState {
   // Data source mode
@@ -327,6 +330,25 @@ export const useStore = create<AppState>((set, get) => ({
           }
         }
 
+        // A Sheets snapshot is only a placeholder until the live fetch lands.
+        // Never trust one that is old, from another month, or from an older
+        // snapshot format — otherwise the dashboard shows stale data (or last
+        // month's tab) on that laptop. Drop it and let the live sync fill in.
+        if (fileData.dataSource === 'sheets') {
+          const snapshotAge = fileData.lastSyncTime
+            ? Date.now() - fileData.lastSyncTime.getTime()
+            : Number.POSITIVE_INFINITY;
+          const snapshotUsable =
+            fileData.selectedSheetMonth === getCurrentSheetMonthKey()
+            && fileData.sheetsSnapshotRevision === SHEETS_SNAPSHOT_REVISION
+            && snapshotAge >= 0
+            && snapshotAge <= SHEETS_CACHE_MAX_AGE_MS;
+          if (!snapshotUsable) {
+            set({ persistedKeys: keys, isHydrating: false });
+            return;
+          }
+        }
+
         const monthForFilter = fileData.selectedSheetMonth || get().selectedSheetMonth;
         if (fileData.dataSource === 'sheets' && monthForFilter) {
           const monthRange = getDateRangeForSheetMonth(monthForFilter);
@@ -429,13 +451,43 @@ export const useStore = create<AppState>((set, get) => ({
       try {
         const sheetConfig = getSheetConfigForMonth(selectedMonth);
         const monthOption = getSheetMonthOption(selectedMonth);
+        const historyMonthKeys = getSheetMonthHistoryKeys(selectedMonth);
 
+        // History tabs are optional. A missing JUN/legacy sheet must not fail the
+        // first boot of the selected month.
+        const loadHistoryMonth = async (monthKey: string) => {
+          const monthConfig = getSheetConfigForMonth(monthKey);
+          const candidateIds = getSpreadsheetIdCandidatesForMonth(monthKey, selectedMonth);
+          let lastError: unknown = null;
+          for (const spreadsheetId of candidateIds) {
+            try {
+              return await fetchAllSheets(monthConfig, spreadsheetId, signal);
+            } catch (error) {
+              if (isAbortError(error) || signal.aborted) throw error;
+              lastError = error;
+            }
+          }
+          console.warn(`Riwayat ${monthKey} dilewati`, lastError);
+          return null;
+        };
+
+        // Start everything at once: the active month is shown as soon as it is
+        // ready, history + pilot roster catch up in the background.
         patchProgress(`Mengambil data ${monthOption.label}...`, { month: 'active' });
-        const currentMonthData = await fetchAllSheets(
+        const currentMonthPromise = fetchAllSheets(
           sheetConfig,
           getSpreadsheetIdForMonth(selectedMonth),
           signal,
         );
+        const historyPromises = historyMonthKeys.map((monthKey) =>
+          monthKey === selectedMonth ? currentMonthPromise : loadHistoryMonth(monthKey),
+        );
+        // Optional Pilot CSAT roster — never fails the sync (helper swallows non-abort errors).
+        const pilotPromise = fetchPilotRows(signal);
+        // Avoid unhandled rejections if the active month fails first.
+        [...historyPromises, pilotPromise].forEach((promise) => { promise.catch(() => undefined); });
+
+        const currentMonthData = await currentMonthPromise;
         if (gen !== sheetsSyncGeneration) return;
         patchProgress(`Bulan ${monthOption.label} siap`, {
           month: 'done',
@@ -462,150 +514,145 @@ export const useStore = create<AppState>((set, get) => ({
           scheduleData: sheetDataToParseResult(currentMonthData.schedule).data,
           qaData: sheetDataToParseResult(currentMonthData.qa).data,
         });
-        const historyMonthKeys = getSheetMonthHistoryKeys(selectedMonth);
-
-        patchProgress('Mengambil riwayat bulan sebelumnya...', { history: 'active' });
-        // History tabs are optional. A missing JUN/legacy sheet must not fail the
-        // first boot of the selected month.
-        const historicalSheets = [];
-        const missingHistoryMonths: string[] = [];
-        for (const monthKey of historyMonthKeys) {
-          if (gen !== sheetsSyncGeneration) return;
-          if (monthKey === selectedMonth) {
-            historicalSheets.push(currentMonthData);
-            continue;
-          }
-          const monthConfig = getSheetConfigForMonth(monthKey);
-          const candidateIds = getSpreadsheetIdCandidatesForMonth(monthKey, selectedMonth);
-          let monthSheets: typeof currentMonthData | null = null;
-          let lastError: unknown = null;
-          for (const spreadsheetId of candidateIds) {
-            try {
-              monthSheets = await fetchAllSheets(monthConfig, spreadsheetId, signal);
-              break;
-            } catch (error) {
-              if (isAbortError(error) || signal.aborted || gen !== sheetsSyncGeneration) throw error;
-              lastError = error;
-            }
-          }
-          if (monthSheets) {
-            historicalSheets.push(monthSheets);
-          } else {
-            console.warn(`Riwayat ${monthKey} dilewati`, lastError);
-            missingHistoryMonths.push(monthKey);
-            historicalSheets.push(emptyAllSheetsData());
-          }
-        }
-        if (gen !== sheetsSyncGeneration) return;
-        patchProgress('Riwayat siap', { history: 'done', assemble: 'active' });
-
-        // Optional Pilot CSAT roster — never fails the sync (helper swallows non-abort errors).
-        const pilotRows = await fetchPilotRows(signal);
-        if (gen !== sheetsSyncGeneration) return;
-
-        const allData = historicalSheets.reduce(
-          (merged, monthData) =>
-            merged ? mergeAllSheetsData(merged, monthData) : monthData,
-          null as typeof currentMonthData | null,
-        ) || currentMonthData;
-        const loadedMonthLabel = historyMonthKeys.length > 1
-          ? `${getSheetMonthOption(historyMonthKeys[0]).label} - ${monthOption.label}`
-          : monthOption.label;
-
-        const csvCsid = sheetDataToParseResult(allData.csid);
-        const csvProductivity = sheetDataToParseResult(allData.productivity);
-        const csvCsatSc = sheetDataToParseResult(allData.csatSc);
-        const csvSla = sheetDataToParseResult(allData.sla);
-        const csvSchedule = sheetDataToParseResult(allData.schedule);
-        const csvQa = sheetDataToParseResult(allData.qa);
-
-        const newAgentDict = buildAgentDictionary(csvCsid.data);
-        const agentDictionaryByMonth = historyMonthKeys.reduce((result, monthKey, index) => {
-          result[monthKey] = buildAgentDictionary(
-            sheetDataToParseResult(historicalSheets[index].csid).data,
-          );
-          return result;
-        }, {} as Record<string, Record<string, { name: string; bpo: string; teamLeader: string }>>);
-
-        patchProgress('Dataset siap', { assemble: 'done' });
-        if (gen !== sheetsSyncGeneration) return;
 
         const syncedAt = new Date();
-        const fileNames = {
-          csidFile: `CSID (${loadedMonthLabel})`,
-          productivityFile: `Productivity (${loadedMonthLabel})`,
-          csatScFile: `CSAT SC (${loadedMonthLabel})`,
-          slaFile: `SLA (${loadedMonthLabel})`,
-          scheduleFile: `Schedule (${loadedMonthLabel})`,
-          qaFile: `QA (${loadedMonthLabel})`,
+
+        /** Assemble the dataset and push it to the store. `final` = history is
+         *  complete: finish the sync and persist the snapshot. */
+        const commitSnapshot = (
+          historicalSheets: Array<typeof currentMonthData>,
+          missingHistoryMonths: string[],
+          pilotRows: string[][],
+          final: boolean,
+        ) => {
+          const allData = historicalSheets.reduce(
+            (merged, monthData) =>
+              merged ? mergeAllSheetsData(merged, monthData) : monthData,
+            null as typeof currentMonthData | null,
+          ) || currentMonthData;
+          const loadedMonthLabel = final && historyMonthKeys.length > 1
+            ? `${getSheetMonthOption(historyMonthKeys[0]).label} - ${monthOption.label}`
+            : monthOption.label;
+
+          const csvCsid = sheetDataToParseResult(allData.csid);
+          const csvProductivity = sheetDataToParseResult(allData.productivity);
+          const csvCsatSc = sheetDataToParseResult(allData.csatSc);
+          const csvSla = sheetDataToParseResult(allData.sla);
+          const csvSchedule = sheetDataToParseResult(allData.schedule);
+          const csvQa = sheetDataToParseResult(allData.qa);
+
+          const newAgentDict = buildAgentDictionary(csvCsid.data);
+          const agentDictionaryByMonth = historyMonthKeys.reduce((result, monthKey, index) => {
+            result[monthKey] = buildAgentDictionary(
+              sheetDataToParseResult(historicalSheets[index].csid).data,
+            );
+            return result;
+          }, {} as Record<string, Record<string, { name: string; bpo: string; teamLeader: string }>>);
+
+          const fileNames = {
+            csidFile: `CSID (${loadedMonthLabel})`,
+            productivityFile: `Productivity (${loadedMonthLabel})`,
+            csatScFile: `CSAT SC (${loadedMonthLabel})`,
+            slaFile: `SLA (${loadedMonthLabel})`,
+            scheduleFile: `Schedule (${loadedMonthLabel})`,
+            qaFile: `QA (${loadedMonthLabel})`,
+          };
+          const monthDict = agentDictionaryByMonth[selectedMonth];
+          const agentDictionary = isAgentDictionaryPopulated(monthDict) ? monthDict : newAgentDict;
+          const monthRange = getDateRangeForSheetMonth(selectedMonth);
+
+          set({
+            csidFile: new File([], fileNames.csidFile),
+            productivityFile: new File([], fileNames.productivityFile),
+            csatScFile: new File([], fileNames.csatScFile),
+            slaFile: new File([], fileNames.slaFile),
+            scheduleFile: new File([], fileNames.scheduleFile),
+            qaFile: new File([], fileNames.qaFile),
+
+            csidData: csvCsid.data,
+            productivityData: csvProductivity.data,
+            csatScData: csvCsatSc.data,
+            slaData: csvSla.data,
+            scheduleData: csvSchedule.data,
+            qaData: csvQa.data,
+            pilotData: pilotRows,
+
+            agentDictionary,
+            agentDictionaryByMonth,
+            activeMonthRowCounts: currentMonthRows,
+            activeMonthLastDates: currentMonthLastDates,
+            missingHistoryMonths,
+            lastSyncTime: syncedAt,
+            ...(final ? { isFetchingSheets: false, sheetsSyncProgress: null } : {}),
+            dataSource: 'sheets',
+            sheetsSnapshotRevision: SHEETS_SNAPSHOT_REVISION,
+            fileNames,
+            ...(monthRange ? { startDate: monthRange.start, endDate: monthRange.end } : {}),
+          });
+
+          if (!final) return;
+
+          const persistGen = gen;
+          sheetsPersistChain = sheetsPersistChain.then(async () => {
+            if (persistGen !== sheetsSyncGeneration) return;
+            try {
+              await Promise.all([
+                saveData('csidFile', csvCsid.data),
+                saveData('productivityFile', csvProductivity.data),
+                saveData('csatScFile', csvCsatSc.data),
+                saveData('slaFile', csvSla.data),
+                saveData('scheduleFile', csvSchedule.data),
+                saveData('qaFile', csvQa.data),
+                saveData('pilotData', pilotRows),
+                saveData('sheetsMeta', {
+                  dataSource: 'sheets',
+                  selectedSheetMonth: selectedMonth,
+                  lastSyncTime: syncedAt.toISOString(),
+                  activeMonthRowCounts: currentMonthRows,
+                  activeMonthLastDates: currentMonthLastDates,
+                  missingHistoryMonths,
+                  agentDictionary,
+                  agentDictionaryByMonth,
+                  fileNames,
+                  sheetsSnapshotRevision: SHEETS_SNAPSHOT_REVISION,
+                }),
+              ]);
+              if (persistGen !== sheetsSyncGeneration) return;
+              const persisted = await listKeys();
+              if (persistGen !== sheetsSyncGeneration) return;
+              set({ persistedKeys: persisted });
+            } catch (err) {
+              console.warn('Failed to persist sheets snapshot', err);
+            }
+          });
         };
-        const monthDict = agentDictionaryByMonth[selectedMonth];
-        const agentDictionary = isAgentDictionaryPopulated(monthDict) ? monthDict : newAgentDict;
-        const monthRange = getDateRangeForSheetMonth(selectedMonth);
 
-        set({
-          csidFile: new File([], fileNames.csidFile),
-          productivityFile: new File([], fileNames.productivityFile),
-          csatScFile: new File([], fileNames.csatScFile),
-          slaFile: new File([], fileNames.slaFile),
-          scheduleFile: new File([], fileNames.scheduleFile),
-          qaFile: new File([], fileNames.qaFile),
+        // 1) Show the active month right away (history still loading).
+        if (historyMonthKeys.length > 1) {
+          commitSnapshot(
+            historyMonthKeys.map((monthKey) =>
+              monthKey === selectedMonth ? currentMonthData : emptyAllSheetsData(),
+            ),
+            [],
+            get().pilotData,
+            false,
+          );
+          patchProgress('Mengambil riwayat bulan sebelumnya...', { history: 'active' });
+        }
 
-          csidData: csvCsid.data,
-          productivityData: csvProductivity.data,
-          csatScData: csvCsatSc.data,
-          slaData: csvSla.data,
-          scheduleData: csvSchedule.data,
-          qaData: csvQa.data,
-          pilotData: pilotRows,
+        // 2) History + pilot complete → final snapshot, persisted for the next boot.
+        const historyResults = await Promise.all(historyPromises);
+        const pilotRows = await pilotPromise;
+        if (gen !== sheetsSyncGeneration) return;
+        patchProgress('Dataset siap', { history: 'done', assemble: 'done' });
 
-          agentDictionary,
-          agentDictionaryByMonth,
-          activeMonthRowCounts: currentMonthRows,
-          activeMonthLastDates: currentMonthLastDates,
-          missingHistoryMonths,
-          lastSyncTime: syncedAt,
-          isFetchingSheets: false,
-          sheetsSyncProgress: null,
-          dataSource: 'sheets',
-          sheetsSnapshotRevision: SHEETS_SNAPSHOT_REVISION,
-          fileNames,
-          ...(monthRange ? { startDate: monthRange.start, endDate: monthRange.end } : {}),
+        const missingHistoryMonths: string[] = [];
+        const historicalSheets = historyResults.map((result, index) => {
+          if (result) return result;
+          missingHistoryMonths.push(historyMonthKeys[index]);
+          return emptyAllSheetsData();
         });
-
-        const persistGen = gen;
-        sheetsPersistChain = sheetsPersistChain.then(async () => {
-          if (persistGen !== sheetsSyncGeneration) return;
-          try {
-            await Promise.all([
-              saveData('csidFile', csvCsid.data),
-              saveData('productivityFile', csvProductivity.data),
-              saveData('csatScFile', csvCsatSc.data),
-              saveData('slaFile', csvSla.data),
-              saveData('scheduleFile', csvSchedule.data),
-              saveData('qaFile', csvQa.data),
-              saveData('pilotData', pilotRows),
-              saveData('sheetsMeta', {
-                dataSource: 'sheets',
-                selectedSheetMonth: selectedMonth,
-                lastSyncTime: syncedAt.toISOString(),
-                activeMonthRowCounts: currentMonthRows,
-                activeMonthLastDates: currentMonthLastDates,
-                missingHistoryMonths,
-                agentDictionary,
-                agentDictionaryByMonth,
-                fileNames,
-                sheetsSnapshotRevision: SHEETS_SNAPSHOT_REVISION,
-              }),
-            ]);
-            if (persistGen !== sheetsSyncGeneration) return;
-            const persisted = await listKeys();
-            if (persistGen !== sheetsSyncGeneration) return;
-            set({ persistedKeys: persisted });
-          } catch (err) {
-            console.warn('Failed to persist sheets snapshot', err);
-          }
-        });
+        commitSnapshot(historicalSheets, missingHistoryMonths, pilotRows, true);
 
       } catch (error) {
         if (gen !== sheetsSyncGeneration) return;

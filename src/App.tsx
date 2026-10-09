@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useStore } from './store';
 import { getPreviousMonthPeriod, getPreviousPeriod } from './lib/dataProcessor';
 import { parsePilotRows, pilotProcessingRange } from './lib/pilot';
+import { isAdminMode } from './lib/adminMode';
 import { formatRelativeTime, isStaleSync, countDataRows, extractCsIds, getProductivityDuplicateCount } from './lib/dataQuality';
 import { laggingSources } from './lib/sourceFreshness';
 import { useFilteredKpis } from './hooks/useFilteredKpis';
@@ -220,6 +221,8 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('summary');
+  const isAdmin = useMemo(() => isAdminMode(), []);
+  const formatClock = (date: Date) => date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
@@ -340,7 +343,7 @@ export default function App() {
   const syncStatusText = isFetchingSheets
     ? (sheetsSyncProgress?.message || 'Menyinkronkan data...')
     : sheetsFetchError
-      ? 'Sync gagal, mencoba lagi otomatis...'
+      ? 'Gagal memperbarui, mencoba lagi otomatis. Data yang tampil bisa belum terbaru.'
       : lastSyncTime
         ? ''
         : 'Menunggu sync';
@@ -600,7 +603,7 @@ export default function App() {
     { id: 'incentive', label: 'Simulasi Insentif', icon: Calculator, section: 'Team' },
     { id: 'schedule', label: 'Schedule Board', icon: Calendar, section: 'Team' },
     { id: 'attendance', label: 'Attendance Monitor', icon: Calendar, section: 'Team' },
-    { id: 'files', label: 'File Center', icon: FolderDown, section: 'Data' },
+    ...(isAdmin ? [{ id: 'files', label: 'File Center', icon: FolderDown, section: 'Data' }] : []),
   ];
 
   const activeNavLabel = navItems.find((item) => item.id === activeTab)?.label || 'tab';
@@ -999,7 +1002,7 @@ export default function App() {
                     </span>
                     {lastSyncTime && !isFetchingSheets && !sheetsFetchError && (
                       <span className={cn("text-text-muted", syncIsStale && "text-warning")}>
-                        {syncIsStale ? `Data terakhir sync ${formatRelativeTime(lastSyncTime)}, klik Refresh untuk update.` : `Tersinkron ${formatRelativeTime(lastSyncTime)}`}
+                        {syncIsStale ? `Data per ${formatClock(lastSyncTime)} (${formatRelativeTime(lastSyncTime)}), klik Refresh untuk update.` : `Data per ${formatClock(lastSyncTime)}`}
                       </span>
                     )}
                   </>
@@ -1008,7 +1011,7 @@ export default function App() {
               <div className="flex items-center gap-1.5 ml-auto">
                 <button
                   type="button"
-                  onClick={() => setActiveTab('files')}
+                  onClick={() => { if (isAdmin) setActiveTab('files'); }}
                   title={dataQuality.detail}
                   className={cn(
                     "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[10px] font-medium transition-colors",
@@ -1095,7 +1098,7 @@ export default function App() {
                   {activeTab === 'qa' && <QaAgent360 data={kpiData} />}
                   {activeTab === 'schedule' && <ScheduleBoard data={kpiData} />}
                   {activeTab === 'attendance' && <AttendanceMonitor data={kpiData} />}
-                  {activeTab === 'files' && <FileCenter />}
+                  {activeTab === 'files' && isAdmin && <FileCenter />}
                 </React.Suspense>
               </TabErrorBoundary>
             </div>
