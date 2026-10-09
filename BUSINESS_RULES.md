@@ -66,8 +66,19 @@ CSAT, QA, SLA: tiket di-dedupe per **agent + calendar day + ticket**, bukan glob
 
 ## 6. Insentif
 
+Rumus sudah dicocokkan dengan tabel insentif klien (17 agen sampel, ada sebagai tes regresi di `incentiveScoring.test.ts`).
+
+### Skor (maks 100)
+| Komponen | Poin | Rumus |
+|---|---|---|
+| QC audit | 55 | kurva poin QC di bawah, dari QA % (rata-rata skor QC per tiket, **Tanggal Case**, lihat bagian 4) |
+| CSAT | 25 | good ÷ (good + bad) × 25. Good/bad dari **QA CSAT/DSAT tagging**, bukan survey |
+| Produktivitas | 20 | min(total chat ÷ target chat, 1) × 20. Target chat = man-days × 100 |
+
+Training & Quiz bukan poin, hanya syarat (**Pass Gate**). Datanya ada di trainer, jadi sementara otomatis 100% dan Pass Gate = YES (`TRAINING_QUIZ_DEFAULT`).
+
 ### Periode
-- **KPI**: bulan kalender sebelumnya (relative ke filter end date)
+- **KPI**: periode aktif yang dipilih (live), bukan bulan kalender sebelumnya
 - **Roster** (TL/agent/BPO): bulan filter saat ini + CSID tab bulan File Center
 
 ### Tier Agent
@@ -77,6 +88,21 @@ CSAT, QA, SLA: tiket di-dedupe per **agent + calendar day + ticket**, bukan glob
 | T2 | ≥ 88 | Rp 1.250.000 |
 | T3 | ≥ 80 | Rp 750.000 |
 | - | < 80 | Rp 0 |
+
+Bonus produktivitas (hanya jika dapat tier): Rp 40.000 per 100 chat di atas target (Rp 400 per chat).
+Total insentif = insentif tier + bonus produktivitas. Poin tidak dibulatkan sebelum menentukan tier.
+
+### Batas skor menurut QC
+Skor maksimum = poin QC + 45 (CSAT + produktivitas penuh), sehingga QC menentukan tier tertinggi yang mungkin:
+
+| QA % | Poin QC | Skor maks | Tier tertinggi |
+|---|---|---|---|
+| ≥ 98 | 55 | 100 | T1 |
+| 95 – < 98 | 48,4 | 93,4 | T2 |
+| 90 – < 95 | 38,5 | 83,5 | T3 |
+| < 90 | ≤ 24,75 | ≤ 69,75 | tidak dapat insentif |
+
+Panel "Naik Tier" di Simulasi Insentif memakai tabel ini (`planTierUp` di `incentiveScoring.ts`).
 
 ### Tier Team Leader
 | Tier | Skor | Insentif |
@@ -97,9 +123,8 @@ CSAT, QA, SLA: tiket di-dedupe per **agent + calendar day + ticket**, bukan glob
 
 ### Lainnya
 - TL gross salary: Rp 4.328.000
-- Best leader bonus: pool Rp 500.000 dibagi ke TL yang eligible
-- Composite score = productivity (max 20pts) + CSAT + QC points + attendance
-- CSAT untuk insentif = **QA CSAT/DSAT tagging** (bukan survey)
+- Best leader bonus: pool Rp 500.000 dibagi rata ke **semua** TL
+- Insentif tidak memakai komponen attendance
 
 ## 7. Leaderboard
 

@@ -4,6 +4,7 @@ import { AgentKPI } from "../../lib/dataProcessor";
 import {
   DAILY_LIVECHAT_TARGET,
   TEAM_LEADER_GROSS_SALARY,
+  TRAINING_QUIZ_DEFAULT,
   bestLeaderBonusPerTeamLeader,
   buildIncentiveRow,
   getCsatStats,
@@ -15,6 +16,7 @@ import { cn, formatNum } from "../../lib/utils";
 import { isInactiveAgent } from "../../lib/inactiveAgents";
 import { IncompleteDataNotice } from "../ui/IncompleteDataNotice";
 import { useVirtualRows } from "../../hooks/useVirtualRows";
+import { IncentiveTierPlanner } from "./IncentiveTierPlanner";
 
 const TEAM_LEADER_ACCESS_PIN = "170845";
 
@@ -154,17 +156,29 @@ const IncentiveDetail = ({
   mode,
   rawAgent,
   rawTl,
+  agentKpi,
+  periodEnd,
   onClose,
 }: {
   item: ListItem;
   mode: "agent" | "tl";
   rawAgent?: IncentiveRow;
   rawTl?: TeamLeaderIncentiveRow;
+  agentKpi?: AgentKPI;
+  periodEnd: string;
   onClose: () => void;
 }) => {
   const breakdown: { label: string; value: string; tone?: "success" | "muted" }[] =
     mode === "agent"
       ? [
+          ...(rawAgent?.productivityTarget != null && rawAgent.productivityActual != null
+            ? [
+                { label: "Duty (man-days)", value: `${formatNum(rawAgent.productivityTarget / DAILY_LIVECHAT_TARGET, 0)} hari` },
+                { label: "Target chat", value: formatNum(rawAgent.productivityTarget, 0) },
+                { label: "Total chat", value: formatNum(rawAgent.productivityActual, 0) },
+                { label: "Chat di atas target", value: formatNum(Math.max(0, rawAgent.productivityActual - rawAgent.productivityTarget), 0), tone: "muted" as const },
+              ]
+            : []),
           { label: "Tier", value: item.tier === "-" ? "Tidak eligible" : item.tier },
           { label: "Insentif tier", value: formatCurrency(rawAgent?.baseIncentive ?? null) },
           { label: "Bonus produktivitas", value: formatCurrency(rawAgent?.productivityBonus ?? null), tone: "success" },
@@ -220,7 +234,10 @@ const IncentiveDetail = ({
           decimals={0}
         />
         <p className="text-[10px] text-text-muted">
-          Total skor {item.score !== null ? formatNum(item.score, 2) : "–"} / 100. Kuis &amp; training wajib, tidak menambah skor.
+          Total skor {item.score !== null ? formatNum(item.score, 2) : "–"} / 100. Kuis &amp; training tidak menambah skor, hanya syarat (Pass Gate).
+          {mode === "agent" && (
+            <> Training {TRAINING_QUIZ_DEFAULT.trainingPct}% · Kuis {TRAINING_QUIZ_DEFAULT.quizPct}% · Pass Gate {TRAINING_QUIZ_DEFAULT.passGate ? "YES" : "NO"} (otomatis, data dari trainer).</>
+          )}
         </p>
       </div>
 
@@ -237,6 +254,9 @@ const IncentiveDetail = ({
             </div>
           ))}
         </div>
+        {mode === "agent" && agentKpi && rawAgent && (
+          <IncentiveTierPlanner key={rawAgent.csId} agent={agentKpi} row={rawAgent} periodEnd={periodEnd} />
+        )}
         {mode === "tl" && (
           <p className="mt-3 text-[11px] text-text-secondary">
             <strong className="text-text-primary">Cara baca:</strong> persentase QC/CSAT/Prod adalah ringkasan tim; skor akhir dihitung dari rata-rata poin agent. THP gross belum dipotong pajak/BPJS dan belum termasuk lembur, hari libur, atau shift malam.
@@ -486,6 +506,9 @@ export const IncentiveSimulation: React.FC<{
   const selectedItem = selectedId ? activeItems.find((i) => i.id === selectedId) ?? null : null;
   const selectedRawAgent = viewMode === "agent" && selectedId
     ? rows.find((r) => r.csId === selectedId)
+    : undefined;
+  const selectedAgentKpi = viewMode === "agent" && selectedId
+    ? filteredAgents.find((a) => a.csId === selectedId)
     : undefined;
   const selectedRawTl = viewMode === "tl" && selectedId
     ? teamLeaderRows.find((r) => r.teamLeader === selectedId)
@@ -741,6 +764,8 @@ export const IncentiveSimulation: React.FC<{
                       mode={viewMode}
                       rawAgent={selectedRawAgent}
                       rawTl={selectedRawTl}
+                      agentKpi={selectedAgentKpi}
+                      periodEnd={safePeriod.end}
                       onClose={() => setSelectedId(null)}
                     />
                   ) : (
@@ -768,6 +793,8 @@ export const IncentiveSimulation: React.FC<{
                     mode={viewMode}
                     rawAgent={selectedRawAgent}
                     rawTl={selectedRawTl}
+                    agentKpi={selectedAgentKpi}
+                    periodEnd={safePeriod.end}
                     onClose={() => setSelectedId(null)}
                   />
                 </div>
