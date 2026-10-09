@@ -333,6 +333,26 @@ export default function App() {
     };
   }, [sheetsFetchError, fetchFromSheets]);
 
+  // Keep a long-open tab fresh: re-sync every 10 min and when the tab becomes
+  // visible again after being away. Agents never have to refresh manually.
+  useEffect(() => {
+    if (!import.meta.env.VITE_SHEETS_API_KEY) return;
+    const REFRESH_MS = 10 * 60 * 1000;
+    const refreshIfDue = () => {
+      if (document.visibilityState !== 'visible') return;
+      const { isFetchingSheets: busy, isHydrating: hydrating, lastSyncTime: last, dataSource } = useStore.getState();
+      if (busy || hydrating || dataSource !== 'sheets') return;
+      if (last && Date.now() - last.getTime() < REFRESH_MS) return;
+      void useStore.getState().fetchFromSheets();
+    };
+    const intervalId = window.setInterval(refreshIfDue, 60 * 1000);
+    document.addEventListener('visibilitychange', refreshIfDue);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', refreshIfDue);
+    };
+  }, []);
+
   // Reset retry counter when sync succeeds.
   useEffect(() => {
     if (!isFetchingSheets && !sheetsFetchError && lastSyncTime) {

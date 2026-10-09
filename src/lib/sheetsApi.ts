@@ -12,6 +12,27 @@ const AUG_OCT_2026_SPREADSHEET_ID =
 const PILOT_SPREADSHEET_ID =
   import.meta.env.VITE_SPREADSHEET_ID_PILOT || AUG_OCT_2026_SPREADSHEET_ID;
 const PILOT_SHEET_NAME = import.meta.env.VITE_SHEET_PILOT || 'PILOT';
+
+/**
+ * Optional month → spreadsheet map for quarters after Aug–Oct 2026, e.g.
+ * VITE_SPREADSHEET_IDS_BY_MONTH={"NOV_2026":"<id>","DEC_2026":"<id>","JAN_2027":"<id>"}
+ * Adding a new quarter is then an env change only, no code edit.
+ */
+export function parseSpreadsheetIdMap(raw: unknown): Record<string, string> {
+  if (typeof raw !== 'string' || !raw.trim()) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === 'string' && value.trim()) result[key.trim().toUpperCase()] = value.trim();
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+const SPREADSHEET_IDS_BY_MONTH = parseSpreadsheetIdMap(import.meta.env.VITE_SPREADSHEET_IDS_BY_MONTH);
 const BASE_URL = 'https://sheets.googleapis.com/v4/spreadsheets';
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
@@ -290,6 +311,7 @@ export function getSheetConfigForMonth(monthKey: string): SheetConfig {
 }
 
 export function getSpreadsheetIdForMonth(monthKey: string): string {
+  if (SPREADSHEET_IDS_BY_MONTH[monthKey]) return SPREADSHEET_IDS_BY_MONTH[monthKey];
   if (['AUG_2026', 'SEP_2026', 'OCT_2026'].includes(monthKey)) {
     return AUG_OCT_2026_SPREADSHEET_ID;
   }
@@ -315,6 +337,7 @@ export function getSpreadsheetIdCandidatesForMonth(
     selectedMonthKey ? getSpreadsheetIdForMonth(selectedMonthKey) : '',
     DEFAULT_SPREADSHEET_ID,
     AUG_OCT_2026_SPREADSHEET_ID,
+    ...Object.values(SPREADSHEET_IDS_BY_MONTH),
   ];
   return ordered.filter((id, i) => id && ordered.indexOf(id) === i);
 }

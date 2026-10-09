@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { saveData, loadData, clearAllData, listKeys, SHEETS_SNAPSHOT_REVISION } from './lib/storage';
 import { countDataRows, ValidationResult } from './lib/csvValidator';
-import { fetchAllSheets, fetchPilotRows, getCurrentSheetMonthKey, getSheetMonthHistoryKeys, getSheetConfigForMonth, getSheetMonthOption, getSpreadsheetIdForMonth, getSpreadsheetIdCandidatesForMonth, mergeAllSheetsData, sheetDataToParseResult, emptyAllSheetsData, isAbortError, isTransientNetworkError, getDateRangeForSheetMonth } from './lib/sheetsApi';
+import { type AllSheetsData, fetchAllSheets, fetchPilotRows, getCurrentSheetMonthKey, getSheetMonthHistoryKeys, getSheetConfigForMonth, getSheetMonthOption, getSpreadsheetIdForMonth, getSpreadsheetIdCandidatesForMonth, mergeAllSheetsData, sheetDataToParseResult, emptyAllSheetsData, isAbortError, isTransientNetworkError, getDateRangeForSheetMonth } from './lib/sheetsApi';
 import { buildAgentDictionary, isAgentDictionaryPopulated } from './lib/csid';
 import { getCurrentMonthRange } from './lib/dates';
 import { lastDataDate, lastDatesForAllSources, type SourceLastDates } from './lib/sourceFreshness';
@@ -15,6 +15,10 @@ let sheetsPersistChain: Promise<void> = Promise.resolve();
 
 /** A cached Sheets snapshot older than this is ignored on boot. */
 const SHEETS_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
+
+/** Closed history months barely change: reuse a saved copy this long. */
+const HISTORY_MONTH_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const historyCacheKey = (monthKey: string) => `historyMonth_${monthKey}`;
 
 const defaultDateRange =getCurrentMonthRange();
 
@@ -456,6 +460,26 @@ export const useStore = create<AppState>((set, get) => ({
         // History tabs are optional. A missing JUN/legacy sheet must not fail the
         // first boot of the selected month.
         const loadHistoryMonth = async (monthKey: string) => {
+          const cached = await loadData(historyCacheKey(monthKey));
+          if (
+            cached
+            && cached.revision === SHEETS_SNAPSHOT_REVISION
+            && cached.data
+            && Date.now() - Number(cached.savedAt || 0) <= HISTORY_MONTH_CACHE_MAX_AGE_MS
+          ) {
+            return cached.data as AllSheetsData;
+          }
+          const fresh = await fetchHistoryMonthFromSheets(monthKey);
+          if (fresh) {
+            void saveData(historyCacheKey(monthKey), {
+              revision: SHEETS_SNAPSHOT_REVISION,
+              savedAt: Date.now(),
+              data: fresh,
+            });
+          }
+          return fresh;
+        };
+        const fetchHistoryMonthFromSheets = async (monthKey: string) => {
           const monthConfig = getSheetConfigForMonth(monthKey);
           const candidateIds = getSpreadsheetIdCandidatesForMonth(monthKey, selectedMonth);
           let lastError: unknown = null;
