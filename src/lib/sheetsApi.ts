@@ -277,6 +277,30 @@ export function getPreviousSheetMonthKey(monthKey: string): string | null {
   return `${MONTHS[monthIndex - 1].code}_${year}`;
 }
 
+/** Month after `monthKey` (legacy = Mei 2026 → JUN_2026), or null if unknown. */
+export function getNextSheetMonthKey(monthKey: string): string | null {
+  const option = getSheetMonthOption(monthKey);
+  if (!option.suffix) return 'JUN_2026';
+  const [monthCode, yearValue] = option.key.split('_');
+  const monthIndex = MONTHS.findIndex(month => month.code === monthCode);
+  const year = Number(yearValue);
+  if (monthIndex === -1 || !year) return null;
+  if (monthIndex === 11) return `${MONTHS[0].code}_${year + 1}`;
+  return `${MONTHS[monthIndex + 1].code}_${year}`;
+}
+
+/** True when the sheet month is after the current calendar month (its tab cannot exist yet). */
+export function isFutureSheetMonth(monthKey: string): boolean {
+  const toOrdinal = (key: string) => {
+    const [monthCode, yearValue] = key.split('_');
+    const monthIndex = MONTHS.findIndex(month => month.code === monthCode);
+    return Number(yearValue) * 12 + monthIndex;
+  };
+  if (!monthKey || monthKey === 'legacy') return false;
+  const now = new Date();
+  return toOrdinal(monthKey) > now.getFullYear() * 12 + now.getMonth();
+}
+
 /**
  * Sheet months to keep in RAM for sync: selected month + N prior months.
  * N=3 covers Bandingkan MoM (3 previous periods) and Incentive (previous calendar month).
@@ -346,8 +370,10 @@ export async function fetchAllSheets(
   config: SheetConfig = DEFAULT_CONFIG,
   spreadsheetId: string = DEFAULT_SPREADSHEET_ID,
   signal?: AbortSignal,
+  /** Fetch only these tabs (others stay empty). Default: all six. */
+  onlyTabs?: ReadonlyArray<keyof AllSheetsData>,
 ): Promise<AllSheetsData> {
-  const sheetEntries = [
+  const allEntries = [
     ['csid', config.csidSheetName],
     ['productivity', config.productivitySheetName],
     ['csatSc', config.csatScSheetName],
@@ -355,6 +381,9 @@ export async function fetchAllSheets(
     ['schedule', config.scheduleSheetName],
     ['qa', config.qaSheetName],
   ] as const;
+  const sheetEntries = onlyTabs
+    ? allEntries.filter(([key]) => onlyTabs.includes(key))
+    : allEntries;
   const params = new URLSearchParams({ key: API_KEY });
 
   sheetEntries.forEach(([, sheetName]) => {
@@ -371,10 +400,11 @@ export async function fetchAllSheets(
       if (response.ok) {
         const json = await response.json();
         const valueRanges: Array<{ values?: SheetData }> = json.valueRanges || [];
-        return sheetEntries.reduce((result, [key], index) => {
+        const result = emptyAllSheetsData();
+        sheetEntries.forEach(([key], index) => {
           result[key] = valueRanges[index]?.values || [];
-          return result;
-        }, {} as AllSheetsData);
+        });
+        return result;
       }
 
       const shouldRetry = RETRYABLE_STATUS.has(response.status) && attempt < 3;

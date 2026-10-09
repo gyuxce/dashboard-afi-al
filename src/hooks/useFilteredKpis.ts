@@ -28,6 +28,7 @@ type Args = {
   previousRawData2: AgentKPI[];
   previousRawData3: AgentKPI[];
   pilotRawData: AgentKPI[];
+  incentiveRawData: AgentKPI[];
   activeTab: string;
   startDate: string;
   endDate: string;
@@ -46,8 +47,8 @@ type Args = {
  */
 export function useFilteredKpis(args: Args): FilteredKpis {
   const {
-    rawData, previousRawData, previousRawData2, previousRawData3, pilotRawData,
-    startDate, endDate, selectedSheetMonth,
+    rawData, previousRawData, previousRawData2, previousRawData3, pilotRawData, incentiveRawData,
+    activeTab, startDate, endDate, selectedSheetMonth,
     selectedBpo, selectedTL, selectedGlobalAgent,
     agentDictionary, agentDictionaryByMonth,
   } = args;
@@ -104,7 +105,10 @@ export function useFilteredKpis(args: Args): FilteredKpis {
       previousKpiData: filteredPrevData,
       previousKpiData2: filteredPrevData2,
       previousKpiData3: filteredPrevData3,
-      incentiveKpiData: filteredData,
+      // QA bucketed by Tanggal Case (own pass); empty until that pass lands.
+      incentiveKpiData: activeTab === 'incentive'
+        ? applyFilters(applyAgentRoster(incentiveRawData, selectedMonthRoster))
+        : [],
       incentivePeriod: { start: startDate || '', end: endDate || '' },
       // Roster overlay only — pilot participants are picked explicitly, not scope-filtered.
       pilotKpiData: applyAgentRoster(pilotRawData, selectedMonthRoster),
@@ -119,6 +123,8 @@ export function useFilteredKpis(args: Args): FilteredKpis {
     previousRawData2,
     previousRawData3,
     pilotRawData,
+    incentiveRawData,
+    activeTab,
     rawData,
     selectedBpo,
     selectedGlobalAgent,

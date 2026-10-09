@@ -36,7 +36,18 @@ Chat dengan timestamp **sebelum 07:00** diatribusikan ke **hari kalender sebelum
 
 Dedupe per **calendar day** (normDate), bukan raw header string.
 
-## 4. QA — Checking Date
+## 4. QA — Checking Date (harian) vs Tanggal Case (insentif)
+
+**Dua dasar tanggal, satu data.** Tiap baris QA punya dua tanggal:
+
+| Tampilan | Dasar tanggal |
+|---|---|
+| QA harian, QA Agent 360, tren Summary | **Checking Date** (kolom N) |
+| **Simulasi Insentif** (QA % dan CSAT % dari penandaan QA) | **Tanggal Case** (kolom I) |
+
+Untuk insentif, baris tanpa Tanggal Case yang terbaca memakai Checking Date. Kasus bulan yang sudah ditutup yang dicek bulan berikutnya ada di tab QA bulan berikutnya, jadi tab itu ikut dimuat saat sync (hanya untuk bulan yang sudah lewat). Aturan dedupe dan rata-rata sama; hanya kolom tanggalnya yang berbeda.
+
+Aturan Checking Date untuk tampilan harian:
 
 QA di-bucket berdasarkan **Checking Date** (kolom N di sheet QA), bukan:
 - Tanggal Case (kolom I)

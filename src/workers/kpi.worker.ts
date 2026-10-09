@@ -22,6 +22,7 @@ let dataVersion = 0;
 const runPeriod = (
   d: KpiRawData,
   period: PeriodRange | { start: string; end: string },
+  qaDateBasis: 'checking' | 'case' = 'checking',
 ) => {
   if (!period) return [];
   return processKPIs(
@@ -34,6 +35,7 @@ const runPeriod = (
     period.end,
     d.agentDictionary,
     d.agentDictionaryByMonth,
+    { qaDateBasis },
   );
 };
 
@@ -62,6 +64,7 @@ ctx.onmessage = (ev) => {
         previousRawData2: runPeriod(d, msg.periods.prev2),
         previousRawData3: runPeriod(d, msg.periods.prev3),
         pilotRawData: runPeriod(d, msg.periods.pilot),
+        incentiveRawData: runPeriod(d, msg.periods.incentive ?? null, 'case'),
       },
     });
   }

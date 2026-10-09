@@ -5,7 +5,7 @@ import { processSchedule } from './processors/schedule';
 import { processProductivity } from './processors/productivity';
 import { processCsatSc } from './processors/csatSc';
 import { processSla } from './processors/sla';
-import { processQa } from './processors/qa';
+import { processQa, type QaDateBasis } from './processors/qa';
 import { finalizeAgents } from './processors/finalize';
 import {
   createAccumulators,
@@ -33,6 +33,8 @@ export interface CSATEntry {
 export interface QAEntry {
   date: string;
   normDate?: string | null;
+  /** Checking Date (col N) normalized, kept even when rows are bucketed by Tanggal Case. */
+  checkingNormDate?: string | null;
   systemCheckingType?: string;
   ticketId: string;
   chatId?: string;
@@ -443,6 +445,7 @@ export const processKPIs = (
     string,
     Record<string, { name: string; bpo: string; teamLeader: string }>
   >,
+  options: { qaDateBasis?: QaDateBasis } = {},
 ): AgentKPI[] => {
   const agents: Record<string, AgentKPI> = {};
 
@@ -648,7 +651,7 @@ export const processKPIs = (
   processProductivity(ctx, prodData);
   processCsatSc(ctx, csatData);
   processSla(ctx, slaData);
-  processQa(ctx, qaData);
+  processQa(ctx, qaData, options.qaDateBasis);
 
   return finalizeAgents(ctx);
 };

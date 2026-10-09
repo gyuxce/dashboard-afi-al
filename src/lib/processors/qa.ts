@@ -12,12 +12,20 @@ import {
 import type { ProcessorContext } from './context';
 
 /**
+ * Which sheet date buckets a QA row.
+ * - `checking`: Checking Date (col N) — daily QA views.
+ * - `case`: Tanggal Case (col I) — Simulasi Insentif. Falls back to the
+ *   Checking Date when a row has no parseable case date.
+ */
+export type QaDateBasis = 'checking' | 'case';
+
+/**
  * Step 4: QA — qaHistory, score sum/count (once per ticket).
- * Extracted verbatim from processKPIs.
  */
 export function processQa(
   ctx: ProcessorContext,
   qaData: any[][],
+  dateBasis: QaDateBasis = 'checking',
 ): void {
   const { getAgent, isWithin } = ctx;
 
@@ -34,8 +42,13 @@ export function processQa(
     const agentId = resolvedId.id;
 
     const dateIdx = pickColumn(qaColumns.date, 13);
-    const dateStr = cell(row, dateIdx);
-    const normDate = dateStr ? normalizeDateStr(dateStr) : null;
+    const checkingDateStr = cell(row, dateIdx);
+    const checkingNormDate = checkingDateStr ? normalizeDateStr(checkingDateStr) : null;
+    const rowCaseDateStr = cell(row, pickColumn(qaColumns.caseDate, 8));
+    const caseNormDate = rowCaseDateStr ? normalizeDateStr(rowCaseDateStr) : null;
+    const useCaseDate = dateBasis === 'case' && Boolean(caseNormDate);
+    const dateStr = useCaseDate ? rowCaseDateStr : checkingDateStr;
+    const normDate = useCaseDate ? caseNormDate : checkingNormDate;
     if (dateStr && normDate && !isWithin(normDate)) continue;
     const targetDateLabel = normDate || dateStr;
 
@@ -73,6 +86,7 @@ export function processQa(
       ticketId,
       agentId,
       normalizeDateStr(dateStr) || dateStr.trim(),
+      checkingDateStr,
       uid,
       chatId,
       caseDate,
@@ -100,6 +114,7 @@ export function processQa(
     agent.qaHistory.push({
       date: targetDateLabel,
       normDate,
+      checkingNormDate,
       systemCheckingType,
       ticketId,
       uid,

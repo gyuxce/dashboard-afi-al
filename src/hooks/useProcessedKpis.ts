@@ -8,6 +8,7 @@ export type ProcessedKpiBundle = {
   previousRawData2: AgentKPI[];
   previousRawData3: AgentKPI[];
   pilotRawData: AgentKPI[];
+  incentiveRawData: AgentKPI[];
 };
 
 const EMPTY_BUNDLE: ProcessedKpiBundle = {
@@ -16,6 +17,7 @@ const EMPTY_BUNDLE: ProcessedKpiBundle = {
   previousRawData2: [],
   previousRawData3: [],
   pilotRawData: [],
+  incentiveRawData: [],
 };
 
 type PeriodRange = { start: string; end: string } | null;
@@ -37,6 +39,8 @@ type Args = {
   /** Optional extra period the Pilot CSAT tab needs (batch window + baseline),
    *  processed alongside the rest instead of a separate main-thread pass. */
   pilotPeriod: PeriodRange;
+  /** Simulasi Insentif pass: same period, QA bucketed by Tanggal Case. Null = skip. */
+  incentivePeriod: PeriodRange;
   /** Skip heavy work while bootstrapping empty state */
   enabled?: boolean;
 };
@@ -91,6 +95,7 @@ export function useProcessedKpis(args: Args): {
     prev2,
     prev3,
     pilotPeriod,
+    incentivePeriod,
     enabled = true,
   } = args;
 
@@ -138,6 +143,7 @@ export function useProcessedKpis(args: Args): {
       prev2: needsComparisonData ? prev2 : null,
       prev3: needsComparisonData ? prev3 : null,
       pilot: pilotPeriod && pilotPeriod.start ? pilotPeriod : null,
+      incentive: incentivePeriod && incentivePeriod.start ? incentivePeriod : null,
     };
 
     const finish = (next: ProcessedKpiBundle) => {
@@ -165,7 +171,10 @@ export function useProcessedKpis(args: Args): {
         agentDictionaryByMonth,
       );
 
-      const runPrev = async (p: PeriodRange): Promise<AgentKPI[] | null> => {
+      const runPrev = async (
+        p: PeriodRange,
+        qaDateBasis: 'checking' | 'case' = 'checking',
+      ): Promise<AgentKPI[] | null> => {
         if (!p) return [];
         await yieldToPaint();
         if (cancelled || gen !== genRef.current) return null;
@@ -179,6 +188,7 @@ export function useProcessedKpis(args: Args): {
           p.end,
           agentDictionary,
           agentDictionaryByMonth,
+          { qaDateBasis },
         );
       };
 
@@ -190,8 +200,10 @@ export function useProcessedKpis(args: Args): {
       if (previousRawData3 === null) return;
       const pilotRawData = await runPrev(periods.pilot);
       if (pilotRawData === null) return;
+      const incentiveRawData = await runPrev(periods.incentive, 'case');
+      if (incentiveRawData === null) return;
 
-      finish({ rawData, previousRawData, previousRawData2, previousRawData3, pilotRawData });
+      finish({ rawData, previousRawData, previousRawData2, previousRawData3, pilotRawData, incentiveRawData });
     };
 
     const worker = getKpiWorker();
@@ -283,6 +295,7 @@ export function useProcessedKpis(args: Args): {
     prev2,
     prev3,
     pilotPeriod,
+    incentivePeriod,
   ]);
 
   return { bundle, isProcessing };

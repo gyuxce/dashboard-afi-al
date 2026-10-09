@@ -508,6 +508,12 @@ export default function App() {
     [activeTab, pilotEntries, endDate],
   );
 
+  // Simulasi Insentif buckets QA by Tanggal Case (col I); every other tab keeps Checking Date.
+  const incentivePeriodRange = useMemo(
+    () => (activeTab === 'incentive' && startDate && endDate ? { start: startDate, end: endDate } : null),
+    [activeTab, startDate, endDate],
+  );
+
   // Yield between KPI passes so boot UI does not freeze/"patah".
   const { bundle: kpiRawBundle, isProcessing: isProcessingKpis } = useProcessedKpis({
     productivityData,
@@ -525,6 +531,7 @@ export default function App() {
     prev3: comparisonRanges.prev3,
     // Simulasi Insentif runs on the live active period; only Pilot CSAT needs a wider pass.
     pilotPeriod: pilotPeriodRange,
+    incentivePeriod: incentivePeriodRange,
     enabled: !isHydrating && hasSourceData,
   });
 
@@ -534,6 +541,7 @@ export default function App() {
     previousRawData2,
     previousRawData3,
     pilotRawData,
+    incentiveRawData,
   } = kpiRawBundle;
 
   const { kpiData, previousKpiData, previousKpiData2, previousKpiData3, incentiveKpiData, incentivePeriod, pilotKpiData, tlList, agentList } = useFilteredKpis({
@@ -542,6 +550,7 @@ export default function App() {
     previousRawData2,
     previousRawData3,
     pilotRawData,
+    incentiveRawData,
     activeTab,
     startDate,
     endDate,
@@ -1107,7 +1116,9 @@ export default function App() {
                   {activeTab === 'summary' && <DashboardSummary data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
                   {activeTab === 'leaderboard' && <Leaderboard data={kpiData} />}
                   {activeTab === 'incentive' && (
-                    <IncentiveSimulation data={incentiveKpiData} period={incentivePeriod} />
+                    isProcessingKpis && incentiveKpiData.length === 0
+                      ? <TabLoading />
+                      : <IncentiveSimulation data={incentiveKpiData} period={incentivePeriod} />
                   )}
                   {activeTab === 'productivity' && <ProductivityDetail data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
                   {activeTab === 'csat_official' && <CsatOfficialMonitor data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
