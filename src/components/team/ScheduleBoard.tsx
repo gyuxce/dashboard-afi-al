@@ -1,11 +1,11 @@
-import React, { useMemo, useState, useRef } from 'react';
-import { Search } from 'lucide-react';
+import React, { useMemo, useRef } from 'react';
 import { AgentKPI } from '../../lib/dataProcessor';
 import { EmptyState } from '../ui/EmptyState';
 import { MobileScrollHint } from '../ui/ChartScrollArea';
 import { VirtualizedTbody } from '../ui/VirtualizedTbody';
 import { useVirtualRows } from '../../hooks/useVirtualRows';
-import { uniqueCalendarDates, weekSeparatorClass, indexByDate, getByCalendarDate, formatCalendarHeader } from '../../lib/utils';
+import { KpiValue } from '../ui/KpiCue';
+import { KPI_TARGETS, formatNum, uniqueCalendarDates, weekSeparatorClass, indexByDate, getByCalendarDate, formatCalendarHeader } from '../../lib/utils';
 
 type ShiftKind = 'shift' | 'sick' | 'off' | 'pullout' | 'none' | 'other';
 
@@ -31,10 +31,9 @@ const CELL_CLASS: Record<ShiftKind, string> = {
   other: 'text-text-primary',
 };
 
+/** Daily roster grid. `data` is already scoped + searched by ScheduleAttendance. */
 export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
-  const [search, setSearch] = useState('');
-
-  const tableData = data.filter(a => a.csId.toLowerCase().includes(search.toLowerCase()) || (a.name || '').toLowerCase().includes(search.toLowerCase()));
+  const tableData = data;
 
   const uniqueDates = useMemo(
     () => uniqueCalendarDates(data.map((d) => d.dailyHistory?.schedule)),
@@ -60,28 +59,10 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
     rowHeight: 52,
     scrollRef: tableScrollRef,
   });
-  const tableColSpan = 5 + uniqueDates.length;
+  const tableColSpan = 6 + uniqueDates.length;
 
   return (
-    <div className="space-y-4 max-h-[85vh] flex flex-col">
-      <div className="flex items-center justify-between mx-4">
-        <h1 className="text-lg font-bold text-text-primary">Schedule Board</h1>
-
-        <div className="flex gap-4">
-           <div className="relative">
-             <Search className="w-4 h-4 absolute left-3 top-1.5 text-text-muted" />
-             <input
-               type="text"
-               placeholder="Cari CS ID atau nama..."
-              aria-label="Cari CS ID atau nama..."
-               className="pl-9 pr-4 py-1.5 border border-border rounded-lg text-xs w-64 focus:outline-none focus:ring-1 focus:ring-primary bg-card text-text-primary"
-               value={search}
-               onChange={e => setSearch(e.target.value)}
-             />
-           </div>
-        </div>
-      </div>
-
+    <div className="space-y-4 flex flex-col">
       {coverage.length >= 2 && maxCoverage > 0 && (
         <div className="mx-4 rounded-xl border border-border bg-surface px-4 py-3">
           <div className="flex items-center justify-between">
@@ -117,7 +98,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       )}
 
       <MobileScrollHint label="Geser → untuk lihat semua kolom" />
-      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 mx-4 max-h-[calc(100vh-320px)]">
+      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 mx-4 max-h-[calc(100vh-380px)]">
           <table className="kpi-data-table w-full text-left whitespace-nowrap border-collapse">
             <thead className="bg-surface text-text-secondary sticky top-0 z-30">
               <tr>
@@ -125,8 +106,11 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                 <th className="p-2 font-semibold  md:sticky md:left-[60px] z-40 bg-surface min-w-[250px] max-w-[250px]">Name / CS ID</th>
                 <th className="p-2 font-semibold  md:sticky md:left-[310px] z-40 bg-surface min-w-[80px] max-w-[80px]">BPO</th>
                 <th className="p-2 font-semibold  md:sticky md:left-[390px] z-40 bg-surface min-w-[120px] max-w-[120px]">Team Leader</th>
-                <th className="p-2 font-semibold text-center text-text-primary  bg-surface shrink-0 z-30 relative shadow-[10px_0_15px_-3px_rgba(0,0,0,0.05)]">
+                <th className="p-2 font-semibold text-center text-text-primary  bg-surface shrink-0 z-30 relative">
                   Man-days
+                </th>
+                <th className="p-2 font-semibold text-center text-text-primary  bg-surface shrink-0 z-30 relative shadow-[10px_0_15px_-3px_rgba(0,0,0,0.05)]">
+                  Attend. % <span className="font-normal text-text-muted">· t {KPI_TARGETS.attendance}%</span>
                 </th>
                 {uniqueDates.map((date, i) => (
                   <th key={date} className={`p-1.5 text-center text-[10px] font-medium text-text-muted bg-surface tabular-nums ${weekSeparatorClass(i)}`}>
@@ -171,8 +155,13 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                   </td>
                   <td className="p-2 font-medium text-text-primary md:sticky md:left-[390px] z-20 bg-card group-hover:bg-surface-muted transition-colors min-w-[120px] max-w-[120px] truncate">{agent.teamLeader || '-'}</td>
 
-                  <td className="p-2 text-center font-bold text-text-primary shadow-[10px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 tabular-nums">
+                  <td className="p-2 text-center font-bold text-text-primary z-10 tabular-nums">
                     {agent.manDays}
+                  </td>
+                  <td className="p-2 text-center text-[11px] shadow-[10px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 tabular-nums">
+                    {agent.attendanceDuty > 0
+                      ? <KpiValue value={agent.attendanceScore} type="attendance" text={`${formatNum(agent.attendanceScore, 1)}%`} />
+                      : <span className="text-text-disabled">–</span>}
                   </td>
 
                   {uniqueDates.map((date, i) => {

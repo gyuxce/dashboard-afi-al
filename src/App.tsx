@@ -54,8 +54,7 @@ const SlaWhuMonitor = React.lazy(() => import('./components/sla/SlaWhuMonitor').
 const QaAgent360 = React.lazy(() => import('./components/qa/QaAgent360').then(module => ({ default: module.QaAgent360 })));
 const Leaderboard = React.lazy(() => import('./components/team/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const IncentiveSimulation = React.lazy(() => import('./components/team/IncentiveSimulation').then(module => ({ default: module.IncentiveSimulation })));
-const ScheduleBoard = React.lazy(() => import('./components/team/ScheduleBoard').then(module => ({ default: module.ScheduleBoard })));
-const AttendanceMonitor = React.lazy(() => import('./components/team/AttendanceMonitor').then(module => ({ default: module.AttendanceMonitor })));
+const ScheduleAttendance = React.lazy(() => import('./components/team/ScheduleAttendance').then(module => ({ default: module.ScheduleAttendance })));
 
 function TabLoading() {
   return <TabSkeleton />;
@@ -479,6 +478,8 @@ export default function App() {
   // Leaderboard is hidden — bounce any persisted/stale nav state to Summary.
   useEffect(() => {
     if (activeTab === 'leaderboard') setActiveTab('summary');
+    // Attendance Monitor was merged into "Jadwal & Kehadiran".
+    if (activeTab === 'attendance') setActiveTab('schedule');
   }, [activeTab]);
 
   const comparisonRanges = useMemo(() => {
@@ -621,8 +622,7 @@ export default function App() {
     // Leaderboard hidden per 1 Sep 2026 — Simulasi Insentif (live period) is the primary Team view.
     // { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, section: 'Team' },
     { id: 'incentive', label: 'Simulasi Insentif', icon: Calculator, section: 'Team' },
-    { id: 'schedule', label: 'Schedule Board', icon: Calendar, section: 'Team' },
-    { id: 'attendance', label: 'Attendance Monitor', icon: Calendar, section: 'Team' },
+    { id: 'schedule', label: 'Jadwal & Kehadiran', icon: Calendar, section: 'Team' },
     ...(isAdmin ? [{ id: 'files', label: 'File Center', icon: FolderDown, section: 'Data' }] : []),
   ];
 
@@ -1116,8 +1116,7 @@ export default function App() {
                   {activeTab === 'pilot' && <PilotCsat data={pilotKpiData} pilotEntries={pilotEntries} periodEnd={endDate} isProcessing={isProcessingKpis} />}
                   {(activeTab === 'sla' || activeTab === 'whu') && <SlaWhuMonitor data={kpiData} />}
                   {activeTab === 'qa' && <QaAgent360 data={kpiData} />}
-                  {activeTab === 'schedule' && <ScheduleBoard data={kpiData} />}
-                  {activeTab === 'attendance' && <AttendanceMonitor data={kpiData} />}
+                  {activeTab === 'schedule' && <ScheduleAttendance data={kpiData} />}
                   {activeTab === 'files' && isAdmin && <FileCenter />}
                 </React.Suspense>
               </TabErrorBoundary>
