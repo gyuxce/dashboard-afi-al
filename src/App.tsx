@@ -32,7 +32,8 @@ import {
   Calculator,
   Check,
   AlertTriangle,
-  Rocket
+  Rocket,
+  SlidersHorizontal
 } from 'lucide-react';
 
 import { cn } from './lib/utils';
@@ -50,6 +51,7 @@ const CsatOfficialMonitor = React.lazy(() => import('./components/csat/CsatOffic
 const CsatRoom = React.lazy(() => import('./components/csat/CsatRoom').then(module => ({ default: module.CsatRoom })));
 const CsatRcaMonitor = React.lazy(() => import('./components/csat/CsatRcaMonitor').then(module => ({ default: module.CsatRcaMonitor })));
 const PilotCsat = React.lazy(() => import('./components/csat/PilotCsat').then(module => ({ default: module.PilotCsat })));
+const CsatTakeoutSim = React.lazy(() => import('./components/csat/CsatTakeoutSim').then(module => ({ default: module.CsatTakeoutSim })));
 const SlaWhuMonitor = React.lazy(() => import('./components/sla/SlaWhuMonitor').then(module => ({ default: module.SlaWhuMonitor })));
 const QaAgent360 = React.lazy(() => import('./components/qa/QaAgent360').then(module => ({ default: module.QaAgent360 })));
 const Leaderboard = React.lazy(() => import('./components/team/Leaderboard').then(module => ({ default: module.Leaderboard })));
@@ -627,6 +629,7 @@ export default function App() {
     { id: 'csat', label: 'CSAT Room (Survey)', icon: Star, section: 'CSAT' },
     { id: 'csat_rca', label: 'CSAT Root Cause', icon: FileText, section: 'CSAT' },
     { id: 'pilot', label: 'Pilot CSAT', icon: Rocket, section: 'CSAT' },
+    { id: 'csat_takeout', label: 'Simulasi Takeout', icon: SlidersHorizontal, section: 'CSAT' },
     { id: 'sla', label: 'SLA / WHU Monitor', icon: CheckCircle, section: 'Service' },
     // Leaderboard hidden per 1 Sep 2026 — Simulasi Insentif (live period) is the primary Team view.
     // { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, section: 'Team' },
@@ -1125,6 +1128,7 @@ export default function App() {
                   {activeTab === 'csat' && <CsatRoom data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
                   {activeTab === 'csat_rca' && <CsatRcaMonitor data={kpiData} />}
                   {activeTab === 'pilot' && <PilotCsat data={pilotKpiData} pilotEntries={pilotEntries} periodEnd={endDate} isProcessing={isProcessingKpis} />}
+                  {activeTab === 'csat_takeout' && <CsatTakeoutSim data={kpiData} />}
                   {(activeTab === 'sla' || activeTab === 'whu') && <SlaWhuMonitor data={kpiData} />}
                   {activeTab === 'qa' && <QaAgent360 data={kpiData} />}
                   {activeTab === 'schedule' && <ScheduleAttendance data={kpiData} />}
