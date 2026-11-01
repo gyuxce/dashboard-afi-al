@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Live Chat KPI Dashboard** — a client-only React/Vite SPA that ingests six data sources (CSID, Productivity/CSAT/WHU, CSAT SC, SLA, Schedule, QA), plus an optional 7th (`PILOT` — Pilot CSAT roster), and renders per-agent KPI tabs: productivity, CSAT (official + survey), SLA/WHU, QA, attendance, schedule, an incentive simulator, and Pilot CSAT. There is **no backend** — all processing runs in the browser. Leaderboard's tab is currently hidden (redirects to Summary) since the dashboard went live 1 Sep 2026 and Simulasi Insentif took over as the primary agent-facing view, now scored on the live/current period instead of the previous calendar month.
+**Live Chat KPI Dashboard** — a client-only React/Vite SPA that ingests six data sources (CSID, Productivity/CSAT/WHU, CSAT SC, SLA, Schedule, QA) and renders per-agent KPI tabs: productivity, CSAT (official + survey), SLA/WHU, QA, attendance, schedule, and an incentive simulator. There is **no backend** — all processing runs in the browser. Leaderboard's tab is currently hidden (redirects to Summary) since the dashboard went live 1 Sep 2026 and Simulasi Insentif took over as the primary agent-facing view, now scored on the live/current period instead of the previous calendar month.
 
 ## Commands
 
@@ -30,11 +30,10 @@ CSV upload OR Google Sheets ──▶ Zustand store (src/store.ts) ──▶ Ind
                         useProcessedKpis  ── runs processKPIs() in a Web Worker
                         (src/hooks/)         (src/workers/kpi.worker.ts), main-thread fallback
                                        │  AgentKPI[] for active period + up to 3 history periods
-                                       │  + a wide "pilot" period (Pilot CSAT's baseline+batch window)
                                        ▼
                         useFilteredKpis  ── applies BPO/TL/agent scope + roster + per-tab shaping
                         (src/hooks/)
-                                       │  kpiData, previousKpiData[1..3], incentiveKpiData, pilotKpiData
+                                       │  kpiData, previousKpiData[1..3], incentiveKpiData
                                        ▼
                         App.tsx  ── switches lazy-loaded tab components on `activeTab`
 ```
@@ -53,8 +52,8 @@ CSV upload OR Google Sheets ──▶ Zustand store (src/store.ts) ──▶ Ind
 - **QA date basis**: daily QA views bucket by Checking Date (col N); Simulasi Insentif takes ONLY its QA score (qaScoreSum/qaScoreCount) from Tanggal Case (col I) via a separate `processKPIs(..., { qaDateBasis: 'case' })` pass (`incentiveRawData`, only run on the incentive tab). Sync also loads the *next* month's QA tab for closed months so late-checked cases count.
 - **CSAT "Fair / After Takeout"** excludes three hardcoded categories (`CSAT_TAKEOUT_CATEGORIES`); "Full" keeps all valid ratings.
 - **Ticket dedupe** is per `agent + calendar day + ticket`, not global.
-- **CSAT means different things per tab**: Summary uses Official CSAT (star counts) + SC survey; Leaderboard and Incentive use QA CSAT/DSAT tagging from `qaHistory`; Pilot CSAT deliberately uses CSAT SC survey data only (`dailyHistory.csatScFull` / `csatHistory`), never QA tagging. Divergent numbers are intentional.
-- Inactive agents are hardcoded in `INACTIVE_AGENT_RULES` (`src/lib/inactiveAgents.ts`) and silently excluded — but only where `isInactiveAgent()` is actually called (Leaderboard, Simulasi Insentif). It is **not** applied to Pilot CSAT's `pilotKpiData`, so a pilot participant's data still shows even if they'd be filtered out elsewhere.
+- **CSAT means different things per tab**: Summary uses Official CSAT (star counts) + SC survey; Leaderboard and Incentive use QA CSAT/DSAT tagging from `qaHistory`. Divergent numbers are intentional.
+- Inactive agents are hardcoded in `INACTIVE_AGENT_RULES` (`src/lib/inactiveAgents.ts`) and silently excluded — but only where `isInactiveAgent()` is actually called (Leaderboard, Simulasi Insentif).
 
 ## Scoring modules (pure, unit-tested)
 
@@ -84,4 +83,3 @@ Tab components live in `src/components/{dashboard,csat,sla,qa,team}/` and are la
 - Aug/Sep/Oct 2026 read from a **separate hardcoded spreadsheet ID** (override with `VITE_SPREADSHEET_ID_AUG_OCT_2026`).
 - Only the legacy May 2026 tab uses the `VITE_SHEET_*` name overrides.
 - History = active month + 3 prior months, fetched for comparison (Simulasi Insentif reuses the active-month `kpiData` — no separate history fetch of its own).
-- Pilot CSAT reads an optional `PILOT` tab (`VITE_SPREADSHEET_ID_PILOT` + `VITE_SHEET_PILOT`, default: the Aug–Oct 2026 archive spreadsheet + tab name `PILOT`) via `fetchPilotRows`, processed over its own wide "pilot" period (batch start − 14 days through batch end) — see `src/lib/pilot.ts`. Columns (resolved by header name): `Batch | CS ID | Tanggal Mulai | Tanggal Selesai | Catatan Coaching | Baseline`. `Baseline` is optional — a manual % override (`62`, `62%`, `0.62`); blank falls back to the auto 2-week-before-start computation.

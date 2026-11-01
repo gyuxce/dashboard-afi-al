@@ -63,7 +63,7 @@ export const CSAT_TAKEOUT_CATEGORIES = [
   "pertanyaan belum bisa diidentifikasi",
 ] as const;
 
-export const normalizeCsatCategory = (value: unknown) =>
+const normalizeCsatCategory = (value: unknown) =>
   String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
 
 export const isCsatTakeoutCategory = (category: unknown) =>

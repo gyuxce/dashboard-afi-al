@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { saveData, loadData, clearAllData, listKeys, SHEETS_SNAPSHOT_REVISION } from './lib/storage';
 import { countDataRows, ValidationResult } from './lib/csvValidator';
-import { type AllSheetsData, fetchAllSheets, fetchPilotRows, getCurrentSheetMonthKey, getSheetMonthHistoryKeys, getNextSheetMonthKey, isFutureSheetMonth, getSheetConfigForMonth, getSheetMonthOption, getSpreadsheetIdForMonth, getSpreadsheetIdCandidatesForMonth, mergeAllSheetsData, sheetDataToParseResult, emptyAllSheetsData, isAbortError, isTransientNetworkError, getDateRangeForSheetMonth } from './lib/sheetsApi';
+import { type AllSheetsData, fetchAllSheets, getCurrentSheetMonthKey, getSheetMonthHistoryKeys, getNextSheetMonthKey, isFutureSheetMonth, getSheetConfigForMonth, getSheetMonthOption, getSpreadsheetIdForMonth, getSpreadsheetIdCandidatesForMonth, mergeAllSheetsData, sheetDataToParseResult, emptyAllSheetsData, isAbortError, isTransientNetworkError, getDateRangeForSheetMonth } from './lib/sheetsApi';
 import { buildAgentDictionary, isAgentDictionaryPopulated } from './lib/csid';
 import { getCurrentMonthRange } from './lib/dates';
 import { lastDataDate, lastDatesForAllSources, type SourceLastDates } from './lib/sourceFreshness';
@@ -70,8 +70,6 @@ export interface AppState {
   scheduleData: string[][];
   csidData: string[][];
   qaData: string[][];
-  /** Raw rows of the optional PILOT tab (Pilot CSAT roster). */
-  pilotData: string[][];
 
   startDate: string;
   endDate: string;
@@ -136,7 +134,6 @@ export const useStore = create<AppState>((set, get) => ({
   scheduleData: [],
   csidData: [],
   qaData: [],
-  pilotData: [],
 
   startDate: defaultDateRange.start,
   endDate: defaultDateRange.end,
@@ -227,7 +224,6 @@ export const useStore = create<AppState>((set, get) => ({
       scheduleData: [],
       csidData: [],
       qaData: [],
-      pilotData: [],
       agentDictionary: {},
       agentDictionaryByMonth: {},
       fileValidations: {},
@@ -298,11 +294,6 @@ export const useStore = create<AppState>((set, get) => ({
               }
             }
           }
-        }
-
-        if (keys.includes('pilotData')) {
-          const loadedPilot = await loadData('pilotData');
-          if (Array.isArray(loadedPilot)) fileData.pilotData = loadedPilot as string[][];
         }
 
         if (fileData.csidData) {
@@ -513,7 +504,7 @@ export const useStore = create<AppState>((set, get) => ({
         };
 
         // Start everything at once: the active month is shown as soon as it is
-        // ready, history + pilot roster catch up in the background.
+        // ready, history catches up in the background.
         patchProgress(`Mengambil data ${monthOption.label}...`, { month: 'active' });
         const currentMonthPromise = fetchAllSheets(
           sheetConfig,
@@ -523,11 +514,9 @@ export const useStore = create<AppState>((set, get) => ({
         const historyPromises = historyMonthKeys.map((monthKey) =>
           monthKey === selectedMonth ? currentMonthPromise : loadHistoryMonth(monthKey),
         );
-        // Optional Pilot CSAT roster — never fails the sync (helper swallows non-abort errors).
-        const pilotPromise = fetchPilotRows(signal);
         const nextMonthQaPromise = loadNextMonthQa();
         // Avoid unhandled rejections if the active month fails first.
-        [...historyPromises, pilotPromise, nextMonthQaPromise].forEach((promise) => { promise.catch(() => undefined); });
+        [...historyPromises, nextMonthQaPromise].forEach((promise) => { promise.catch(() => undefined); });
 
         const currentMonthData = await currentMonthPromise;
         if (gen !== sheetsSyncGeneration) return;
@@ -564,7 +553,6 @@ export const useStore = create<AppState>((set, get) => ({
         const commitSnapshot = (
           historicalSheets: Array<typeof currentMonthData>,
           missingHistoryMonths: string[],
-          pilotRows: string[][],
           final: boolean,
           nextMonthQa: string[][] | null = null,
         ) => {
@@ -621,7 +609,6 @@ export const useStore = create<AppState>((set, get) => ({
             slaData: csvSla.data,
             scheduleData: csvSchedule.data,
             qaData: csvQa.data,
-            pilotData: pilotRows,
 
             agentDictionary,
             agentDictionaryByMonth,
@@ -649,7 +636,6 @@ export const useStore = create<AppState>((set, get) => ({
                 saveData('slaFile', csvSla.data),
                 saveData('scheduleFile', csvSchedule.data),
                 saveData('qaFile', csvQa.data),
-                saveData('pilotData', pilotRows),
                 saveData('sheetsMeta', {
                   dataSource: 'sheets',
                   selectedSheetMonth: selectedMonth,
@@ -680,15 +666,13 @@ export const useStore = create<AppState>((set, get) => ({
               monthKey === selectedMonth ? currentMonthData : emptyAllSheetsData(),
             ),
             [],
-            get().pilotData,
             false,
           );
           patchProgress('Mengambil riwayat bulan sebelumnya...', { history: 'active' });
         }
 
-        // 2) History + pilot complete → final snapshot, persisted for the next boot.
+        // 2) History complete → final snapshot, persisted for the next boot.
         const historyResults = await Promise.all(historyPromises);
-        const pilotRows = await pilotPromise;
         const nextMonthQa = await nextMonthQaPromise;
         if (gen !== sheetsSyncGeneration) return;
         patchProgress('Dataset siap', { history: 'done', assemble: 'done' });
@@ -699,7 +683,7 @@ export const useStore = create<AppState>((set, get) => ({
           missingHistoryMonths.push(historyMonthKeys[index]);
           return emptyAllSheetsData();
         });
-        commitSnapshot(historicalSheets, missingHistoryMonths, pilotRows, true, nextMonthQa);
+        commitSnapshot(historicalSheets, missingHistoryMonths, true, nextMonthQa);
 
       } catch (error) {
         if (gen !== sheetsSyncGeneration) return;

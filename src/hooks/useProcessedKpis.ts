@@ -7,7 +7,6 @@ export type ProcessedKpiBundle = {
   previousRawData: AgentKPI[];
   previousRawData2: AgentKPI[];
   previousRawData3: AgentKPI[];
-  pilotRawData: AgentKPI[];
   incentiveRawData: AgentKPI[];
 };
 
@@ -16,7 +15,6 @@ const EMPTY_BUNDLE: ProcessedKpiBundle = {
   previousRawData: [],
   previousRawData2: [],
   previousRawData3: [],
-  pilotRawData: [],
   incentiveRawData: [],
 };
 
@@ -36,9 +34,6 @@ type Args = {
   prev1: PeriodRange;
   prev2: PeriodRange;
   prev3: PeriodRange;
-  /** Optional extra period the Pilot CSAT tab needs (batch window + baseline),
-   *  processed alongside the rest instead of a separate main-thread pass. */
-  pilotPeriod: PeriodRange;
   /** Simulasi Insentif pass: same period, QA bucketed by Tanggal Case. Null = skip. */
   incentivePeriod: PeriodRange;
   /** Skip heavy work while bootstrapping empty state */
@@ -94,7 +89,6 @@ export function useProcessedKpis(args: Args): {
     prev1,
     prev2,
     prev3,
-    pilotPeriod,
     incentivePeriod,
     enabled = true,
   } = args;
@@ -117,7 +111,7 @@ export function useProcessedKpis(args: Args): {
 
     // Stale-while-revalidate: keep showing the previous bundle (if any) while
     // this generation runs instead of wiping it to empty. A tab switch that
-    // merely adds/removes the "pilot" period (or any other filter/date tweak)
+    // merely adds/removes the incentive period (or any other filter/date tweak)
     // must not blank out data the user is already looking at — that's what
     // caused the whole app to flash back to the full boot screen on every
     // nav click. Only `enabled: false` below clears the bundle outright.
@@ -142,7 +136,6 @@ export function useProcessedKpis(args: Args): {
       prev1: needsComparisonData ? prev1 : null,
       prev2: needsComparisonData ? prev2 : null,
       prev3: needsComparisonData ? prev3 : null,
-      pilot: pilotPeriod && pilotPeriod.start ? pilotPeriod : null,
       incentive: incentivePeriod && incentivePeriod.start ? incentivePeriod : null,
     };
 
@@ -198,12 +191,10 @@ export function useProcessedKpis(args: Args): {
       if (previousRawData2 === null) return;
       const previousRawData3 = await runPrev(periods.prev3);
       if (previousRawData3 === null) return;
-      const pilotRawData = await runPrev(periods.pilot);
-      if (pilotRawData === null) return;
       const incentiveRawData = await runPrev(periods.incentive, 'case');
       if (incentiveRawData === null) return;
 
-      finish({ rawData, previousRawData, previousRawData2, previousRawData3, pilotRawData, incentiveRawData });
+      finish({ rawData, previousRawData, previousRawData2, previousRawData3, incentiveRawData });
     };
 
     const worker = getKpiWorker();
@@ -294,7 +285,6 @@ export function useProcessedKpis(args: Args): {
     prev1,
     prev2,
     prev3,
-    pilotPeriod,
     incentivePeriod,
   ]);
 

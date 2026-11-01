@@ -8,10 +8,6 @@ const DEFAULT_SPREADSHEET_ID = import.meta.env.VITE_SPREADSHEET_ID;
 // Env variable tetap bisa dipakai jika ID-nya nanti dipindahkan atau diganti.
 const AUG_OCT_2026_SPREADSHEET_ID =
   import.meta.env.VITE_SPREADSHEET_ID_AUG_OCT_2026 || '156IyfTTE77MPbCUWoHS741M_VJoMzyLr6Tr-498Zmok';
-// Pilot CSAT roster lives in one small tab; it does not rotate by month.
-const PILOT_SPREADSHEET_ID =
-  import.meta.env.VITE_SPREADSHEET_ID_PILOT || AUG_OCT_2026_SPREADSHEET_ID;
-const PILOT_SHEET_NAME = import.meta.env.VITE_SHEET_PILOT || 'PILOT';
 
 /**
  * Optional month → spreadsheet map for quarters after Aug–Oct 2026, e.g.
@@ -421,25 +417,6 @@ export async function fetchAllSheets(
   }
 
   throw new Error('Koneksi ke Google Sheets terputus. Coba Sync lagi.');
-}
-
-/**
- * Pilot CSAT roster tab. Optional — a missing / unshared tab just means "no pilot
- * config" and must never fail a normal sync, so this swallows non-abort errors.
- */
-export async function fetchPilotRows(signal?: AbortSignal): Promise<string[][]> {
-  if (!API_KEY || !PILOT_SPREADSHEET_ID) return [];
-  const range = buildRange(PILOT_SHEET_NAME);
-  const url = `${BASE_URL}/${PILOT_SPREADSHEET_ID}/values/${encodeURIComponent(range)}?key=${API_KEY}`;
-  try {
-    const res = await fetchWithTimeout(url, signal, 20000);
-    if (!res.ok) return [];
-    const json = await res.json();
-    return (json.values || []) as string[][];
-  } catch (error) {
-    if (isAbortError(error) || signal?.aborted) throw error;
-    return [];
-  }
 }
 
 function cellHasNumericScore(value: string): boolean {

@@ -22,8 +22,6 @@ export type KpiBundle = {
   previousRawData: AgentKPI[];
   previousRawData2: AgentKPI[];
   previousRawData3: AgentKPI[];
-  /** Optional extra period (Pilot CSAT window incl. baseline). */
-  pilotRawData: AgentKPI[];
   /** Current period with QA bucketed by Tanggal Case (Simulasi Insentif only). */
   incentiveRawData: AgentKPI[];
 };
@@ -39,7 +37,6 @@ export type KpiWorkerRequest =
         prev1: PeriodRange;
         prev2: PeriodRange;
         prev3: PeriodRange;
-        pilot: PeriodRange;
         incentive?: PeriodRange;
       };
     };

@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from './store';
 import { getPreviousMonthPeriod, getPreviousPeriod } from './lib/dataProcessor';
-import { parsePilotRows, pilotProcessingRange } from './lib/pilot';
 import { isAdminMode } from './lib/adminMode';
 import { formatRelativeTime, isStaleSync, countDataRows, extractCsIds, getProductivityDuplicateCount } from './lib/dataQuality';
 import { laggingSources } from './lib/sourceFreshness';
@@ -31,9 +30,7 @@ import {
   FileText,
   Calculator,
   Check,
-  AlertTriangle,
-  Rocket,
-  SlidersHorizontal
+  AlertTriangle
 } from 'lucide-react';
 
 import { cn } from './lib/utils';
@@ -50,8 +47,6 @@ const ProductivityDetail = React.lazy(() => import('./components/dashboard/Produ
 const CsatOfficialMonitor = React.lazy(() => import('./components/csat/CsatOfficialMonitor').then(module => ({ default: module.CsatOfficialMonitor })));
 const CsatRoom = React.lazy(() => import('./components/csat/CsatRoom').then(module => ({ default: module.CsatRoom })));
 const CsatRcaMonitor = React.lazy(() => import('./components/csat/CsatRcaMonitor').then(module => ({ default: module.CsatRcaMonitor })));
-const PilotCsat = React.lazy(() => import('./components/csat/PilotCsat').then(module => ({ default: module.PilotCsat })));
-const CsatTakeoutSim = React.lazy(() => import('./components/csat/CsatTakeoutSim').then(module => ({ default: module.CsatTakeoutSim })));
 const SlaWhuMonitor = React.lazy(() => import('./components/sla/SlaWhuMonitor').then(module => ({ default: module.SlaWhuMonitor })));
 const QaAgent360 = React.lazy(() => import('./components/qa/QaAgent360').then(module => ({ default: module.QaAgent360 })));
 const Leaderboard = React.lazy(() => import('./components/team/Leaderboard').then(module => ({ default: module.Leaderboard })));
@@ -250,7 +245,7 @@ export default function App() {
   }, [theme]);
 
   const {
-    csidData, productivityData, csatScData, slaData, scheduleData, qaData, pilotData,
+    csidData, productivityData, csatScData, slaData, scheduleData, qaData,
     startDate, endDate, selectedBpo, selectedTL, selectedGlobalAgent, agentDictionary, agentDictionaryByMonth, selectedSheetMonth,
     setDateRange, setSelectedBpo, setSelectedTL, setSelectedGlobalAgent, setSelectedSheetMonth,
     isHydrating, hydrateFromStorage,
@@ -264,7 +259,6 @@ export default function App() {
     slaData: s.slaData,
     scheduleData: s.scheduleData,
     qaData: s.qaData,
-    pilotData: s.pilotData,
     startDate: s.startDate,
     endDate: s.endDate,
     selectedBpo: s.selectedBpo,
@@ -480,6 +474,8 @@ export default function App() {
   // Leaderboard is hidden — bounce any persisted/stale nav state to Summary.
   useEffect(() => {
     if (activeTab === 'leaderboard') setActiveTab('summary');
+    // Pilot CSAT and Simulasi Takeout were removed — bounce stale persisted nav state.
+    if (activeTab === 'pilot' || activeTab === 'csat_takeout') setActiveTab('summary');
     // Attendance Monitor was merged into "Jadwal & Kehadiran".
     if (activeTab === 'attendance') setActiveTab('schedule');
   }, [activeTab]);
@@ -503,13 +499,6 @@ export default function App() {
     || qaData.length > 0
     || csidData.length > 0;
 
-  const pilotEntries = useMemo(() => parsePilotRows(pilotData), [pilotData]);
-  // Wide processKPIs window the Pilot CSAT tab needs (batch window + baseline).
-  const pilotPeriodRange = useMemo(
-    () => (activeTab === 'pilot' ? pilotProcessingRange(pilotEntries, endDate) : null),
-    [activeTab, pilotEntries, endDate],
-  );
-
   // Simulasi Insentif buckets QA by Tanggal Case (col I); every other tab keeps Checking Date.
   const incentivePeriodRange = useMemo(
     () => (activeTab === 'incentive' && startDate && endDate ? { start: startDate, end: endDate } : null),
@@ -531,8 +520,7 @@ export default function App() {
     prev1: comparisonRanges.prev1,
     prev2: comparisonRanges.prev2,
     prev3: comparisonRanges.prev3,
-    // Simulasi Insentif runs on the live active period; only Pilot CSAT needs a wider pass.
-    pilotPeriod: pilotPeriodRange,
+    // Simulasi Insentif runs on the live active period.
     incentivePeriod: incentivePeriodRange,
     enabled: !isHydrating && hasSourceData,
   });
@@ -542,16 +530,14 @@ export default function App() {
     previousRawData,
     previousRawData2,
     previousRawData3,
-    pilotRawData,
     incentiveRawData,
   } = kpiRawBundle;
 
-  const { kpiData, previousKpiData, previousKpiData2, previousKpiData3, incentiveKpiData, incentivePeriod, pilotKpiData, tlList, agentList } = useFilteredKpis({
+  const { kpiData, previousKpiData, previousKpiData2, previousKpiData3, incentiveKpiData, incentivePeriod, tlList, agentList } = useFilteredKpis({
     rawData,
     previousRawData,
     previousRawData2,
     previousRawData3,
-    pilotRawData,
     incentiveRawData,
     activeTab,
     startDate,
@@ -628,8 +614,6 @@ export default function App() {
     { id: 'csat_official', label: 'CSAT Official', icon: Star, section: 'CSAT' },
     { id: 'csat', label: 'CSAT Room (Survey)', icon: Star, section: 'CSAT' },
     { id: 'csat_rca', label: 'CSAT Root Cause', icon: FileText, section: 'CSAT' },
-    { id: 'pilot', label: 'Pilot CSAT', icon: Rocket, section: 'CSAT' },
-    { id: 'csat_takeout', label: 'Simulasi Takeout', icon: SlidersHorizontal, section: 'CSAT' },
     { id: 'sla', label: 'SLA / WHU Monitor', icon: CheckCircle, section: 'Service' },
     // Leaderboard hidden per 1 Sep 2026 — Simulasi Insentif (live period) is the primary Team view.
     // { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, section: 'Team' },
@@ -1127,8 +1111,6 @@ export default function App() {
                   {activeTab === 'csat_official' && <CsatOfficialMonitor data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
                   {activeTab === 'csat' && <CsatRoom data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
                   {activeTab === 'csat_rca' && <CsatRcaMonitor data={kpiData} />}
-                  {activeTab === 'pilot' && <PilotCsat data={pilotKpiData} pilotEntries={pilotEntries} periodEnd={endDate} isProcessing={isProcessingKpis} />}
-                  {activeTab === 'csat_takeout' && <CsatTakeoutSim data={kpiData} />}
                   {(activeTab === 'sla' || activeTab === 'whu') && <SlaWhuMonitor data={kpiData} />}
                   {activeTab === 'qa' && <QaAgent360 data={kpiData} />}
                   {activeTab === 'schedule' && <ScheduleAttendance data={kpiData} />}

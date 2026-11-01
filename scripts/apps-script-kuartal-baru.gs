@@ -51,7 +51,7 @@ function buatSpreadsheetKuartalBaru() {
     });
   });
 
-  // Hapus tab lama (termasuk tab bulan lalu & PILOT) dari salinan.
+  // Hapus tab lama (termasuk tab bulan lalu) dari salinan.
   salinan.getSheets().forEach((sheet) => {
     if (namaBaru.indexOf(sheet.getName()) === -1) salinan.deleteSheet(sheet);
   });

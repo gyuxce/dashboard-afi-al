@@ -1,6 +1,6 @@
 # Live Chat KPI Dashboard
 
-Dashboard React/Vite (client-only, tanpa backend) untuk memantau KPI live chat: productivity, CSAT (official + survey), SLA/WHU, QA, attendance, schedule, Simulasi Insentif, dan Pilot CSAT (program coaching agent CSAT rendah).
+Dashboard React/Vite (client-only, tanpa backend) untuk memantau KPI live chat: productivity, CSAT (official + survey), SLA/WHU, QA, attendance, schedule, dan Simulasi Insentif.
 
 ## Prerequisites
 
@@ -38,10 +38,8 @@ VITE_SHEETS_API_KEY=your_google_sheets_api_key
 VITE_SPREADSHEET_ID=your_spreadsheet_id
 # Optional: spreadsheet terpisah untuk periode Agustus-Oktober 2026
 VITE_SPREADSHEET_ID_AUG_OCT_2026=your_aug_oct_2026_spreadsheet_id
-# Optional: roster Pilot CSAT (tab: Batch | CS ID | Tanggal Mulai | Tanggal Selesai | Catatan Coaching)
-# Default: pakai VITE_SPREADSHEET_ID_AUG_OCT_2026 + tab "PILOT"
-VITE_SPREADSHEET_ID_PILOT=
-VITE_SHEET_PILOT=PILOT
+# Optional: spreadsheet kuartal berikutnya (JSON bulan -> ID), mis. Nov 2026 - Jan 2027
+# VITE_SPREADSHEET_IDS_BY_MONTH={"NOV_2026":"<id>","DEC_2026":"<id>","JAN_2027":"<id>"}
 ```
 
 Nama tab default yang dibaca (periode Mei 2026 / legacy):

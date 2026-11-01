@@ -16,8 +16,6 @@ export type FilteredKpis = {
   previousKpiData3: AgentKPI[];
   incentiveKpiData: AgentKPI[];
   incentivePeriod: { start: string; end: string };
-  /** Pilot CSAT window (roster-overlaid, NOT scope-filtered — participants are explicit). */
-  pilotKpiData: AgentKPI[];
   tlList: string[];
   agentList: string[];
 };
@@ -27,7 +25,6 @@ type Args = {
   previousRawData: AgentKPI[];
   previousRawData2: AgentKPI[];
   previousRawData3: AgentKPI[];
-  pilotRawData: AgentKPI[];
   incentiveRawData: AgentKPI[];
   activeTab: string;
   startDate: string;
@@ -47,7 +44,7 @@ type Args = {
  */
 export function useFilteredKpis(args: Args): FilteredKpis {
   const {
-    rawData, previousRawData, previousRawData2, previousRawData3, pilotRawData, incentiveRawData,
+    rawData, previousRawData, previousRawData2, previousRawData3, incentiveRawData,
     activeTab, startDate, endDate, selectedSheetMonth,
     selectedBpo, selectedTL, selectedGlobalAgent,
     agentDictionary, agentDictionaryByMonth,
@@ -119,8 +116,6 @@ export function useFilteredKpis(args: Args): FilteredKpis {
           })
         : [],
       incentivePeriod: { start: startDate || '', end: endDate || '' },
-      // Roster overlay only — pilot participants are picked explicitly, not scope-filtered.
-      pilotKpiData: applyAgentRoster(pilotRawData, selectedMonthRoster),
       tlList: Array.from(optionTls).sort((a, b) => a.localeCompare(b)),
       agentList: Array.from(agents).sort((a, b) => a.localeCompare(b)),
     };
@@ -131,7 +126,6 @@ export function useFilteredKpis(args: Args): FilteredKpis {
     previousRawData,
     previousRawData2,
     previousRawData3,
-    pilotRawData,
     incentiveRawData,
     activeTab,
     rawData,
