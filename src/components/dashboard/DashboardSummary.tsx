@@ -142,17 +142,20 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
         });
       });
       if (columns.length < 2) return null;
-      const partial = weekRanges
-        .filter((week) => week.days < 7 && columns.some((c) => c.key === `w${week.index}`))
-        .map((week) => `W${week.index} (${week.days} hari)`);
+      const today = toLocalIso(new Date());
+      const running = weekRanges
+        .filter((week) => week.end >= today && columns.some((c) => c.key === `w${week.index}`))
+        .map((week) => `W${week.index}`);
+      const note = [
+        'Minggu kalender Senin–Minggu; minggu pertama dan terakhir bisa mencakup tanggal bulan sebelum/sesudahnya, jadi jumlah semua minggu tidak selalu sama dengan total bulan.',
+        running.length > 0 ? `Minggu berjalan (belum selesai): ${running.join(', ')}.` : '',
+      ].filter(Boolean).join(' ');
       return {
         title: 'Weekly Performance Report',
         columns,
         deltaTo: columns.length - 1,
         deltaFrom: columns.length - 2,
-        note: partial.length > 0
-          ? `Minggu kalender Senin–Minggu. Minggu parsial: ${partial.join(', ')}. Total Productivity minggu parsial tidak sebanding dengan minggu penuh — gunakan Avg Productivity.`
-          : 'Minggu kalender Senin–Minggu.',
+        note,
       };
     }
 
@@ -945,12 +948,21 @@ const formatReportDate = (d: string) => {
   return isNaN(dt.getTime()) ? d : new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(dt);
 };
 
+const toLocalIso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 const formatWeekSpan = (start: string, end: string) => {
-  const s = new Date(start);
-  const e = new Date(end);
+  const local = (value: string) => {
+    const [y, m, d] = value.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+  const s = local(start);
+  const e = local(end);
   if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
-  const month = new Intl.DateTimeFormat('id-ID', { month: 'short' }).format(e);
-  return s.getDate() === e.getDate() ? `${e.getDate()} ${month}` : `${s.getDate()}–${e.getDate()} ${month}`;
+  const monthOf = (d: Date) => new Intl.DateTimeFormat('id-ID', { month: 'short' }).format(d);
+  return s.getMonth() === e.getMonth()
+    ? `${s.getDate()}–${e.getDate()} ${monthOf(e)}`
+    : `${s.getDate()} ${monthOf(s)}–${e.getDate()} ${monthOf(e)}`;
 };
 
 const formatPeriodLabel = (dateStr: string, mode: 'wow' | 'mom') => {

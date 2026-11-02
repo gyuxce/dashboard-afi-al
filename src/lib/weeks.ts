@@ -1,11 +1,11 @@
 export type CalendarWeek = {
   /** 1-based position of the week inside the range (W1 = the week containing the first day). */
   index: number;
-  /** ISO yyyy-mm-dd, clipped to the range. */
+  /** ISO yyyy-mm-dd of the full Monday and Sunday — NOT clipped, so a week can cross a month boundary. */
   start: string;
   end: string;
-  /** Days of this week that fall inside the range (7 for a full Monday–Sunday week). */
-  days: number;
+  /** Days of this week that fall inside the selected range. */
+  daysInRange: number;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -19,8 +19,9 @@ const toIso = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 /**
- * Splits a date range into Monday–Sunday calendar weeks, clipped to the range:
- * 1–31 Oct 2026 → 1–4, 5–11, 12–18, 19–25, 26–31. The first and last week can be partial.
+ * Splits a date range into the Monday–Sunday calendar weeks it touches. Weeks are whole, so the
+ * first and last one reach into the neighbouring months:
+ * 1–31 Oct 2026 → 28 Sep–4 Okt, 5–11, 12–18, 19–25, 26 Okt–1 Nov.
  */
 export function getCalendarWeeks(startDate: string, endDate: string): CalendarWeek[] {
   if (!startDate || !endDate) return [];
@@ -29,18 +30,18 @@ export function getCalendarWeeks(startDate: string, endDate: string): CalendarWe
   if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return [];
 
   const weeks: CalendarWeek[] = [];
-  let cursor = start;
-  while (cursor <= end) {
-    const dayOfWeek = cursor.getDay() || 7; // Monday = 1 … Sunday = 7
-    const sunday = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + (7 - dayOfWeek));
-    const weekEnd = sunday > end ? end : sunday;
+  let monday = new Date(start.getFullYear(), start.getMonth(), start.getDate() - ((start.getDay() || 7) - 1));
+  while (monday <= end) {
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    const first = monday < start ? start : monday;
+    const last = sunday > end ? end : sunday;
     weeks.push({
       index: weeks.length + 1,
-      start: toIso(cursor),
-      end: toIso(weekEnd),
-      days: Math.round((weekEnd.getTime() - cursor.getTime()) / DAY_MS) + 1,
+      start: toIso(monday),
+      end: toIso(sunday),
+      daysInRange: Math.round((last.getTime() - first.getTime()) / DAY_MS) + 1,
     });
-    cursor = new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate() + 1);
+    monday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 7);
   }
   return weeks;
 }

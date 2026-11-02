@@ -500,7 +500,7 @@ export default function App() {
   const weekRanges = useMemo(() => {
     if (!needsComparisonData || activeTab !== 'summary' || comparisonMode !== 'wow') return NO_WEEKS;
     const weeks = getCalendarWeeks(startDate, endDate);
-    const totalDays = weeks.reduce((sum, week) => sum + week.days, 0);
+    const totalDays = weeks.reduce((sum, week) => sum + week.daysInRange, 0);
     return totalDays > 7 ? weeks.slice(-6) : NO_WEEKS;
   }, [needsComparisonData, activeTab, comparisonMode, startDate, endDate]);
 

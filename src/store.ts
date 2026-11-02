@@ -486,16 +486,24 @@ export const useStore = create<AppState>((set, get) => ({
           return null;
         };
 
-        // Simulasi Insentif buckets QA by Tanggal Case, so cases of a closed month
-        // that were checked the month after live in the NEXT month's QA tab.
-        const loadNextMonthQa = async () => {
+        // The month after a closed month is loaded too (everything except the roster):
+        //  - QA: Simulasi Insentif buckets QA by Tanggal Case, so cases of a closed month
+        //    that were checked the month after live in the NEXT month's QA tab.
+        //  - Weekly Performance Report: Monday–Sunday weeks cross month boundaries
+        //    (W5 Okt = 26 Okt–1 Nov), so 1 Nov productivity/CSAT/SLA/schedule must be present.
+        const loadNextMonth = async () => {
           const nextMonthKey = getNextSheetMonthKey(selectedMonth);
           if (!nextMonthKey || isFutureSheetMonth(nextMonthKey)) return null;
           const nextConfig = getSheetConfigForMonth(nextMonthKey);
           for (const spreadsheetId of getSpreadsheetIdCandidatesForMonth(nextMonthKey, selectedMonth)) {
             try {
-              const next = await fetchAllSheets(nextConfig, spreadsheetId, signal, ['qa']);
-              if (next.qa.length > 1) return next.qa;
+              const next = await fetchAllSheets(
+                nextConfig,
+                spreadsheetId,
+                signal,
+                ['productivity', 'csatSc', 'sla', 'schedule', 'qa'],
+              );
+              if (next.qa.length > 1 || next.productivity.length > 1) return next;
             } catch (error) {
               if (isAbortError(error) || signal.aborted) throw error;
             }
@@ -514,9 +522,9 @@ export const useStore = create<AppState>((set, get) => ({
         const historyPromises = historyMonthKeys.map((monthKey) =>
           monthKey === selectedMonth ? currentMonthPromise : loadHistoryMonth(monthKey),
         );
-        const nextMonthQaPromise = loadNextMonthQa();
+        const nextMonthPromise = loadNextMonth();
         // Avoid unhandled rejections if the active month fails first.
-        [...historyPromises, nextMonthQaPromise].forEach((promise) => { promise.catch(() => undefined); });
+        [...historyPromises, nextMonthPromise].forEach((promise) => { promise.catch(() => undefined); });
 
         const currentMonthData = await currentMonthPromise;
         if (gen !== sheetsSyncGeneration) return;
@@ -554,15 +562,15 @@ export const useStore = create<AppState>((set, get) => ({
           historicalSheets: Array<typeof currentMonthData>,
           missingHistoryMonths: string[],
           final: boolean,
-          nextMonthQa: string[][] | null = null,
+          nextMonth: typeof currentMonthData | null = null,
         ) => {
           const mergedHistory = historicalSheets.reduce(
             (merged, monthData) =>
               merged ? mergeAllSheetsData(merged, monthData) : monthData,
             null as typeof currentMonthData | null,
           ) || currentMonthData;
-          const allData = nextMonthQa
-            ? mergeAllSheetsData(mergedHistory, { ...emptyAllSheetsData(), qa: nextMonthQa })
+          const allData = nextMonth
+            ? mergeAllSheetsData(mergedHistory, { ...emptyAllSheetsData(), ...nextMonth, csid: [] })
             : mergedHistory;
           const loadedMonthLabel = final && historyMonthKeys.length > 1
             ? `${getSheetMonthOption(historyMonthKeys[0]).label} - ${monthOption.label}`
@@ -673,7 +681,7 @@ export const useStore = create<AppState>((set, get) => ({
 
         // 2) History complete → final snapshot, persisted for the next boot.
         const historyResults = await Promise.all(historyPromises);
-        const nextMonthQa = await nextMonthQaPromise;
+        const nextMonth = await nextMonthPromise;
         if (gen !== sheetsSyncGeneration) return;
         patchProgress('Dataset siap', { history: 'done', assemble: 'done' });
 
@@ -683,7 +691,7 @@ export const useStore = create<AppState>((set, get) => ({
           missingHistoryMonths.push(historyMonthKeys[index]);
           return emptyAllSheetsData();
         });
-        commitSnapshot(historicalSheets, missingHistoryMonths, true, nextMonthQa);
+        commitSnapshot(historicalSheets, missingHistoryMonths, true, nextMonth);
 
       } catch (error) {
         if (gen !== sheetsSyncGeneration) return;
