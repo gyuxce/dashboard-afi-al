@@ -50,6 +50,7 @@ import {
   tlSamplingHighlights,
 } from '../../lib/weeklyHighlights';
 import { downloadBlob, renderTableSlide } from '../../lib/slideExport';
+import { composeFullSlide } from '../../lib/slideFrame';
 import { canonicalBpoName, isSmallBpoName } from '../../lib/bpoNames';
 import {
   REPORT_METRICS,
@@ -68,7 +69,12 @@ type Slide = {
   file: string;
   /** The template already has an editable Highlight box under the picture, so the text is not baked in by default. */
   templateHasHighlight: boolean;
-  render: (highlightInImage: boolean) => Promise<Rendered>;
+  /** Text of the white tab / red bar in the full-slide layout (editable on the page). */
+  section: string;
+  titleText: string;
+  /** Footer caption in the full-slide layout. */
+  caption: string;
+  render: (highlightInImage: boolean, bare: boolean) => Promise<Rendered>;
 };
 
 const done = async (image: Promise<Blob>, lines: string[]): Promise<Rendered> => ({ blob: await image, lines });
@@ -155,6 +161,8 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
   // Slides whose template has no Highlight box get the text drawn into the picture; the rest can opt in.
   const [hlInImage, setHlInImage] = useState<Record<string, boolean>>({});
   const [withHeadline, setWithHeadline] = useState(true);
+  const [layout, setLayout] = useState<'slide' | 'content'>('slide');
+  const [frameText, setFrameText] = useState<Record<string, { section?: string; title?: string }>>({});
   const [manual, setManual] = useState<Manual>(() => loadManual(selectedBpo));
   const [tlAnalyzed, setTlAnalyzed] = useState<Record<string, number>>({});
 
@@ -248,6 +256,18 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         stats: calculatePeriodStats(rows),
       }));
 
+    const lastTurnoverValue = manual.turnover[last.week.start];
+    const turnoverTitle =
+      lastTurnoverValue === undefined
+        ? `Headcount CS ${bpoLabel}`
+        : `“${String(lastTurnoverValue)}% turn over for ${deckRange(last.week.start, last.week.end, true)}”`;
+    const capRange = `${bpoLabel} · ${range}`;
+    const capMode = `${bpoLabel} · ${subtitle}`;
+    const capLast = `${bpoLabel} · ${modeLabel} · ${last.label} (${formatWeekSpan(last.week.start, last.week.end)})`;
+    const capMonths = monthRanges.length
+      ? `${bpoLabel} · ${monthRanges[0].label} – ${monthRanges[monthRanges.length - 1].label} ${monthRanges[monthRanges.length - 1].end.slice(0, 4)}`
+      : bpoLabel;
+
     const list: Slide[] = [];
 
     list.push({
@@ -256,7 +276,10 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       title: 'Headcount & Turn Over',
       file: 'slide-03-headcount',
       templateHasHighlight: true,
-      render: (inImage) => {
+      section: 'Headcount',
+      titleText: turnoverTitle,
+      caption: capRange,
+      render: (inImage, bare) => {
         const counts = cols.map((c) => headcountStats(c.rows));
         const turnover: (number | null)[] = cols.map((c) => manual.turnover[c.week.start] ?? null);
         const lines = headcountHighlights(
@@ -267,6 +290,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
           TURNOVER_THRESHOLD,
         );
         return done(renderHeadcountSlide({
+          bare,
           title: `Headcount CS ${bpoLabel}`,
           subtitle: range,
           headline: hdOn ? headcountHeadline(last.label, counts[counts.length - 1].agents, turnover[turnover.length - 1], TURNOVER_THRESHOLD) : undefined,
@@ -291,13 +315,16 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         title: 'Overview: Weekly Performance Report',
         file: 'slide-04-overview',
         templateHasHighlight: false,
-        render: (inImage) => {
+        section: 'Overview',
+        titleText: `KPI Achievements for ${deckRange(last.week.start, last.week.end, false)}`,
+        caption: capRange,
+        render: (inImage, bare) => {
           const lastCol = overviewCols[overviewCols.length - 1];
           const prevOverview = overviewCols[overviewCols.length - 2];
           const lines = overviewHighlights(lastCol.label, prevOverview.label, kpiItems);
           return done(
-            renderTableSlide(
-            buildReportSlideModel({
+            renderTableSlide({
+            ...buildReportSlideModel({
               title: 'Weekly Performance Report',
               columns: overviewCols,
               deltaTo: overviewCols.length - 1,
@@ -306,7 +333,8 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
               headline: hdOn ? overviewHeadline(lastCol.label, kpiItems) ?? undefined : undefined,
               highlights: inImage ? lines : undefined,
             }),
-            ),
+            bare,
+            }),
             lines,
           );
         },
@@ -319,10 +347,14 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       title: 'Positive Rate Before & After Takeout',
       file: 'slide-05-positive-rate',
       templateHasHighlight: true,
-      render: (inImage) => {
+      section: 'KPI - CSAT',
+      titleText: 'Positive Rate Before & After Takeout',
+      caption: capRange,
+      render: (inImage, bare) => {
         const rates = cols.map((c) => positiveRates(c.rows));
         const lines = positiveRateHighlights(cols.map((c, i) => ({ label: c.label, ...rates[i] })), { full: 75, fair: 92 });
         return done(renderPositiveRateSlide({
+          bare,
           title: 'Positive Rate Before & After Takeout',
           subtitle: `CSAT SC · ${range}`,
           headline: hdOn ? positiveRateHeadline(cols.map((c, i) => ({ label: c.label, ...rates[i] })), { full: 75, fair: 92 }) ?? undefined : undefined,
@@ -339,11 +371,15 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       title: 'Respondents',
       file: 'slide-06-respondents',
       templateHasHighlight: true,
-      render: (inImage) => {
+      section: 'KPI - CSAT',
+      titleText: 'Respondents',
+      caption: capMode,
+      render: (inImage, bare) => {
         const stats = cols.map((c) => respondentStats(c.rows, mode));
         const daily = dailyRespondents(last.rows, mode).map((p) => ({ ...p, label: formatDay(p.date) }));
         const lines = respondentHighlights(cols.map((c, i) => ({ label: c.label, respondents: stats[i].respondents, rate: stats[i].rate })), daily);
         return done(renderRespondentsSlide({
+          bare,
           title: 'Respondents',
           subtitle,
           headline: hdOn ? respondentHeadline(cols.map((c, i) => ({ label: c.label, respondents: stats[i].respondents, rate: stats[i].rate }))) ?? undefined : undefined,
@@ -364,11 +400,15 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       title: 'Breakdown Category DSAT',
       file: 'slide-07-breakdown-category',
       templateHasHighlight: false,
-      render: (inImage) => {
+      section: 'DSAT',
+      titleText: 'Breakdown Category DSAT WTW',
+      caption: capMode,
+      render: (inImage, bare) => {
         const tops = cols.map((c) => topBadCategories(c.rows, mode, topCatsLimit));
         const totals = cols.map((c) => badCategoryTotals(c.rows, mode));
         const lines = categoryHighlights(cols.map((c, i) => ({ label: c.label, top: tops[i], totalBad: totals[i].total, takeoutBad: totals[i].takeout })));
         return done(renderCategoriesSlide({
+          bare,
           title: 'Top Categories (Score 1 & 2)',
           subtitle,
           headline: hdOn ? categoryHeadline(cols.map((c, i) => ({ label: c.label, top: tops[i], totalBad: totals[i].total, takeoutBad: totals[i].takeout }))) ?? undefined : undefined,
@@ -384,10 +424,14 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       title: 'Analyzed DSAT by TL %',
       file: 'slide-08-analyzed-dsat-by-tl',
       templateHasHighlight: true,
-      render: (inImage) => {
+      section: 'DSAT',
+      titleText: 'Analyzed DSAT by TL %',
+      caption: capLast,
+      render: (inImage, bare) => {
         const rows = tlRows.map((t) => ({ name: t.name, dsat: t.dsat, topCategories: t.topCategories, analyzed: tlAnalyzed[t.name] ?? null }));
         const lines = tlSamplingHighlights(last.label, rows);
         return done(renderTlSamplingSlide({
+          bare,
           title: 'Analyzed DSAT by TL %',
           subtitle: `${modeLabel} · ${last.label} (${formatWeekSpan(last.week.start, last.week.end)})`,
           headline: hdOn ? tlHeadline(last.label, rows) ?? undefined : undefined,
@@ -403,10 +447,14 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       title: 'Top 5 Agent Bottom CSAT',
       file: 'slide-09-top-agent-bottom-csat',
       templateHasHighlight: false,
-      render: (inImage) => {
+      section: 'DSAT',
+      titleText: 'TOP 5 Agent Bottom CSAT',
+      caption: capMode,
+      render: (inImage, bare) => {
         const agentCols = cols.map((c) => topBadAgents(c.rows, mode, topAgentsLimit));
         const lines = agentHighlights(cols.map((c, i) => ({ label: c.label, agents: agentCols[i] })));
         return done(renderAgentsSlide({
+          bare,
           title: 'Agent Bottom Score 1–2',
           subtitle,
           headline: hdOn ? agentHeadline(cols.map((c, i) => ({ label: c.label, agents: agentCols[i] }))) ?? undefined : undefined,
@@ -427,11 +475,15 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         title: 'Simulasi CSAT: tambahan kategori takeout',
         file: 'slide-10-simulasi-takeout',
         templateHasHighlight: false,
-        render: (inImage) => {
+        section: 'Insight',
+        titleText: 'Simulasi CSAT: tambahan kategori takeout',
+        caption: capMonths,
+        render: (inImage, bare) => {
           const months = monthRanges.map((m, i) => ({ label: m.label, rows: takeoutScenarios(monthData[i]) }));
           const extraNames = EXTRA_TAKEOUT_CATEGORIES.map(prettyCategory).join(' dan ');
           const lines = takeoutSimHighlights(extraNames, months.map((m) => ({ label: m.label, rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92);
           return done(renderTakeoutSimSlide({
+          bare,
             title: 'Simulasi CSAT SC: tambahan kategori takeout',
             subtitle: `${monthRanges[0].label} – ${monthRanges[monthRanges.length - 1].label} ${monthRanges[monthRanges.length - 1].end.slice(0, 4)}`,
             months,
@@ -444,7 +496,13 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
     return list;
   }, [cols, mode, topCatsLimit, topAgentsLimit, withHeadline, manual, bpoLabel, weekRanges, weekData, monthRanges, monthData, tlRows, tlAnalyzed]);
 
-  const inImageFor = (slide: Slide) => hlInImage[slide.id] ?? !slide.templateHasHighlight;
+  // Full-slide layout draws everything (including Highlight); the content-only layout leaves out Highlight
+  // where the template already has its own editable box.
+  const inImageFor = (slide: Slide) => hlInImage[slide.id] ?? (layout === 'slide' ? true : !slide.templateHasHighlight);
+  const frameFor = (slide: Slide) => ({
+    section: frameText[slide.id]?.section ?? slide.section,
+    title: frameText[slide.id]?.title ?? slide.titleText,
+  });
 
   // Render previews whenever the data or the view changes.
   useEffect(() => {
@@ -458,7 +516,11 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
     (async () => {
       for (const slide of slides) {
         try {
-          const { blob, lines } = await slide.render(inImageFor(slide));
+          const rendered = await slide.render(inImageFor(slide), layout === 'slide');
+          const blob = layout === 'slide'
+            ? await composeFullSlide({ ...frameFor(slide), caption: slide.caption, content: rendered.blob })
+            : rendered.blob;
+          const { lines } = rendered;
           if (cancelled) return;
           const url = URL.createObjectURL(blob);
           urls.push(url);
@@ -472,7 +534,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       cancelled = true;
       urls.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, [slides, hlInImage]);
+  }, [slides, hlInImage, layout, frameText]);
 
   const flash = (text: string) => {
     setMessage(text);
@@ -551,6 +613,15 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl<'slide' | 'content'>
+            aria-label="Bentuk gambar"
+            options={[
+              { value: 'slide', label: 'Slide penuh' },
+              { value: 'content', label: 'Isi saja' },
+            ]}
+            value={layout}
+            onChange={setLayout}
+          />
           <SegmentedControl<CsatMode>
             aria-label="Jenis data CSAT"
             options={[
@@ -669,6 +740,22 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
                   </button>
                 </div>
               </header>
+              {layout === 'slide' && (
+                <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 text-[11px] text-text-secondary">
+                  <label htmlFor={`weekly-export-tab-${slide.id}`} className="inline-flex items-center gap-1.5">
+                    Tab
+                    <input id={`weekly-export-tab-${slide.id}`} type="text" value={frameFor(slide).section}
+                      onChange={(e) => setFrameText((prev) => ({ ...prev, [slide.id]: { ...prev[slide.id], section: e.target.value } }))}
+                      className="h-7 w-36 rounded-md border border-border bg-surface px-2 text-xs text-text-primary" />
+                  </label>
+                  <label htmlFor={`weekly-export-title-${slide.id}`} className="inline-flex min-w-0 flex-1 items-center gap-1.5">
+                    Judul di bar merah
+                    <input id={`weekly-export-title-${slide.id}`} type="text" value={frameFor(slide).title}
+                      onChange={(e) => setFrameText((prev) => ({ ...prev, [slide.id]: { ...prev[slide.id], title: e.target.value } }))}
+                      className="h-7 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-xs text-text-primary" />
+                  </label>
+                </div>
+              )}
               <div className="bg-white p-3">
                 {ready ? (
                   <img src={p.url} alt={`Pratinjau ${slide.title}`} className="mx-auto block h-auto max-w-full" />

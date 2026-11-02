@@ -5,9 +5,9 @@ import {
   canvasToPng,
   createSlideCanvas,
   drawSlideHeader,
-  drawHeadline,
+  beginSlide,
   fitText,
-  headlineOffset,
+  frameLayout,
   layoutHighlights,
   roundRect,
   type SlideHeadline,
@@ -92,6 +92,7 @@ export type CategoriesSlide = {
   title: string;
   subtitle: string;
   headline?: SlideHeadline;
+  bare?: boolean;
   columns: (SlideWeek & { rows: TopCategory[] })[];
   highlights?: string[];
 };
@@ -100,19 +101,16 @@ export async function renderCategoriesSlide(model: CategoriesSlide): Promise<Blo
   const n = Math.max(model.columns.length, 1);
   const rowsMax = Math.max(1, ...model.columns.map((c) => c.rows.length));
   const colW = columnWidth(n);
-  const rowH = 80;
+  const rowH = model.bare ? 66 : 80;
   const top = 178;
   const tableTop = top + 64 + 18;
   const headH = 52;
   const contentBottom = tableTop + headH + rowH * rowsMax;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
-  const off = headlineOffset(model.headline);
+  const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
-
-  drawSlideHeader(ctx, model.title, model.subtitle);
-  drawHeadline(ctx, model.headline);
-  ctx.translate(0, off);
+  beginSlide(ctx, model, model.title, model.subtitle);
 
   model.columns.forEach((col, ci) => {
     const x = PAD + ci * (colW + GAP);
@@ -146,7 +144,7 @@ export async function renderCategoriesSlide(model: CategoriesSlide): Promise<Blo
 
       ctx.font = `600 21px ${FONT}`;
       ctx.fillStyle = row.isTakeout ? COLORS.miss : COLORS.ink;
-      const lines = wrapClamp(ctx, row.name, catW, 3);
+      const lines = wrapClamp(ctx, row.name, catW, model.bare ? 2 : 3);
       const lineH = 25;
       lines.forEach((line, li) => {
         ctx.fillText(line, x + 52, mid - ((lines.length - 1) * lineH) / 2 + li * lineH);
@@ -183,6 +181,7 @@ export type AgentsSlide = {
   title: string;
   subtitle: string;
   headline?: SlideHeadline;
+  bare?: boolean;
   columns: (SlideWeek & { agents: TopAgent[]; repeatIds?: ReadonlySet<string> })[];
   highlights?: string[];
 };
@@ -191,18 +190,17 @@ export async function renderAgentsSlide(model: AgentsSlide): Promise<Blob> {
   const n = Math.max(model.columns.length, 1);
   const agentsMax = Math.max(1, ...model.columns.map((c) => c.agents.length));
   const colW = columnWidth(n);
-  const blockH = 156;
+  const blockH = model.bare ? 138 : 156;
+  const lineGap = model.bare ? 25 : 28;
+  const lineStart = model.bare ? 70 : 74;
   const top = 178;
   const listTop = top + 64 + 18;
   const contentBottom = listTop + blockH * agentsMax;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
-  const off = headlineOffset(model.headline);
+  const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
-
-  drawSlideHeader(ctx, model.title, model.subtitle);
-  drawHeadline(ctx, model.headline);
-  ctx.translate(0, off);
+  beginSlide(ctx, model, model.title, model.subtitle);
 
   model.columns.forEach((col, ci) => {
     const x = PAD + ci * (colW + GAP);
@@ -232,7 +230,7 @@ export async function renderAgentsSlide(model: AgentsSlide): Promise<Blob> {
 
       ctx.font = `500 20px ${FONT}`;
       agent.topCategories.forEach((cat, k) => {
-        const ly = y + 74 + k * 28;
+        const ly = y + lineStart + k * lineGap;
         ctx.textAlign = 'left';
         ctx.fillStyle = COLORS.muted;
         ctx.fillText(fitText(ctx, cat.name, colW - 48 - 60), x + 48, ly);
@@ -263,25 +261,27 @@ export type RespondentsSlide = {
   title: string;
   subtitle: string;
   headline?: SlideHeadline;
+  bare?: boolean;
   columns: (SlideWeek & { stats: RespondentStats; deltaFromPrevious: number | null })[];
   daily: { title: string; points: (DailyRespondents & { label: string })[] };
   highlights?: string[];
 };
 
 export async function renderRespondentsSlide(model: RespondentsSlide): Promise<Blob> {
-  const contentBottom = 918;
+  const cardH = model.bare ? 312 : 360;
+  const contentBottom = 178 + cardH * 2 + 20;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = contentBottom + (hl ? hl.height + 36 : 0) + 82;
-  const off = headlineOffset(model.headline);
+  const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
-  drawSlideHeader(ctx, model.title, model.subtitle);
-  drawHeadline(ctx, model.headline);
-  ctx.translate(0, off);
+  beginSlide(ctx, model, model.title, model.subtitle);
 
   const gridTop = 178;
   const cardW = 440;
-  const cardH = 360;
   const cardGap = 20;
+  const bigY = model.bare ? 132 : 140;
+  const deltaY = model.bare ? 166 : 176;
+  const barAreaH = model.bare ? 64 : 90;
 
   model.columns.slice(0, 4).forEach((col, i) => {
     const x = PAD + (i % 2) * (cardW + cardGap);
@@ -302,24 +302,23 @@ export async function renderRespondentsSlide(model: RespondentsSlide): Promise<B
 
     ctx.fillStyle = COLORS.ink;
     ctx.font = `800 68px ${FONT}`;
-    ctx.fillText(String(col.stats.respondents), x + 24, y + 140);
+    ctx.fillText(String(col.stats.respondents), x + 24, y + bigY);
 
     // change vs previous week + response rate
     ctx.font = `700 22px ${FONT}`;
     if (col.deltaFromPrevious !== null && col.deltaFromPrevious !== 0) {
       const down = col.deltaFromPrevious < 0;
       ctx.fillStyle = down ? COLORS.down : COLORS.up;
-      ctx.fillText(`${down ? '▼' : '▲'} ${Math.abs(col.deltaFromPrevious)}`, x + 24, y + 176);
+      ctx.fillText(`${down ? '▼' : '▲'} ${Math.abs(col.deltaFromPrevious)}`, x + 24, y + deltaY);
     }
     ctx.textAlign = 'right';
     ctx.fillStyle = COLORS.muted;
     ctx.font = `600 20px ${FONT}`;
-    ctx.fillText(`Rate ${col.stats.rate.toFixed(1)}%`, x + cardW - 24, y + 140);
+    ctx.fillText(`Rate ${col.stats.rate.toFixed(1)}%`, x + cardW - 24, y + bigY);
 
     // star distribution
     const max = Math.max(1, ...col.stats.stars);
     const baseY = y + cardH - 56;
-    const barAreaH = 90;
     const slot = (cardW - 48) / 5;
     col.stats.stars.forEach((count, s) => {
       const cx = x + 24 + slot * s + slot / 2;
@@ -422,21 +421,20 @@ export type PositiveRateSlide = {
   title: string;
   subtitle: string;
   headline?: SlideHeadline;
+  bare?: boolean;
   columns: (SlideWeek & { full: number | null; fair: number | null })[];
   targets: { full: number; fair: number };
   highlights?: string[];
 };
 
 export async function renderPositiveRateSlide(model: PositiveRateSlide): Promise<Blob> {
-  const baseH = 960;
+  const baseH = model.bare ? 720 : 960;
   const contentBottom = baseH - 70;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = baseH + (hl ? hl.height + 36 : 0);
-  const off = headlineOffset(model.headline);
+  const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
-  drawSlideHeader(ctx, model.title, model.subtitle);
-  drawHeadline(ctx, model.headline);
-  ctx.translate(0, off);
+  beginSlide(ctx, model, model.title, model.subtitle);
 
   // legend
   ctx.textBaseline = 'alphabetic';
@@ -549,6 +547,7 @@ export type HeadcountSlide = {
   title: string;
   subtitle: string;
   headline?: SlideHeadline;
+  bare?: boolean;
   columns: (SlideWeek & {
     teamLeaders: number;
     agents: number;
@@ -567,11 +566,9 @@ export async function renderHeadcountSlide(model: HeadcountSlide): Promise<Blob>
   const contentBottom = baseH - 40;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = baseH + (hl ? hl.height + 36 : 0);
-  const off = headlineOffset(model.headline);
+  const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
-  drawSlideHeader(ctx, model.title, model.subtitle);
-  drawHeadline(ctx, model.headline);
-  ctx.translate(0, off);
+  beginSlide(ctx, model, model.title, model.subtitle);
 
   const n = Math.max(model.columns.length, 1);
   const top = 190;
@@ -726,6 +723,7 @@ export type TlSamplingSlide = {
   title: string;
   subtitle: string;
   headline?: SlideHeadline;
+  bare?: boolean;
   rows: {
     name: string;
     dsat: number;
@@ -738,18 +736,17 @@ export type TlSamplingSlide = {
 };
 
 export async function renderTlSamplingSlide(model: TlSamplingSlide): Promise<Blob> {
-  const rowH = 128;
+  const rowH = model.bare ? 104 : 128;
+  const causeGap = model.bare ? 24 : 28;
   const top = 190;
   const headH = 60;
   const rows = model.rows;
   const contentBottom = top + headH + rowH * (rows.length + 1) + 10;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
-  const off = headlineOffset(model.headline);
+  const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
-  drawSlideHeader(ctx, model.title, model.subtitle);
-  drawHeadline(ctx, model.headline);
-  ctx.translate(0, off);
+  beginSlide(ctx, model, model.title, model.subtitle);
 
   const nameX = PAD + 16;
   const dsatRight = PAD + 400;
@@ -817,7 +814,7 @@ export async function renderTlSamplingSlide(model: TlSamplingSlide): Promise<Blo
     if (row.topCategories.length) {
       ctx.textAlign = 'left';
       row.topCategories.forEach((c, k) => {
-        const ly = mid - 28 + k * 28;
+        const ly = mid - causeGap + k * causeGap;
         ctx.fillStyle = COLORS.muted;
         ctx.font = `500 21px ${FONT}`;
         ctx.fillText(fitText(ctx, c.name, causeW - 70), causeX, ly);
@@ -877,6 +874,7 @@ export type TakeoutSimSlide = {
   title: string;
   subtitle: string;
   headline?: SlideHeadline;
+  bare?: boolean;
   months: { label: string; rows: TakeoutScenario[] }[];
   highlights?: string[];
 };
@@ -891,15 +889,13 @@ export async function renderTakeoutSimSlide(model: TakeoutSimSlide): Promise<Blo
   const top = 190;
   const monthH = 56;
   const subH = 52;
-  const rowH = 100;
+  const rowH = model.bare ? 84 : 100;
   const contentBottom = top + monthH + subH + rowH * scenarioCount;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
-  const off = headlineOffset(model.headline);
+  const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
-  drawSlideHeader(ctx, model.title, model.subtitle);
-  drawHeadline(ctx, model.headline);
-  ctx.translate(0, off);
+  beginSlide(ctx, model, model.title, model.subtitle);
 
   // legend of the two formulas
   ctx.textBaseline = 'alphabetic';

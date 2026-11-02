@@ -39,6 +39,8 @@ export type SlideModel = {
   /** Bullets for the "Highlight" box under the table. */
   highlights?: string[];
   headline?: SlideHeadline;
+  /** Content only (no title block): the full-slide frame supplies the title. */
+  bare?: boolean;
 };
 
 export const COLORS = {
@@ -97,14 +99,14 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
   const titleH = 60;
   const subtitleH = 40;
   const tableTop = headTop + titleH + subtitleH + 28;
-  const headRowH = 96;
-  const rowH = 78;
+  const headRowH = model.bare ? 80 : 96;
+  const rowH = model.bare ? 58 : 78;
   const noteSize = 20;
 
   // Measure the note first so the canvas height fits it.
   const measure = document.createElement('canvas').getContext('2d');
   let noteLines: string[] = [];
-  if (measure && model.note) {
+  if (measure && model.note && !model.bare) {
     measure.font = `400 ${noteSize}px ${FONT}`;
     noteLines = wrapLines(measure, model.note, WIDTH - PAD_X * 2);
   }
@@ -112,7 +114,7 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const tableBottom = tableTop + headRowH + rowH * model.rows.length;
   const height = Math.ceil(tableBottom + noteH + (hl ? hl.height + 32 : 0) + 48);
-  const off = headlineOffset(model.headline);
+  const { off } = frameLayout(model);
 
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH * SCALE;
@@ -125,18 +127,19 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
   ctx.fillRect(0, 0, WIDTH, height + off);
 
   // Header
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = COLORS.accent;
-  ctx.fillRect(PAD_X, headTop + 2, 8, titleH - 14);
-  ctx.fillStyle = COLORS.ink;
-  ctx.font = `700 46px ${FONT}`;
-  ctx.textAlign = 'left';
-  ctx.fillText(model.title, PAD_X + 26, headTop + 44);
-  ctx.fillStyle = COLORS.muted;
-  ctx.font = `500 25px ${FONT}`;
-  ctx.fillText(model.subtitle, PAD_X + 26, headTop + titleH + 24);
-
-  drawHeadline(ctx, model.headline);
+  if (!model.bare) {
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = COLORS.accent;
+    ctx.fillRect(PAD_X, headTop + 2, 8, titleH - 14);
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = `700 46px ${FONT}`;
+    ctx.textAlign = 'left';
+    ctx.fillText(model.title, PAD_X + 26, headTop + 44);
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = `500 25px ${FONT}`;
+    ctx.fillText(model.subtitle, PAD_X + 26, headTop + titleH + 24);
+  }
+  drawHeadline(ctx, model.headline, model.bare ? 8 : 154);
   ctx.translate(0, off);
 
   // Column geometry
@@ -369,11 +372,10 @@ const HEADLINE_STYLE: Record<SlideHeadline['tone'], { bar: string; bg: string; i
 };
 
 /** One-line takeaway under the slide title, coloured by tone. Drawn before content is translated down. */
-export function drawHeadline(ctx: CanvasRenderingContext2D, headline?: SlideHeadline, padX = 72) {
+export function drawHeadline(ctx: CanvasRenderingContext2D, headline?: SlideHeadline, y = 154, padX = 72) {
   if (!headline) return;
   const style = HEADLINE_STYLE[headline.tone];
   const x = padX;
-  const y = 154;
   const w = WIDTH - padX * 2;
   const h = 58;
   ctx.save();
@@ -389,4 +391,27 @@ export function drawHeadline(ctx: CanvasRenderingContext2D, headline?: SlideHead
   ctx.font = `700 29px ${FONT}`;
   ctx.fillText(fitText(ctx, headline.text, w - 56), x + 32, y + h / 2 + 1);
   ctx.restore();
+}
+
+/** Height of the title block (accent bar, title, subtitle) that bare slides leave out. */
+export const BARE_UP = 150;
+
+/**
+ * Shared start of every content slide: sizes the canvas for the optional headline and the optional
+ * title block, draws them, and shifts the origin so the renderer's own coordinates stay unchanged.
+ */
+export function frameLayout(model: { headline?: SlideHeadline; bare?: boolean }) {
+  return { off: model.bare ? headlineOffset(model.headline) - BARE_UP : headlineOffset(model.headline) };
+}
+
+export function beginSlide(
+  ctx: CanvasRenderingContext2D,
+  model: { headline?: SlideHeadline; bare?: boolean },
+  title: string,
+  subtitle: string,
+) {
+  const { off } = frameLayout(model);
+  if (!model.bare) drawSlideHeader(ctx, title, subtitle);
+  drawHeadline(ctx, model.headline, model.bare ? 8 : 154);
+  ctx.translate(0, off);
 }
