@@ -77,6 +77,7 @@ describe('weekly highlights (Indonesian)', () => {
   it('writes the headcount lines', () => {
     const lines = headcountHighlights('AFI TIN', [{ label: 'W5 Okt', agents: 14, teamLeaders: 4, turnover: 0 }], 1, 0, 5);
     expect(lines).toEqual(['Turn over W5 Okt: 0%.', 'Total 14 agent Live Chat AFI TIN, 1 QC & 4 TL.']);
+    expect(headcountHighlights('AFI NSI', [{ label: 'W5 Okt', agents: 14, teamLeaders: 4, turnover: null }], 1, 0, 5)[0]).toBe('Turn over W5 Okt: belum diisi.');
   });
 
   it('summarises the overview: targets met, misses, biggest moves', () => {
@@ -143,7 +144,11 @@ describe('slide headlines', () => {
 
   it('names the top category, repeating agents and TL sampling state', () => {
     const cat = { rank: 1, name: 'Tidak Bisa Transaksi', count: 147, goodPct: null, isTakeout: true };
-    expect(categoryHeadline([{ label: 'W5', top: [cat], totalBad: 254, takeoutBad: 162 }])?.tone).toBe('bad');
+    expect(categoryHeadline([{ label: 'W5', top: [cat], totalBad: 254, takeoutBad: 162 }])).toEqual({
+      text: '64% rating buruk berasal dari kategori takeout (162 dari 254)',
+      tone: 'warn',
+    });
+    expect(categoryHeadline([{ label: 'W5', top: [cat], totalBad: 254, takeoutBad: 40 }])?.tone).toBe('bad');
 
     const agent = (csId: string, badCount: number) => ({ csId, name: csId, badCount, topCategories: [] });
     expect(agentHeadline([{ label: 'W4', agents: [agent('a', 9)] }, { label: 'W5', agents: [agent('a', 8)] }])?.text).toBe(
@@ -160,6 +165,7 @@ describe('slide headlines', () => {
   it('writes the headcount and overview headlines', () => {
     expect(headcountHeadline('W5 Okt', 14, 0, 5)).toEqual({ text: 'Turn over W5 Okt 0%, 14 agent aktif', tone: 'good' });
     expect(headcountHeadline('W5 Okt', 14, 8, 5).tone).toBe('bad');
+    expect(headcountHeadline('W5 Okt', 14, null, 5)).toEqual({ text: '14 agent aktif di W5 Okt; turn over belum diisi', tone: 'warn' });
     const item = (miss: boolean) => ({ label: 'x', text: '1', miss, hasTarget: true, delta: null });
     expect(overviewHeadline('W5 Okt', [item(true), item(false), item(false)])).toEqual({
       text: '1 dari 3 KPI di bawah target di W5 Okt',

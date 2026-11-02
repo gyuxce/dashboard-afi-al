@@ -27,11 +27,8 @@ import {
   renderHeadcountSlide,
   renderPositiveRateSlide,
   renderRespondentsSlide,
-  renderSectionSummary,
-  renderSnapshotChips,
   renderTakeoutSimSlide,
   renderTlSamplingSlide,
-  type ChipTone,
   type SlideWeek,
 } from '../../lib/csatSlides';
 import {
@@ -63,7 +60,18 @@ import {
   type ReportColumn,
 } from '../../lib/weeklyReport';
 
-type Slide = { id: string; no: number; title: string; file: string; render: () => Promise<Blob> };
+type Rendered = { blob: Blob; lines: string[] };
+type Slide = {
+  id: string;
+  no: number;
+  title: string;
+  file: string;
+  /** The template already has an editable Highlight box under the picture, so the text is not baked in by default. */
+  templateHasHighlight: boolean;
+  render: (highlightInImage: boolean) => Promise<Rendered>;
+};
+
+const done = async (image: Promise<Blob>, lines: string[]): Promise<Rendered> => ({ blob: await image, lines });
 
 const formatDay = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number);
@@ -86,7 +94,8 @@ const deckRange = (start: string, end: string, spaced: boolean) => {
 };
 
 /** Not in the data: QC / Trainer headcount and turnover per week (typed in, remembered per BPO). */
-type Manual = { qc: number; trainer: number; turnover: Record<string, number>; ldNote: string };
+/** `turnover` stays empty until typed: an empty week is shown as "belum diisi", never as 0%. */
+type Manual = { qc: number; trainer: number; turnover: Record<string, number> };
 const TURNOVER_THRESHOLD = 5;
 const bpoKey = (bpo: string) => canonicalBpoName(bpo || 'All BPO').toUpperCase();
 const manualKey = (bpo: string) => `weekly-export-headcount:${bpoKey(bpo)}`;
@@ -94,9 +103,9 @@ const tlKey = (bpo: string, weekStart: string) => `weekly-export-tl:${bpoKey(bpo
 
 const defaultManual = (bpo: string): Manual => {
   const upper = canonicalBpoName(bpo || '').toUpperCase();
-  if (upper === 'NSI') return { qc: 1, trainer: 0, turnover: {}, ldNote: '' };
-  if (upper === 'TCID') return { qc: 2, trainer: 1, turnover: {}, ldNote: '' };
-  return { qc: 0, trainer: 0, turnover: {}, ldNote: '' };
+  if (upper === 'NSI') return { qc: 1, trainer: 0, turnover: {} };
+  if (upper === 'TCID') return { qc: 2, trainer: 1, turnover: {} };
+  return { qc: 0, trainer: 0, turnover: {} };
 };
 
 const loadManual = (bpo: string): Manual => {
@@ -110,7 +119,6 @@ const loadManual = (bpo: string): Manual => {
       qc: Number.isFinite(parsed.qc) ? parsed.qc : fallback.qc,
       trainer: Number.isFinite(parsed.trainer) ? parsed.trainer : fallback.trainer,
       turnover: parsed.turnover && typeof parsed.turnover === 'object' ? parsed.turnover : {},
-      ldNote: typeof parsed.ldNote === 'string' ? parsed.ldNote : '',
     };
   } catch {
     return fallback;
@@ -141,10 +149,11 @@ const buttonClass =
 export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekData, monthRanges, monthData }) => {
   const selectedBpo = useStore((s) => s.selectedBpo);
   const [mode, setMode] = useState<CsatMode>('full');
-  const [previews, setPreviews] = useState<Record<string, { url: string; blob: Blob } | 'error'>>({});
+  const [previews, setPreviews] = useState<Record<string, { url: string; blob: Blob; lines: string[] } | 'error'>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const [withHighlights, setWithHighlights] = useState(true);
+  // Slides whose template has no Highlight box get the text drawn into the picture; the rest can opt in.
+  const [hlInImage, setHlInImage] = useState<Record<string, boolean>>({});
   const [withHeadline, setWithHeadline] = useState(true);
   const [manual, setManual] = useState<Manual>(() => loadManual(selectedBpo));
   const [tlAnalyzed, setTlAnalyzed] = useState<Record<string, number>>({});
@@ -207,7 +216,6 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
     const year = cols[cols.length - 1].week.end.slice(0, 4);
     const range = `${cols[0].label} – ${cols[cols.length - 1].label} ${year}`;
     const subtitle = `${modeLabel} · ${range}`;
-    const hlOn = withHighlights;
     const hdOn = withHeadline;
     const last = cols[cols.length - 1];
     const prevCol = cols[cols.length - 2];
@@ -225,13 +233,6 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         delta: metric.kind === 'count' ? null : v - (prevStats[metric.key] ?? 0),
       };
     });
-    const toneOf = (value: number, type: 'csatFair' | 'qa'): ChipTone => {
-      const st = getKpiStatus(value, type);
-      return st === 'miss' ? 'bad' : st === 'watch' ? 'warn' : 'good';
-    };
-    const lastCounts = headcountStats(last.rows);
-    const lastTurnover = manual.turnover[last.week.start] ?? 0;
-    const signed = (d: number) => (d >= 0 ? `▲ +${d.toFixed(2)} poin` : `▼ ${Math.abs(d).toFixed(2)} poin`);
 
     // Overview: every week of the selected period that has data (as in the dashboard report).
     const overviewCols: ReportColumn[] = weekRanges
@@ -254,10 +255,18 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       no: 3,
       title: 'Headcount & Turn Over',
       file: 'slide-03-headcount',
-      render: () => {
+      templateHasHighlight: true,
+      render: (inImage) => {
         const counts = cols.map((c) => headcountStats(c.rows));
-        const turnover = cols.map((c) => manual.turnover[c.week.start] ?? 0);
-        return renderHeadcountSlide({
+        const turnover: (number | null)[] = cols.map((c) => manual.turnover[c.week.start] ?? null);
+        const lines = headcountHighlights(
+          bpoLabel,
+          cols.map((c, i) => ({ label: c.label, agents: counts[i].agents, teamLeaders: counts[i].teamLeaders, turnover: turnover[i] })),
+          manual.qc,
+          manual.trainer,
+          TURNOVER_THRESHOLD,
+        );
+        return done(renderHeadcountSlide({
           title: `Headcount CS ${bpoLabel}`,
           subtitle: range,
           headline: hdOn ? headcountHeadline(last.label, counts[counts.length - 1].agents, turnover[turnover.length - 1], TURNOVER_THRESHOLD) : undefined,
@@ -270,16 +279,8 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
             qc: manual.qc,
             turnover: turnover[i],
           })),
-          highlights: hlOn
-            ? headcountHighlights(
-                bpoLabel,
-                cols.map((c, i) => ({ label: c.label, agents: counts[i].agents, teamLeaders: counts[i].teamLeaders, turnover: turnover[i] })),
-                manual.qc,
-                manual.trainer,
-                TURNOVER_THRESHOLD,
-              )
-            : undefined,
-        });
+          highlights: inImage ? lines : undefined,
+        }), lines);
       },
     });
 
@@ -289,10 +290,13 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         no: 4,
         title: 'Overview: Weekly Performance Report',
         file: 'slide-04-overview',
-        render: () => {
+        templateHasHighlight: false,
+        render: (inImage) => {
           const lastCol = overviewCols[overviewCols.length - 1];
           const prevOverview = overviewCols[overviewCols.length - 2];
-          return renderTableSlide(
+          const lines = overviewHighlights(lastCol.label, prevOverview.label, kpiItems);
+          return done(
+            renderTableSlide(
             buildReportSlideModel({
               title: 'Weekly Performance Report',
               columns: overviewCols,
@@ -300,8 +304,10 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
               deltaFrom: overviewCols.length - 2,
               note: 'Minggu kalender Senin–Minggu; minggu pertama dan terakhir bisa mencakup tanggal bulan sebelum/sesudahnya, jadi jumlah semua minggu tidak selalu sama dengan total bulan.',
               headline: hdOn ? overviewHeadline(lastCol.label, kpiItems) ?? undefined : undefined,
-              highlights: hlOn ? overviewHighlights(lastCol.label, prevOverview.label, kpiItems) : undefined,
+              highlights: inImage ? lines : undefined,
             }),
+            ),
+            lines,
           );
         },
       });
@@ -312,18 +318,18 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       no: 5,
       title: 'Positive Rate Before & After Takeout',
       file: 'slide-05-positive-rate',
-      render: () => {
+      templateHasHighlight: true,
+      render: (inImage) => {
         const rates = cols.map((c) => positiveRates(c.rows));
-        return renderPositiveRateSlide({
+        const lines = positiveRateHighlights(cols.map((c, i) => ({ label: c.label, ...rates[i] })), { full: 75, fair: 92 });
+        return done(renderPositiveRateSlide({
           title: 'Positive Rate Before & After Takeout',
           subtitle: `CSAT SC · ${range}`,
           headline: hdOn ? positiveRateHeadline(cols.map((c, i) => ({ label: c.label, ...rates[i] })), { full: 75, fair: 92 }) ?? undefined : undefined,
           targets: { full: 75, fair: 92 },
           columns: cols.map((_, i) => ({ ...weeks[i], ...rates[i] })),
-          highlights: hlOn
-            ? positiveRateHighlights(cols.map((c, i) => ({ label: c.label, ...rates[i] })), { full: 75, fair: 92 })
-            : undefined,
-        });
+          highlights: inImage ? lines : undefined,
+        }), lines);
       },
     });
 
@@ -332,10 +338,12 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       no: 6,
       title: 'Respondents',
       file: 'slide-06-respondents',
-      render: () => {
+      templateHasHighlight: true,
+      render: (inImage) => {
         const stats = cols.map((c) => respondentStats(c.rows, mode));
         const daily = dailyRespondents(last.rows, mode).map((p) => ({ ...p, label: formatDay(p.date) }));
-        return renderRespondentsSlide({
+        const lines = respondentHighlights(cols.map((c, i) => ({ label: c.label, respondents: stats[i].respondents, rate: stats[i].rate })), daily);
+        return done(renderRespondentsSlide({
           title: 'Respondents',
           subtitle,
           headline: hdOn ? respondentHeadline(cols.map((c, i) => ({ label: c.label, respondents: stats[i].respondents, rate: stats[i].rate }))) ?? undefined : undefined,
@@ -345,10 +353,8 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
             deltaFromPrevious: i > 0 ? stats[i].respondents - stats[i - 1].respondents : null,
           })),
           daily: { title: `Daily Respondents (${last.label})`, points: daily },
-          highlights: hlOn
-            ? respondentHighlights(cols.map((c, i) => ({ label: c.label, respondents: stats[i].respondents, rate: stats[i].rate })), daily)
-            : undefined,
-        });
+          highlights: inImage ? lines : undefined,
+        }), lines);
       },
     });
 
@@ -357,18 +363,18 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       no: 7,
       title: 'Breakdown Category DSAT',
       file: 'slide-07-breakdown-category',
-      render: () => {
+      templateHasHighlight: false,
+      render: (inImage) => {
         const tops = cols.map((c) => topBadCategories(c.rows, mode, topCatsLimit));
         const totals = cols.map((c) => badCategoryTotals(c.rows, mode));
-        return renderCategoriesSlide({
+        const lines = categoryHighlights(cols.map((c, i) => ({ label: c.label, top: tops[i], totalBad: totals[i].total, takeoutBad: totals[i].takeout })));
+        return done(renderCategoriesSlide({
           title: 'Top Categories (Score 1 & 2)',
           subtitle,
           headline: hdOn ? categoryHeadline(cols.map((c, i) => ({ label: c.label, top: tops[i], totalBad: totals[i].total, takeoutBad: totals[i].takeout }))) ?? undefined : undefined,
           columns: cols.map((_, i) => ({ ...weeks[i], rows: tops[i] })),
-          highlights: hlOn
-            ? categoryHighlights(cols.map((c, i) => ({ label: c.label, top: tops[i], totalBad: totals[i].total, takeoutBad: totals[i].takeout })))
-            : undefined,
-        });
+          highlights: inImage ? lines : undefined,
+        }), lines);
       },
     });
 
@@ -377,15 +383,17 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       no: 8,
       title: 'Analyzed DSAT by TL %',
       file: 'slide-08-analyzed-dsat-by-tl',
-      render: () => {
+      templateHasHighlight: true,
+      render: (inImage) => {
         const rows = tlRows.map((t) => ({ name: t.name, dsat: t.dsat, topCategories: t.topCategories, analyzed: tlAnalyzed[t.name] ?? null }));
-        return renderTlSamplingSlide({
+        const lines = tlSamplingHighlights(last.label, rows);
+        return done(renderTlSamplingSlide({
           title: 'Analyzed DSAT by TL %',
           subtitle: `${modeLabel} · ${last.label} (${formatWeekSpan(last.week.start, last.week.end)})`,
           headline: hdOn ? tlHeadline(last.label, rows) ?? undefined : undefined,
           rows,
-          highlights: hlOn ? tlSamplingHighlights(last.label, rows) : undefined,
-        });
+          highlights: inImage ? lines : undefined,
+        }), lines);
       },
     });
 
@@ -394,9 +402,11 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       no: 9,
       title: 'Top 5 Agent Bottom CSAT',
       file: 'slide-09-top-agent-bottom-csat',
-      render: () => {
+      templateHasHighlight: false,
+      render: (inImage) => {
         const agentCols = cols.map((c) => topBadAgents(c.rows, mode, topAgentsLimit));
-        return renderAgentsSlide({
+        const lines = agentHighlights(cols.map((c, i) => ({ label: c.label, agents: agentCols[i] })));
+        return done(renderAgentsSlide({
           title: 'Agent Bottom Score 1–2',
           subtitle,
           headline: hdOn ? agentHeadline(cols.map((c, i) => ({ label: c.label, agents: agentCols[i] }))) ?? undefined : undefined,
@@ -405,8 +415,8 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
             agents: agentCols[i],
             repeatIds: i === cols.length - 1 && i > 0 ? new Set(agentCols[i - 1].map((a) => a.csId)) : undefined,
           })),
-          highlights: hlOn ? agentHighlights(cols.map((c, i) => ({ label: c.label, agents: agentCols[i] }))) : undefined,
-        });
+          highlights: inImage ? lines : undefined,
+        }), lines);
       },
     });
 
@@ -416,90 +426,25 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         no: 10,
         title: 'Simulasi CSAT: tambahan kategori takeout',
         file: 'slide-10-simulasi-takeout',
-        render: () => {
+        templateHasHighlight: false,
+        render: (inImage) => {
           const months = monthRanges.map((m, i) => ({ label: m.label, rows: takeoutScenarios(monthData[i]) }));
           const extraNames = EXTRA_TAKEOUT_CATEGORIES.map(prettyCategory).join(' dan ');
-          return renderTakeoutSimSlide({
+          const lines = takeoutSimHighlights(extraNames, months.map((m) => ({ label: m.label, rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92);
+          return done(renderTakeoutSimSlide({
             title: 'Simulasi CSAT SC: tambahan kategori takeout',
             subtitle: `${monthRanges[0].label} – ${monthRanges[monthRanges.length - 1].label} ${monthRanges[monthRanges.length - 1].end.slice(0, 4)}`,
             months,
             headline: hdOn ? takeoutSimHeadline(months.map((m) => ({ rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92) ?? undefined : undefined,
-            highlights: hlOn
-              ? takeoutSimHighlights(extraNames, months.map((m) => ({ label: m.label, rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92)
-              : undefined,
-          });
+            highlights: inImage ? lines : undefined,
+          }), lines);
         },
       });
     }
-    const missed = kpiItems.filter((i) => i.hasTarget && i.miss);
-    const totalTargets = kpiItems.filter((i) => i.hasTarget).length;
-    const fairValue = lastStats.csatScFair ?? 0;
-    const qaValue = lastStats.qa ?? 0;
-    const intro: Slide[] = [
-      {
-        id: 'snapshot',
-        no: 1,
-        title: 'Ringkasan di bawah tanggal (judul)',
-        file: 'slide-01-ringkasan',
-        render: () =>
-          renderSnapshotChips({
-            caption: `Ringkasan ${last.label} · ${formatWeekSpan(last.week.start, last.week.end)}`,
-            chips: [
-              { label: 'Agent aktif', value: String(lastCounts.agents), note: `${lastCounts.teamLeaders} TL`, tone: 'neutral' },
-              {
-                label: 'CSAT SC After Takeout',
-                value: `${fairValue.toFixed(2)}%`,
-                note: signed(fairValue - (prevStats.csatScFair ?? 0)),
-                tone: toneOf(fairValue, 'csatFair'),
-              },
-              { label: 'QA Score', value: `${qaValue.toFixed(2)}%`, note: signed(qaValue - (prevStats.qa ?? 0)), tone: toneOf(qaValue, 'qa') },
-            ],
-          }),
-      },
-      {
-        id: 'toc-summary',
-        no: 2,
-        title: 'Status per bagian (daftar isi)',
-        file: 'slide-02-status-bagian',
-        render: () =>
-          renderSectionSummary({
-            rows: [
-              {
-                section: 'Headcount',
-                headline: `${lastCounts.agents} agent, ${lastCounts.teamLeaders} TL`,
-                detail: `Turn over ${String(lastTurnover)}% (batas ${TURNOVER_THRESHOLD}%)`,
-                tone: lastTurnover > TURNOVER_THRESHOLD ? 'bad' : 'good',
-              },
-              {
-                section: 'Overview',
-                headline: missed.length === 0 ? 'Semua KPI tercapai' : `${missed.length} dari ${totalTargets} KPI di bawah target`,
-                detail: missed.length === 0 ? 'Tidak ada KPI di bawah target' : missed.slice(0, 2).map((m) => m.label).join(', '),
-                tone: missed.length === 0 ? 'good' : missed.length <= 3 ? 'warn' : 'bad',
-              },
-              {
-                section: 'KPI Performance',
-                headline: `After Takeout ${fairValue.toFixed(2)}%`,
-                detail: `Target 92% · responden ${respondentStats(last.rows, mode).respondents}`,
-                tone: toneOf(fairValue, 'csatFair'),
-              },
-              {
-                section: 'QA Performance',
-                headline: `QA Score ${qaValue.toFixed(2)}%`,
-                detail: 'Target 92%',
-                tone: toneOf(qaValue, 'qa'),
-              },
-              {
-                section: 'L&D',
-                headline: manual.ldNote.trim() || 'Belum ada catatan',
-                detail: 'Diisi manual',
-                tone: 'neutral',
-              },
-            ],
-          }),
-      },
-    ];
-    return [...intro, ...list];
-  }, [cols, mode, topCatsLimit, topAgentsLimit, withHighlights, withHeadline, manual, bpoLabel, weekRanges, weekData, monthRanges, monthData, tlRows, tlAnalyzed]);
+    return list;
+  }, [cols, mode, topCatsLimit, topAgentsLimit, withHeadline, manual, bpoLabel, weekRanges, weekData, monthRanges, monthData, tlRows, tlAnalyzed]);
+
+  const inImageFor = (slide: Slide) => hlInImage[slide.id] ?? !slide.templateHasHighlight;
 
   // Render previews whenever the data or the view changes.
   useEffect(() => {
@@ -513,11 +458,11 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
     (async () => {
       for (const slide of slides) {
         try {
-          const blob = await slide.render();
+          const { blob, lines } = await slide.render(inImageFor(slide));
           if (cancelled) return;
           const url = URL.createObjectURL(blob);
           urls.push(url);
-          setPreviews((prev) => ({ ...prev, [slide.id]: { url, blob } }));
+          setPreviews((prev) => ({ ...prev, [slide.id]: { url, blob, lines } }));
         } catch {
           if (!cancelled) setPreviews((prev) => ({ ...prev, [slide.id]: 'error' }));
         }
@@ -527,7 +472,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       cancelled = true;
       urls.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, [slides]);
+  }, [slides, hlInImage]);
 
   const flash = (text: string) => {
     setMessage(text);
@@ -557,6 +502,12 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
     } catch {
       flash('Browser menolak menyalin teks');
     }
+  };
+
+  const copyHighlight = async (slide: Slide) => {
+    const p = previews[slide.id];
+    if (!p || p === 'error' || p.lines.length === 0) return;
+    await copyText(p.lines.map((l) => `• ${l}`).join('\n'));
   };
 
   const downloadAll = async () => {
@@ -628,24 +579,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
           />
           Sertakan kalimat kesimpulan di atas slide
         </label>
-        <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-text-primary">
-          <input
-            id="weekly-export-highlights"
-            type="checkbox"
-            checked={withHighlights}
-            onChange={(e) => setWithHighlights(e.target.checked)}
-            className="h-4 w-4 accent-primary"
-          />
-          Sertakan kotak Highlight di gambar
-        </label>
-
         <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary">
-          <label htmlFor="weekly-export-ld" className="inline-flex items-center gap-1.5">
-            <span className="font-semibold text-text-primary">Slide 2 · catatan L&D</span>
-            <input id="weekly-export-ld" type="text" value={manual.ldNote} placeholder="mis. 2 sesi coaching"
-              className="h-8 w-56 rounded-md border border-border bg-surface px-2 text-xs text-text-primary"
-              onChange={(e) => updateManual({ ...manual, ldNote: e.target.value })} />
-          </label>
           <span className="font-semibold text-text-primary">Slide 3 · Headcount (isi manual)</span>
           <label htmlFor="weekly-export-qc" className="inline-flex items-center gap-1.5">
             QC
@@ -661,10 +595,13 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
             <label key={c.week.start} htmlFor={`weekly-export-turnover-${c.week.start}`} className="inline-flex items-center gap-1.5">
               Turn over {c.label} (%)
               <input id={`weekly-export-turnover-${c.week.start}`} type="number" min={0} step={0.1}
-                value={manual.turnover[c.week.start] ?? 0} className={inputClass}
-                onChange={(e) =>
-                  updateManual({ ...manual, turnover: { ...manual.turnover, [c.week.start]: Math.max(0, Number(e.target.value) || 0) } })
-                } />
+                value={manual.turnover[c.week.start] ?? ''} className={inputClass} placeholder="–"
+                onChange={(e) => {
+                  const next = { ...manual.turnover };
+                  if (e.target.value === '') delete next[c.week.start];
+                  else next[c.week.start] = Math.max(0, Number(e.target.value) || 0);
+                  updateManual({ ...manual, turnover: next });
+                }} />
             </label>
           ))}
         </div>
@@ -710,7 +647,18 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
             <section key={slide.id} className="overflow-hidden rounded-xl border border-border bg-card">
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
                 <h2 className="text-sm font-bold text-text-primary">Slide {slide.no} · {slide.title}</h2>
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <label htmlFor={`weekly-export-hl-${slide.id}`} className="mr-1 inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-text-secondary"
+                    title={slide.templateHasHighlight ? 'Template-mu sudah punya kotak Highlight yang bisa diedit' : 'Template-mu tidak punya kotak Highlight di slide ini'}>
+                    <input id={`weekly-export-hl-${slide.id}`} type="checkbox" checked={inImageFor(slide)}
+                      onChange={(e) => setHlInImage((prev) => ({ ...prev, [slide.id]: e.target.checked }))}
+                      className="h-3.5 w-3.5 accent-primary" />
+                    Highlight di gambar
+                  </label>
+                  <button type="button" onClick={() => copyHighlight(slide)} disabled={!ready} className={buttonClass}>
+                    <ClipboardCopy className="h-3.5 w-3.5" />
+                    Salin teks Highlight
+                  </button>
                   <button type="button" onClick={() => download(slide)} disabled={!ready} className={buttonClass}>
                     <Download className="h-3.5 w-3.5" />
                     Unduh PNG

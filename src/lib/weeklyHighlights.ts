@@ -131,7 +131,7 @@ export function agentHighlights(cols: AgentCol[]): string[] {
   return lines;
 }
 
-type HeadCol = { label: string; agents: number; teamLeaders: number; turnover: number };
+type HeadCol = { label: string; agents: number; teamLeaders: number; turnover: number | null };
 
 export function headcountHighlights(
   bpoLabel: string,
@@ -144,7 +144,9 @@ export function headcountHighlights(
   if (!last) return [];
   const staff = [qc > 0 ? `${qc} QC` : '', trainer > 0 ? `${trainer} Trainer` : '', `${last.teamLeaders} TL`].filter(Boolean);
   const lines = [
-    `Turn over ${last.label}: ${nf(last.turnover, 1).replace(/\.0$/, '')}%${last.turnover > threshold ? ` (di atas batas ${threshold}%)` : ''}.`,
+    last.turnover === null
+      ? `Turn over ${last.label}: belum diisi.`
+      : `Turn over ${last.label}: ${nf(last.turnover, 1).replace(/\.0$/, '')}%${last.turnover > threshold ? ` (di atas batas ${threshold}%)` : ''}.`,
     `Total ${last.agents} agent Live Chat ${bpoLabel}, ${staff.join(' & ')}.`,
   ];
   const prev = cols.length > 1 ? cols[cols.length - 2] : null;
@@ -278,6 +280,13 @@ export function respondentHeadline(cols: RespCol[]): Headline | null {
 export function categoryHeadline(cols: CatCol[]): Headline | null {
   const last = cols[cols.length - 1];
   if (!last || last.top.length === 0) return null;
+  // When most bad ratings sit in takeout categories, that is the message: it is outside the agents' control.
+  if (last.totalBad > 0 && last.takeoutBad / last.totalBad >= 0.5) {
+    return {
+      text: `${nf((last.takeoutBad / last.totalBad) * 100, 0)}% rating buruk berasal dari kategori takeout (${last.takeoutBad} dari ${last.totalBad})`,
+      tone: 'warn',
+    };
+  }
   return {
     text: `${last.top[0].name} masih jadi penyebab DSAT terbanyak: ${last.top[0].count} rating buruk`,
     tone: 'bad',
@@ -309,7 +318,8 @@ export function tlHeadline(weekLabel: string, tls: TlItem[]): Headline | null {
   };
 }
 
-export function headcountHeadline(label: string, agents: number, turnover: number, threshold: number): Headline {
+export function headcountHeadline(label: string, agents: number, turnover: number | null, threshold: number): Headline {
+  if (turnover === null) return { text: `${agents} agent aktif di ${label}; turn over belum diisi`, tone: 'warn' };
   const t = nf(turnover, 1).replace(/\.0$/, '');
   return turnover > threshold
     ? { text: `Turn over ${label} ${t}%, di atas batas ${threshold}%`, tone: 'bad' }

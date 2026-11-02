@@ -554,8 +554,8 @@ export type HeadcountSlide = {
     agents: number;
     trainer: number;
     qc: number;
-    /** Turnover in percent for the week. */
-    turnover: number;
+    /** Turnover in percent for the week; null = not filled in yet. */
+    turnover: number | null;
   })[];
   /** Turnover threshold in percent (dashed line). */
   threshold: number;
@@ -588,7 +588,7 @@ export async function renderHeadcountSlide(model: HeadcountSlide): Promise<Blob>
   const plotR = chartX + chartW;
   const plotT = top + 70;
   const plotB = contentBottom - 90;
-  const maxV = Math.max(model.threshold * 2, ...model.columns.map((c) => c.turnover));
+  const maxV = Math.max(model.threshold * 2, ...model.columns.map((c) => c.turnover ?? 0));
   const niceMax = Math.ceil(maxV / 5) * 5;
   const y = (v: number) => plotB - (v / niceMax) * (plotB - plotT);
 
@@ -619,14 +619,23 @@ export async function renderHeadcountSlide(model: HeadcountSlide): Promise<Blob>
   const barW = Math.min(90, slot * 0.5);
   model.columns.forEach((col, i) => {
     const cx = plotL + slot * i + slot / 2;
-    const h = Math.max(3, plotB - y(col.turnover));
-    ctx.fillStyle = col.turnover > model.threshold ? COLORS.miss : SERIES.full;
-    roundRect(ctx, cx - barW / 2, plotB - h, barW, h, Math.min(6, h / 2));
-    ctx.fill();
+    if (col.turnover === null) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = COLORS.muted;
+      ctx.font = `600 21px ${FONT}`;
+      ctx.fillText('belum diisi', cx, plotB - 14);
+    } else {
+      const h = Math.max(3, plotB - y(col.turnover));
+      ctx.fillStyle = col.turnover > model.threshold ? COLORS.miss : SERIES.full;
+      roundRect(ctx, cx - barW / 2, plotB - h, barW, h, Math.min(6, h / 2));
+      ctx.fill();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = COLORS.ink;
+      ctx.font = `800 26px ${FONT}`;
+      haloText(ctx, `${col.turnover.toFixed(1).replace(/\.0$/, '')}%`, cx, plotB - h - 12);
+    }
     ctx.textAlign = 'center';
     ctx.fillStyle = COLORS.ink;
-    ctx.font = `800 26px ${FONT}`;
-    haloText(ctx, `${col.turnover.toFixed(1).replace(/\.0$/, '')}%`, cx, plotB - h - 12);
     ctx.font = `700 22px ${FONT}`;
     ctx.fillText(col.label, cx, plotB + 36);
     ctx.fillStyle = COLORS.muted;
@@ -1013,102 +1022,5 @@ export async function renderTakeoutSimSlide(model: TakeoutSimSlide): Promise<Blo
     PAD,
     height - 36,
   );
-  return canvasToPng(canvas);
-}
-
-/* ------------------------------------------------------------------ */
-/* Slide 1: three key numbers under the date band                      */
-/* ------------------------------------------------------------------ */
-
-export type ChipTone = 'good' | 'warn' | 'bad' | 'neutral';
-
-const CHIP_STYLE: Record<ChipTone, { bg: string; fg: string }> = {
-  good: { bg: '#E4F4EE', fg: '#0B5F4D' },
-  warn: { bg: '#FFF1D6', fg: '#8A5A00' },
-  bad: { bg: '#FBE7E4', fg: '#9E1D14' },
-  neutral: { bg: '#EDF1F5', fg: '#13202D' },
-};
-
-export type SnapshotSlide = {
-  caption: string;
-  chips: { label: string; value: string; note?: string; tone: ChipTone }[];
-};
-
-export async function renderSnapshotChips(model: SnapshotSlide): Promise<Blob> {
-  const n = Math.max(model.chips.length, 1);
-  const width = 1400;
-  const pad = 20;
-  const gap = 20;
-  const chipW = (width - pad * 2 - gap * (n - 1)) / n;
-  const height = 250;
-  const { canvas, ctx } = await createSlideCanvas(width, height);
-
-  ctx.textBaseline = 'alphabetic';
-  ctx.textAlign = 'left';
-  ctx.fillStyle = COLORS.muted;
-  ctx.font = `700 24px ${FONT}`;
-  ctx.fillText(model.caption, pad, 44);
-
-  model.chips.forEach((chip, i) => {
-    const x = pad + i * (chipW + gap);
-    const y = 68;
-    const style = CHIP_STYLE[chip.tone];
-    ctx.fillStyle = style.bg;
-    roundRect(ctx, x, y, chipW, 150, 18);
-    ctx.fill();
-    ctx.fillStyle = COLORS.muted;
-    ctx.font = `600 22px ${FONT}`;
-    ctx.textAlign = 'left';
-    ctx.fillText(chip.label, x + 26, y + 40);
-    ctx.fillStyle = style.fg;
-    ctx.font = `800 58px ${FONT}`;
-    ctx.fillText(chip.value, x + 26, y + 100);
-    if (chip.note) {
-      ctx.fillStyle = style.fg;
-      ctx.font = `700 22px ${FONT}`;
-      ctx.fillText(chip.note, x + 26, y + 132);
-    }
-  });
-  return canvasToPng(canvas);
-}
-
-/* ------------------------------------------------------------------ */
-/* Slide 2: one status line per section of the table of contents       */
-/* ------------------------------------------------------------------ */
-
-export type SectionSummarySlide = {
-  rows: { section: string; headline: string; detail: string; tone: ChipTone }[];
-};
-
-export async function renderSectionSummary(model: SectionSummarySlide): Promise<Blob> {
-  const rowH = 170;
-  const width = 980;
-  const pad = 12;
-  const height = rowH * model.rows.length + pad * 2;
-  const { canvas, ctx } = await createSlideCanvas(width, height);
-
-  model.rows.forEach((row, i) => {
-    const y = pad + i * rowH;
-    const style = CHIP_STYLE[row.tone];
-    ctx.fillStyle = style.bg;
-    roundRect(ctx, pad, y + 8, width - pad * 2, rowH - 16, 18);
-    ctx.fill();
-    ctx.fillStyle = style.fg;
-    ctx.beginPath();
-    ctx.arc(pad + 38, y + rowH / 2, 12, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = COLORS.muted;
-    ctx.font = `700 19px ${FONT}`;
-    ctx.fillText(row.section.toUpperCase(), pad + 70, y + 52);
-    ctx.fillStyle = COLORS.ink;
-    ctx.font = `800 34px ${FONT}`;
-    ctx.fillText(fitText(ctx, row.headline, width - pad * 2 - 100), pad + 70, y + 94);
-    ctx.fillStyle = COLORS.muted;
-    ctx.font = `500 23px ${FONT}`;
-    ctx.fillText(fitText(ctx, row.detail, width - pad * 2 - 100), pad + 70, y + 128);
-  });
   return canvasToPng(canvas);
 }
