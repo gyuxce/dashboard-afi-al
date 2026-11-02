@@ -48,7 +48,7 @@ export const COLORS = {
   muted: '#52606D',
   line: '#D8E0E8',
   zebra: '#F6F8FA',
-  emphasis: '#E8EEFC',
+  emphasis: '#FDECEA',
   accent: '#D93A2B',
   miss: '#C0261B',
   watch: '#B45309',

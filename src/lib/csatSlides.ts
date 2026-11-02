@@ -48,15 +48,15 @@ function columnWidth(n: number) {
 }
 
 function drawWeekChip(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, week: SlideWeek, hot: boolean) {
-  ctx.fillStyle = hot ? '#FBE4E1' : '#EEF2F6';
-  roundRect(ctx, x, y, w, 64, 12);
+  ctx.fillStyle = hot ? '#E31E24' : '#F3F5F8';
+  roundRect(ctx, x, y, w, 64, 32);
   ctx.fill();
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
-  ctx.fillStyle = hot ? COLORS.miss : COLORS.ink;
+  ctx.fillStyle = hot ? '#FFFFFF' : COLORS.ink;
   ctx.font = `700 28px ${FONT}`;
   ctx.fillText(week.label, x + w / 2, y + 24);
-  ctx.fillStyle = COLORS.muted;
+  ctx.fillStyle = hot ? 'rgba(255,255,255,0.85)' : COLORS.muted;
   ctx.font = `500 18px ${FONT}`;
   ctx.fillText(week.span, x + w / 2, y + 48);
   ctx.textBaseline = 'alphabetic';
@@ -246,7 +246,7 @@ export async function renderAgentsSlide(model: AgentsSlide): Promise<Blob> {
   ctx.fillStyle = COLORS.muted;
   ctx.font = `500 19px ${FONT}`;
   ctx.fillText(
-    'Angka besar = jumlah rating 1–2 per agent. Nama merah = juga masuk 5 teratas minggu sebelumnya.',
+    'Angka besar = jumlah rating 1–2 per agent. Nama merah = juga masuk 5 teratas periode sebelumnya.',
     PAD,
     height - 36,
   );
@@ -383,21 +383,31 @@ export async function renderRespondentsSlide(model: RespondentsSlide): Promise<B
     ctx.lineJoin = 'round';
     ctx.stroke();
 
+    // A month has ~30 days: label every few days and print values only for the extremes.
+    const many = pts.length > 14;
+    const step = many ? Math.ceil(pts.length / 10) : 1;
+    const maxIdx = pts.reduce((best, p, i) => (p.respondents > pts[best].respondents ? i : best), 0);
+    const minIdx = pts.reduce((best, p, i) => (p.respondents < pts[best].respondents ? i : best), 0);
     pts.forEach((p, i) => {
       ctx.beginPath();
-      ctx.arc(px(i), py(p.respondents), 6, 0, Math.PI * 2);
+      ctx.arc(px(i), py(p.respondents), many ? 4 : 6, 0, Math.PI * 2);
       ctx.fillStyle = '#FFFFFF';
       ctx.fill();
       ctx.lineWidth = 3.5;
       ctx.strokeStyle = SERIES.fair;
       ctx.stroke();
-      ctx.textAlign = 'center';
-      ctx.fillStyle = COLORS.ink;
-      ctx.font = `700 21px ${FONT}`;
-      haloText(ctx, String(p.respondents), px(i), py(p.respondents) - 16);
-      ctx.fillStyle = COLORS.muted;
-      ctx.font = `500 17px ${FONT}`;
-      ctx.fillText(p.label, px(i), plotB + 28);
+      if (!many || i === maxIdx || i === minIdx) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = COLORS.ink;
+        ctx.font = `700 21px ${FONT}`;
+        haloText(ctx, String(p.respondents), px(i), py(p.respondents) - 16);
+      }
+      if (i % step === 0 || (i === pts.length - 1 && i % step >= Math.ceil(step / 2))) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = COLORS.muted;
+        ctx.font = `500 17px ${FONT}`;
+        ctx.fillText(p.label, px(i), plotB + 28);
+      }
     });
   }
 
@@ -406,7 +416,7 @@ export async function renderRespondentsSlide(model: RespondentsSlide): Promise<B
   ctx.fillStyle = COLORS.muted;
   ctx.font = `500 19px ${FONT}`;
   ctx.fillText(
-    'Responden = jumlah rating 1–5 yang masuk. Rate = responden ÷ tiket yang diproses. Panah = selisih dari minggu sebelumnya.',
+    'Responden = jumlah rating 1–5 yang masuk. Rate = responden ÷ tiket yang diproses. Panah = selisih dari periode sebelumnya.',
     PAD,
     height - 36,
   );
@@ -532,7 +542,7 @@ export async function renderPositiveRateSlide(model: PositiveRateSlide): Promise
   ctx.fillStyle = COLORS.muted;
   ctx.font = `500 19px ${FONT}`;
   ctx.fillText(
-    'Positive rate = rating 4–5 ÷ (rating 1–2 + 4–5), rating 3 diabaikan. After Takeout membuang 3 kategori takeout. Panah = selisih dari minggu sebelumnya (poin).',
+    'Positive rate = rating 4–5 ÷ (rating 1–2 + 4–5), rating 3 diabaikan. After Takeout membuang 3 kategori takeout. Panah = selisih dari periode sebelumnya (poin).',
     PAD,
     height - 36,
   );

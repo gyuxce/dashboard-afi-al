@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { getCalendarWeeks } from '../weeks';
+import { getCalendarWeeks, getMonthRanges } from '../weeks';
 
 describe('getCalendarWeeks', () => {
-  it('gives whole Monday–Sunday weeks that cross month boundaries', () => {
+  it('gives October 2026 five whole weeks, the last one reaching 1 Nov', () => {
     expect(getCalendarWeeks('2026-10-01', '2026-10-31')).toEqual([
       { index: 1, start: '2026-09-28', end: '2026-10-04', daysInRange: 4 },
       { index: 2, start: '2026-10-05', end: '2026-10-11', daysInRange: 7 },
@@ -12,24 +12,39 @@ describe('getCalendarWeeks', () => {
     ]);
   });
 
+  it('starts November at 2 Nov: the week of 26 Oct–1 Nov belongs to October', () => {
+    const nov = getCalendarWeeks('2026-11-01', '2026-11-30');
+    expect(nov.map((w) => [w.start, w.end])).toEqual([
+      ['2026-11-02', '2026-11-08'],
+      ['2026-11-09', '2026-11-15'],
+      ['2026-11-16', '2026-11-22'],
+      ['2026-11-23', '2026-11-29'],
+    ]);
+  });
+
+  it('counts a straddling week for the month that has most of its days (August 2026)', () => {
+    const aug = getCalendarWeeks('2026-08-01', '2026-08-31');
+    expect(aug.map((w) => w.start)).toEqual(['2026-08-03', '2026-08-10', '2026-08-17', '2026-08-24']);
+  });
+
   it('gives a full Monday–Sunday week as a single week', () => {
     expect(getCalendarWeeks('2026-10-05', '2026-10-11')).toEqual([
       { index: 1, start: '2026-10-05', end: '2026-10-11', daysInRange: 7 },
     ]);
   });
 
-  it('handles a 6-week month and a month starting on Sunday', () => {
-    const aug = getCalendarWeeks('2026-08-01', '2026-08-31');
-    expect(aug).toHaveLength(6);
-    expect(aug[0]).toMatchObject({ start: '2026-07-27', end: '2026-08-02', daysInRange: 2 });
-    expect(aug[5]).toMatchObject({ start: '2026-08-31', end: '2026-09-06', daysInRange: 1 });
-
-    const nov = getCalendarWeeks('2026-11-01', '2026-11-30');
-    expect(nov[0]).toMatchObject({ start: '2026-10-26', end: '2026-11-01', daysInRange: 1 });
-  });
-
   it('returns nothing for empty or inverted ranges', () => {
     expect(getCalendarWeeks('', '')).toEqual([]);
     expect(getCalendarWeeks('2026-10-10', '2026-10-01')).toEqual([]);
+  });
+});
+
+describe('getMonthRanges', () => {
+  it('lists the months ending with the given date, oldest first', () => {
+    expect(getMonthRanges('2026-10-31', 3)).toEqual([
+      { label: 'Agustus', start: '2026-08-01', end: '2026-08-31' },
+      { label: 'September', start: '2026-09-01', end: '2026-09-30' },
+      { label: 'Oktober', start: '2026-10-01', end: '2026-10-31' },
+    ]);
   });
 });

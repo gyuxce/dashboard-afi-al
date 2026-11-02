@@ -51,6 +51,7 @@ import {
 } from '../../lib/weeklyHighlights';
 import { downloadBlob, renderTableSlide } from '../../lib/slideExport';
 import { composeFullSlide } from '../../lib/slideFrame';
+import { renderAgendaSlide, renderCoverSlide } from '../../lib/openingSlides';
 import { canonicalBpoName, isSmallBpoName } from '../../lib/bpoNames';
 import {
   REPORT_METRICS,
@@ -74,6 +75,8 @@ type Slide = {
   titleText: string;
   /** Footer caption in the full-slide layout. */
   caption: string;
+  /** Cover and agenda: drawn as complete slides, no frame and no Highlight. */
+  standalone?: boolean;
   render: (highlightInImage: boolean, bare: boolean) => Promise<Rendered>;
 };
 
@@ -140,6 +143,21 @@ const loadTl = (bpo: string, weekStart: string): Record<string, number> => {
   }
 };
 
+/** One column of the deck: a calendar week or a calendar month, newest last. */
+type ExportCol = { rows: AgentKPI[]; label: string; start: string; end: string };
+type PeriodMode = 'weekly' | 'monthly';
+
+const localDate = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+/** The Thursday decides which month (and year) a week belongs to. */
+const thursdayOf = (iso: string) => {
+  const d = localDate(iso);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 3);
+};
+const enMonth = (d: Date, style: 'short' | 'long') => d.toLocaleString('en-US', { month: style });
+
 type Props = {
   weekCompare: WeekCompare | null;
   weekRanges: CalendarWeek[];
@@ -155,6 +173,7 @@ const buttonClass =
 export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekData, monthRanges, monthData }) => {
   const selectedBpo = useStore((s) => s.selectedBpo);
   const [mode, setMode] = useState<CsatMode>('full');
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('weekly');
   const [previews, setPreviews] = useState<Record<string, { url: string; blob: Blob; lines: string[] } | 'error'>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -162,6 +181,12 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
   const [hlInImage, setHlInImage] = useState<Record<string, boolean>>({});
   const [withHeadline, setWithHeadline] = useState(true);
   const [layout, setLayout] = useState<'slide' | 'content'>('slide');
+  // Empty title = the default for the chosen period ("Weekly Review" / "Monthly Review").
+  const [opening, setOpening] = useState({
+    title: '',
+    subtitle: 'KPI Performance',
+    slides: ['Slide 3', 'Slide 4', 'Slide 5–10', 'Slide 11+', '–'],
+  });
   const [frameText, setFrameText] = useState<Record<string, { section?: string; title?: string }>>({});
   const [manual, setManual] = useState<Manual>(() => loadManual(selectedBpo));
   const [tlAnalyzed, setTlAnalyzed] = useState<Record<string, number>>({});
@@ -185,17 +210,25 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
   const topAgentsLimit = isSmallBpo ? 2 : 5;
   const bpoLabel = selectedBpo && selectedBpo !== 'All BPO' ? `AFI ${canonicalBpoName(selectedBpo)}` : 'AFI';
 
-  // Chronological columns (oldest → newest) of the last four weeks with data.
-  const cols = useMemo(() => {
+  // Chronological columns (oldest → newest): the last four weeks, or the last four months, that have data.
+  const cols = useMemo<ExportCol[] | null>(() => {
+    if (periodMode === 'monthly') {
+      const list = monthRanges
+        .map((m, i) => ({ rows: monthData[i] ?? [], label: m.label, start: m.start, end: m.end }))
+        .filter((c) => c.rows.length > 0 && weekHasData(c.rows))
+        .slice(-4);
+      return list.length >= 2 ? list : null;
+    }
     if (!weekCompare) return null;
     const list = weekCompare.sets
       .map((rows, i) => ({ rows, label: weekCompare.labels[i], week: weekCompare.weeks[i] }))
       .filter((c): c is { rows: AgentKPI[]; label: string; week: CalendarWeek } => c.week !== null)
+      .map((c) => ({ rows: c.rows, label: c.label, start: c.week.start, end: c.week.end }))
       .reverse();
     return list.length >= 2 ? list : null;
-  }, [weekCompare]);
+  }, [periodMode, weekCompare, monthRanges, monthData]);
 
-  const latestWeekStart = cols ? cols[cols.length - 1].week.start : '';
+  const latestWeekStart = cols ? cols[cols.length - 1].start : '';
   useEffect(() => {
     setTlAnalyzed(latestWeekStart ? loadTl(selectedBpo, latestWeekStart) : {});
   }, [selectedBpo, latestWeekStart]);
@@ -219,9 +252,9 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
 
   const slides = useMemo<Slide[] | null>(() => {
     if (!cols) return null;
-    const weeks: SlideWeek[] = cols.map((c) => ({ label: c.label, span: formatWeekSpan(c.week.start, c.week.end) }));
+    const weeks: SlideWeek[] = cols.map((c) => ({ label: c.label, span: formatWeekSpan(c.start, c.end) }));
     const modeLabel = mode === 'full' ? 'Data penuh' : 'After Takeout';
-    const year = cols[cols.length - 1].week.end.slice(0, 4);
+    const year = String(thursdayOf(cols[cols.length - 1].start).getFullYear());
     const range = `${cols[0].label} – ${cols[cols.length - 1].label} ${year}`;
     const subtitle = `${modeLabel} · ${range}`;
     const hdOn = withHeadline;
@@ -242,33 +275,98 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       };
     });
 
-    // Overview: every week of the selected period that has data (as in the dashboard report).
-    const overviewCols: ReportColumn[] = weekRanges
-      .map((week, i) => ({ week, rows: weekData[i] }))
-      .filter((w) => w.rows && weekHasData(w.rows))
-      .map(({ week, rows }) => ({
-        key: `w${week.index}`,
-        label: `W${week.index}`,
-        sublabel: formatWeekSpan(week.start, week.end),
-        title: `${week.start} - ${week.end}`,
-        start: week.start,
-        end: week.end,
-        stats: calculatePeriodStats(rows),
-      }));
+    // Overview: every week of the selected period that has data (as in the dashboard report), or the months.
+    const overviewCols: ReportColumn[] =
+      periodMode === 'monthly'
+        ? cols.map((c) => ({
+            key: c.start,
+            label: c.label,
+            sublabel: formatWeekSpan(c.start, c.end),
+            title: `${c.start} - ${c.end}`,
+            start: c.start,
+            end: c.end,
+            stats: calculatePeriodStats(c.rows),
+          }))
+        : weekRanges
+            .map((week, i) => ({ week, rows: weekData[i] }))
+            .filter((w) => w.rows && weekHasData(w.rows))
+            .map(({ week, rows }) => ({
+              key: `w${week.index}`,
+              label: `W${week.index}`,
+              sublabel: formatWeekSpan(week.start, week.end),
+              title: `${week.start} - ${week.end}`,
+              start: week.start,
+              end: week.end,
+              stats: calculatePeriodStats(rows),
+            }));
 
-    const lastTurnoverValue = manual.turnover[last.week.start];
+    // Period wording used by titles, the cover and the agenda.
+    const lastThu = thursdayOf(last.start);
+    const monthEn = enMonth(lastThu, 'long');
+    const periodText = deckRange(last.start, last.end, true);
+    const periodTitle = periodMode === 'monthly' ? `${monthEn} ${lastThu.getFullYear()}` : periodText;
+    const badgeText =
+      periodMode === 'monthly'
+        ? `${monthEn} ${lastThu.getFullYear()}`
+        : `Week ${Math.ceil(lastThu.getDate() / 7)} · ${enMonth(lastThu, 'short')}`;
+    const eyebrow = periodMode === 'monthly' ? 'REVIEW BULANAN' : 'REVIEW MINGGUAN';
+    const defaultTitle = periodMode === 'monthly' ? 'Monthly Review' : 'Weekly Review';
+
+    const lastTurnoverValue = manual.turnover[last.start];
     const turnoverTitle =
       lastTurnoverValue === undefined
         ? `Headcount CS ${bpoLabel}`
-        : `“${String(lastTurnoverValue)}% turn over for ${deckRange(last.week.start, last.week.end, true)}”`;
+        : `“${String(lastTurnoverValue)}% turn over for ${periodTitle}”`;
     const capRange = `${bpoLabel} · ${range}`;
     const capMode = `${bpoLabel} · ${subtitle}`;
-    const capLast = `${bpoLabel} · ${modeLabel} · ${last.label} (${formatWeekSpan(last.week.start, last.week.end)})`;
-    const capMonths = monthRanges.length
-      ? `${bpoLabel} · ${monthRanges[0].label} – ${monthRanges[monthRanges.length - 1].label} ${monthRanges[monthRanges.length - 1].end.slice(0, 4)}`
+    const capLast = `${bpoLabel} · ${modeLabel} · ${last.label} (${formatWeekSpan(last.start, last.end)})`;
+    // The takeout simulation always looks at the last three months with data.
+    const simMonths = monthRanges
+      .map((m, i) => ({ m, rows: monthData[i] ?? [] }))
+      .filter((x) => x.rows.length > 0)
+      .slice(-3);
+    const capMonths = simMonths.length
+      ? `${bpoLabel} · ${simMonths[0].m.label} – ${simMonths[simMonths.length - 1].m.label} ${simMonths[simMonths.length - 1].m.end.slice(0, 4)}`
       : bpoLabel;
 
     const list: Slide[] = [];
+    const scopeText = bpoLabel.replace(/^AFI\s*/, 'AFI - ') || 'AFI';
+
+    const noFrame = { section: '', titleText: '', caption: '', templateHasHighlight: false, standalone: true as const };
+    list.push({
+      id: 'cover',
+      no: 1,
+      title: 'Cover',
+      file: 'slide-01-cover',
+      ...noFrame,
+      render: async () =>
+        done(renderCoverSlide({ title: opening.title.trim() || defaultTitle, subtitle: opening.subtitle, scope: scopeText, period: periodText, week: badgeText, eyebrow }), []),
+    });
+    list.push({
+      id: 'agenda',
+      no: 2,
+      title: 'Daftar isi',
+      file: 'slide-02-daftar-isi',
+      ...noFrame,
+      render: async () =>
+        done(
+          renderAgendaSlide({
+            title: 'Daftar Isi',
+            scope: scopeText,
+            period: periodText,
+            week: badgeText,
+            eyebrow: periodMode === 'monthly' ? 'MONTHLY REVIEW' : 'WEEKLY REVIEW',
+            rows: [
+              { name: 'Headcount', description: 'Agent, TL, QC, dan turn over', slides: opening.slides[0] },
+              { name: 'Overview', description: 'Ringkasan KPI mingguan terhadap target', slides: opening.slides[1] },
+              { name: 'KPI Performance', description: 'CSAT, DSAT, TL, top agent, dan takeout', slides: opening.slides[2] },
+              { name: 'QA Performance', description: 'Skor QA dan temuan', slides: opening.slides[3] },
+              { name: 'L&D', description: 'Training, coaching, dan pengembangan', slides: opening.slides[4] },
+            ],
+          }),
+          [],
+        ),
+    });
 
     list.push({
       id: 'headcount',
@@ -281,7 +379,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       caption: capRange,
       render: (inImage, bare) => {
         const counts = cols.map((c) => headcountStats(c.rows));
-        const turnover: (number | null)[] = cols.map((c) => manual.turnover[c.week.start] ?? null);
+        const turnover: (number | null)[] = cols.map((c) => manual.turnover[c.start] ?? null);
         const lines = headcountHighlights(
           bpoLabel,
           cols.map((c, i) => ({ label: c.label, agents: counts[i].agents, teamLeaders: counts[i].teamLeaders, turnover: turnover[i] })),
@@ -316,7 +414,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         file: 'slide-04-overview',
         templateHasHighlight: false,
         section: 'Overview',
-        titleText: `KPI Achievements for ${deckRange(last.week.start, last.week.end, false)}`,
+        titleText: `KPI Achievements for ${periodMode === 'monthly' ? periodTitle : deckRange(last.start, last.end, false)}`,
         caption: capRange,
         render: (inImage, bare) => {
           const lastCol = overviewCols[overviewCols.length - 1];
@@ -325,11 +423,13 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
           return done(
             renderTableSlide({
             ...buildReportSlideModel({
-              title: 'Weekly Performance Report',
+              title: periodMode === 'monthly' ? 'Monthly Performance Report' : 'Weekly Performance Report',
               columns: overviewCols,
               deltaTo: overviewCols.length - 1,
               deltaFrom: overviewCols.length - 2,
-              note: 'Minggu kalender Senin–Minggu; minggu pertama dan terakhir bisa mencakup tanggal bulan sebelum/sesudahnya, jadi jumlah semua minggu tidak selalu sama dengan total bulan.',
+              note: periodMode === 'monthly'
+                ? 'Bulan kalender: tanggal 1 sampai akhir bulan.'
+                : 'Minggu kalender Senin–Minggu; minggu pertama dan terakhir bisa mencakup tanggal bulan sebelum/sesudahnya, jadi jumlah semua minggu tidak selalu sama dengan total bulan.',
               headline: hdOn ? overviewHeadline(lastCol.label, kpiItems) ?? undefined : undefined,
               highlights: inImage ? lines : undefined,
             }),
@@ -433,7 +533,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         return done(renderTlSamplingSlide({
           bare,
           title: 'Analyzed DSAT by TL %',
-          subtitle: `${modeLabel} · ${last.label} (${formatWeekSpan(last.week.start, last.week.end)})`,
+          subtitle: `${modeLabel} · ${last.label} (${formatWeekSpan(last.start, last.end)})`,
           headline: hdOn ? tlHeadline(last.label, rows) ?? undefined : undefined,
           rows,
           highlights: inImage ? lines : undefined,
@@ -468,7 +568,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       },
     });
 
-    if (monthRanges.length > 0 && monthData.length === monthRanges.length && monthData.some((m) => m.length > 0)) {
+    if (simMonths.length > 0) {
       list.push({
         id: 'takeout-sim',
         no: 10,
@@ -479,13 +579,13 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         titleText: 'Simulasi CSAT: tambahan kategori takeout',
         caption: capMonths,
         render: (inImage, bare) => {
-          const months = monthRanges.map((m, i) => ({ label: m.label, rows: takeoutScenarios(monthData[i]) }));
+          const months = simMonths.map((x) => ({ label: x.m.label, rows: takeoutScenarios(x.rows) }));
           const extraNames = EXTRA_TAKEOUT_CATEGORIES.map(prettyCategory).join(' dan ');
           const lines = takeoutSimHighlights(extraNames, months.map((m) => ({ label: m.label, rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92);
           return done(renderTakeoutSimSlide({
           bare,
             title: 'Simulasi CSAT SC: tambahan kategori takeout',
-            subtitle: `${monthRanges[0].label} – ${monthRanges[monthRanges.length - 1].label} ${monthRanges[monthRanges.length - 1].end.slice(0, 4)}`,
+            subtitle: capMonths.replace(`${bpoLabel} · `, ''),
             months,
             headline: hdOn ? takeoutSimHeadline(months.map((m) => ({ rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92) ?? undefined : undefined,
             highlights: inImage ? lines : undefined,
@@ -494,7 +594,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       });
     }
     return list;
-  }, [cols, mode, topCatsLimit, topAgentsLimit, withHeadline, manual, bpoLabel, weekRanges, weekData, monthRanges, monthData, tlRows, tlAnalyzed]);
+  }, [cols, mode, topCatsLimit, topAgentsLimit, withHeadline, opening, periodMode, manual, bpoLabel, weekRanges, weekData, monthRanges, monthData, tlRows, tlAnalyzed]);
 
   // Full-slide layout draws everything (including Highlight); the content-only layout leaves out Highlight
   // where the template already has its own editable box.
@@ -517,8 +617,8 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       for (const slide of slides) {
         try {
           const rendered = await slide.render(inImageFor(slide), layout === 'slide');
-          const blob = layout === 'slide'
-            ? await composeFullSlide({ ...frameFor(slide), caption: slide.caption, content: rendered.blob })
+          const blob = layout === 'slide' && !slide.standalone
+            ? await composeFullSlide({ ...frameFor(slide), caption: slide.caption, content: rendered.blob, no: slide.no })
             : rendered.blob;
           const { lines } = rendered;
           if (cancelled) return;
@@ -585,34 +685,35 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
   if (!cols || !slides) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-bold text-text-primary">Ekspor Weekly</h1>
+        <h1 className="text-xl font-bold text-text-primary">Ekspor Slide</h1>
         <EmptyState
           variant="filter"
-          title="Belum ada minggu yang bisa dibandingkan"
-          description="Pilih rentang lebih dari satu minggu (misalnya Bulan Ini) dan pastikan data CSAT untuk minimal dua minggu sudah ada."
+          title={periodMode === 'monthly' ? 'Belum ada bulan yang bisa dibandingkan' : 'Belum ada minggu yang bisa dibandingkan'}
+          description={periodMode === 'monthly' ? 'Pilih bulan di filter Periode dan pastikan data minimal dua bulan sudah ada.' : 'Pilih rentang lebih dari satu minggu (misalnya Bulan Ini) dan pastikan data CSAT untuk minimal dua minggu sudah ada.'}
         />
       </div>
     );
   }
 
-  const lastWeek = cols[cols.length - 1].week;
-  const lastTurnover = manual.turnover[lastWeek.start] ?? 0;
-  const titleTexts = [
-    { id: 'title-1', label: 'Slide 1 · tanggal', text: deckRange(lastWeek.start, lastWeek.end, true) },
-    { id: 'title-3', label: 'Slide 3 · judul', text: `“${String(lastTurnover).replace('.', ',')}% turn over for ${deckRange(lastWeek.start, lastWeek.end, true)}”` },
-    { id: 'title-4', label: 'Slide 4 · judul', text: `KPI Achievements for ${deckRange(lastWeek.start, lastWeek.end, false)}` },
-  ];
-
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-text-primary">Ekspor Weekly</h1>
+          <h1 className="text-xl font-bold text-text-primary">Ekspor Slide</h1>
           <p className="mt-0.5 max-w-2xl text-xs text-text-muted">
-            Gambar siap tempel ke PowerPoint dari data yang sama dengan dashboard, memakai empat minggu kalender terakhir yang punya data. Nomor slide mengikuti deck.
+            Gambar slide dari data yang sama dengan dashboard. Weekly memakai empat minggu kalender terakhir (Week 1 = minggu pertama yang kamisnya jatuh di bulan itu), Monthly memakai empat bulan terakhir. Nomor slide mengikuti deck.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl<PeriodMode>
+            aria-label="Periode laporan"
+            options={[
+              { value: 'weekly', label: 'Weekly' },
+              { value: 'monthly', label: 'Monthly' },
+            ]}
+            value={periodMode}
+            onChange={setPeriodMode}
+          />
           <SegmentedControl<'slide' | 'content'>
             aria-label="Bentuk gambar"
             options={[
@@ -663,14 +764,14 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
               onChange={(e) => updateManual({ ...manual, trainer: Math.max(0, Number(e.target.value) || 0) })} />
           </label>
           {cols.map((c) => (
-            <label key={c.week.start} htmlFor={`weekly-export-turnover-${c.week.start}`} className="inline-flex items-center gap-1.5">
+            <label key={c.start} htmlFor={`weekly-export-turnover-${c.start}`} className="inline-flex items-center gap-1.5">
               Turn over {c.label} (%)
-              <input id={`weekly-export-turnover-${c.week.start}`} type="number" min={0} step={0.1}
-                value={manual.turnover[c.week.start] ?? ''} className={inputClass} placeholder="–"
+              <input id={`weekly-export-turnover-${c.start}`} type="number" min={0} step={0.1}
+                value={manual.turnover[c.start] ?? ''} className={inputClass} placeholder="–"
                 onChange={(e) => {
                   const next = { ...manual.turnover };
-                  if (e.target.value === '') delete next[c.week.start];
-                  else next[c.week.start] = Math.max(0, Number(e.target.value) || 0);
+                  if (e.target.value === '') delete next[c.start];
+                  else next[c.start] = Math.max(0, Number(e.target.value) || 0);
                   updateManual({ ...manual, turnover: next });
                 }} />
             </label>
@@ -697,17 +798,6 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
           )}
         </div>
 
-        <div className="space-y-1.5 text-xs text-text-secondary">
-          <span className="font-semibold text-text-primary">Teks judul untuk ditempel di PowerPoint</span>
-          <div className="flex flex-wrap gap-2">
-            {titleTexts.map((t) => (
-              <button key={t.id} type="button" onClick={() => copyText(t.text)} className={buttonClass} title={t.text}>
-                <ClipboardCopy className="h-3.5 w-3.5" />
-                {t.label}: {t.text}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-5">
@@ -719,6 +809,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
                 <h2 className="text-sm font-bold text-text-primary">Slide {slide.no} · {slide.title}</h2>
                 <div className="flex flex-wrap items-center gap-1.5">
+                  {!slide.standalone && (
                   <label htmlFor={`weekly-export-hl-${slide.id}`} className="mr-1 inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-text-secondary"
                     title={slide.templateHasHighlight ? 'Template-mu sudah punya kotak Highlight yang bisa diedit' : 'Template-mu tidak punya kotak Highlight di slide ini'}>
                     <input id={`weekly-export-hl-${slide.id}`} type="checkbox" checked={inImageFor(slide)}
@@ -726,10 +817,13 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
                       className="h-3.5 w-3.5 accent-primary" />
                     Highlight di gambar
                   </label>
+                  )}
+                  {!slide.standalone && (
                   <button type="button" onClick={() => copyHighlight(slide)} disabled={!ready} className={buttonClass}>
                     <ClipboardCopy className="h-3.5 w-3.5" />
                     Salin teks Highlight
                   </button>
+                  )}
                   <button type="button" onClick={() => download(slide)} disabled={!ready} className={buttonClass}>
                     <Download className="h-3.5 w-3.5" />
                     Unduh PNG
@@ -740,7 +834,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
                   </button>
                 </div>
               </header>
-              {layout === 'slide' && (
+              {layout === 'slide' && !slide.standalone && (
                 <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 text-[11px] text-text-secondary">
                   <label htmlFor={`weekly-export-tab-${slide.id}`} className="inline-flex items-center gap-1.5">
                     Tab
@@ -754,6 +848,34 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
                       onChange={(e) => setFrameText((prev) => ({ ...prev, [slide.id]: { ...prev[slide.id], title: e.target.value } }))}
                       className="h-7 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-xs text-text-primary" />
                   </label>
+                </div>
+              )}
+              {slide.id === 'cover' && (
+                <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 text-[11px] text-text-secondary">
+                  <label htmlFor="weekly-export-cover-title" className="inline-flex items-center gap-1.5">
+                    Judul
+                    <input id="weekly-export-cover-title" type="text" value={opening.title} placeholder={periodMode === 'monthly' ? 'Monthly Review' : 'Weekly Review'}
+                      onChange={(e) => setOpening((o) => ({ ...o, title: e.target.value }))}
+                      className="h-7 w-44 rounded-md border border-border bg-surface px-2 text-xs text-text-primary" />
+                  </label>
+                  <label htmlFor="weekly-export-cover-subtitle" className="inline-flex items-center gap-1.5">
+                    Subjudul
+                    <input id="weekly-export-cover-subtitle" type="text" value={opening.subtitle}
+                      onChange={(e) => setOpening((o) => ({ ...o, subtitle: e.target.value }))}
+                      className="h-7 w-44 rounded-md border border-border bg-surface px-2 text-xs text-text-primary" />
+                  </label>
+                </div>
+              )}
+              {slide.id === 'agenda' && (
+                <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 text-[11px] text-text-secondary">
+                  {['Headcount', 'Overview', 'KPI Performance', 'QA Performance', 'L&D'].map((name, i) => (
+                    <label key={name} htmlFor={`weekly-export-agenda-${i}`} className="inline-flex items-center gap-1.5">
+                      {name}
+                      <input id={`weekly-export-agenda-${i}`} type="text" value={opening.slides[i]}
+                        onChange={(e) => setOpening((o) => ({ ...o, slides: o.slides.map((v, k) => (k === i ? e.target.value : v)) }))}
+                        className="h-7 w-24 rounded-md border border-border bg-surface px-2 text-xs text-text-primary" />
+                    </label>
+                  ))}
                 </div>
               )}
               <div className="bg-white p-3">

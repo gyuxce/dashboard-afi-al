@@ -504,13 +504,12 @@ export default function App() {
   const weekRanges = useMemo(() => {
     if (!(needsComparisonData && comparisonMode === 'wow') && activeTab !== 'weekly_export') return NO_WEEKS;
     const weeks = getCalendarWeeks(startDate, endDate);
-    const totalDays = weeks.reduce((sum, week) => sum + week.daysInRange, 0);
-    return totalDays > 7 ? weeks.slice(-6) : NO_WEEKS;
+    return weeks.length >= 2 ? weeks.slice(-6) : NO_WEEKS;
   }, [needsComparisonData, comparisonMode, activeTab, startDate, endDate]);
 
   // Ekspor Weekly also shows the selected month and the two before it (takeout simulation).
   const monthRanges = useMemo(
-    () => (activeTab === 'weekly_export' && endDate ? getMonthRanges(endDate, 3) : NO_MONTHS),
+    () => (activeTab === 'weekly_export' && endDate ? getMonthRanges(endDate, 4) : NO_MONTHS),
     [activeTab, endDate],
   );
 
@@ -650,7 +649,7 @@ export default function App() {
     // { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, section: 'Team' },
     { id: 'incentive', label: 'Simulasi Insentif', icon: Calculator, section: 'Team' },
     { id: 'schedule', label: 'Jadwal & Kehadiran', icon: Calendar, section: 'Team' },
-    { id: 'weekly_export', label: 'Ekspor Weekly', icon: ImageDown, section: 'Laporan' },
+    { id: 'weekly_export', label: 'Ekspor Slide', icon: ImageDown, section: 'Laporan' },
     ...(isAdmin ? [{ id: 'files', label: 'File Center', icon: FolderDown, section: 'Data' }] : []),
   ];
 
