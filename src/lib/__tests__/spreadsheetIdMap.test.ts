@@ -9,6 +9,10 @@ describe('parseSpreadsheetIdMap', () => {
     });
   });
 
+  it('accepts curly quotes from copy-paste', () => {
+    expect(parseSpreadsheetIdMap('{\u201CNOV_2026\u201D:\u201Cabc\u201D}')).toEqual({ NOV_2026: 'abc' });
+  });
+
   it('ignores empty, invalid, or non-object values', () => {
     expect(parseSpreadsheetIdMap(undefined)).toEqual({});
     expect(parseSpreadsheetIdMap('')).toEqual({});

@@ -17,7 +17,8 @@ const AUG_OCT_2026_SPREADSHEET_ID =
 export function parseSpreadsheetIdMap(raw: unknown): Record<string, string> {
   if (typeof raw !== 'string' || !raw.trim()) return {};
   try {
-    const parsed = JSON.parse(raw);
+    // Copy-paste from chat/docs often turns " into curly quotes, which JSON.parse rejects.
+    const parsed = JSON.parse(raw.replace(/[\u201C\u201D\u201E\u201F]/g, '"'));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
     const result: Record<string, string> = {};
     for (const [key, value] of Object.entries(parsed)) {
