@@ -15,6 +15,7 @@ export type FilteredKpis = {
   previousKpiData2: AgentKPI[];
   previousKpiData3: AgentKPI[];
   incentiveKpiData: AgentKPI[];
+  weekKpiData: AgentKPI[][];
   incentivePeriod: { start: string; end: string };
   tlList: string[];
   agentList: string[];
@@ -26,6 +27,7 @@ type Args = {
   previousRawData2: AgentKPI[];
   previousRawData3: AgentKPI[];
   incentiveRawData: AgentKPI[];
+  weekRawData: AgentKPI[][];
   activeTab: string;
   startDate: string;
   endDate: string;
@@ -44,7 +46,7 @@ type Args = {
  */
 export function useFilteredKpis(args: Args): FilteredKpis {
   const {
-    rawData, previousRawData, previousRawData2, previousRawData3, incentiveRawData,
+    rawData, previousRawData, previousRawData2, previousRawData3, incentiveRawData, weekRawData,
     activeTab, startDate, endDate, selectedSheetMonth,
     selectedBpo, selectedTL, selectedGlobalAgent,
     agentDictionary, agentDictionaryByMonth,
@@ -74,6 +76,7 @@ export function useFilteredKpis(args: Args): FilteredKpis {
     const filteredPrevData = applyFilters(previousRawData);
     const filteredPrevData2 = applyFilters(previousRawData2);
     const filteredPrevData3 = applyFilters(previousRawData3);
+    const filteredWeekData = weekRawData.map(applyFilters);
 
     const bpoScopedData = data.filter(a => matchesAgentScope(a, {
       bpo: selectedBpo,
@@ -103,6 +106,7 @@ export function useFilteredKpis(args: Args): FilteredKpis {
       previousKpiData: filteredPrevData,
       previousKpiData2: filteredPrevData2,
       previousKpiData3: filteredPrevData3,
+      weekKpiData: filteredWeekData,
       // Only the QA score comes from the Tanggal Case pass; CSAT, productivity and
       // everything else stay exactly as on the other tabs. Empty until that pass lands.
       incentiveKpiData: activeTab === 'incentive' && incentiveRawData.length > 0
@@ -127,6 +131,7 @@ export function useFilteredKpis(args: Args): FilteredKpis {
     previousRawData2,
     previousRawData3,
     incentiveRawData,
+    weekRawData,
     activeTab,
     rawData,
     selectedBpo,

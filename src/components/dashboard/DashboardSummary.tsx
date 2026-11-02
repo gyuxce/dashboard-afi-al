@@ -8,15 +8,61 @@ import { useStore } from "../../store";
 import { DashboardCharts } from "./DashboardCharts";
 import { TeamLeaderSummary } from "./TeamLeaderSummary";
 import { EmptyState } from "../ui/EmptyState";
+import type { CalendarWeek } from "../../lib/weeks";
+
+type PeriodStats = Record<string, number>;
+
+const calculatePeriodStats = (dataset: AgentKPI[]): PeriodStats => {
+  let totalProd = 0, sumManDays = 0, sumSla1m = 0, sumSla3m = 0, sumWhu = 0;
+  let sumCsatScFull = 0, countCsatScFull = 0, sumCsatScFair = 0, countCsatScFair = 0;
+  let sumQa = 0, countQa = 0, sla1mCount = 0, sla3mCount = 0, whuCount = 0, attPresence = 0, attDuty = 0;
+  const officialCsat = getOfficialCsatAggregate(dataset);
+
+  dataset.forEach((d) => {
+    totalProd += d.productivityTotal;
+    sumManDays += d.manDays;
+    if (d.sla1m !== null) { sumSla1m += d.sla1m; sla1mCount++; }
+    if (d.sla3m !== null) { sumSla3m += d.sla3m; sla3mCount++; }
+    if (d.whu !== null) { sumWhu += d.whu; whuCount++; }
+    sumCsatScFull += d.csatScGoodCount || 0;
+    countCsatScFull += d.csatScTotalValid || 0;
+    sumCsatScFair += d.csatScFairGoodCount || 0;
+    countCsatScFair += d.csatScFairTotalValid || 0;
+    sumQa += d.qaScoreSum;
+    countQa += d.qaScoreCount;
+    attPresence += d.attendancePresence || 0;
+    attDuty += d.attendanceDuty || 0;
+  });
+
+  return {
+    productivity: totalProd,
+    avgProductivity: sumManDays > 0 ? totalProd / sumManDays : 0,
+    csat: officialCsat.score || 0,
+    csatPercent: officialCsat.score !== null ? (officialCsat.score / 5) * 100 : 0,
+    csatScFull: countCsatScFull > 0 ? (sumCsatScFull / countCsatScFull) * 100 : 0,
+    csatScFullCount: countCsatScFull,
+    csatScFair: countCsatScFair > 0 ? (sumCsatScFair / countCsatScFair) * 100 : 0,
+    csatScFairCount: countCsatScFair,
+    sla1m: sla1mCount > 0 ? sumSla1m / sla1mCount : 0,
+    sla3m: sla3mCount > 0 ? sumSla3m / sla3mCount : 0,
+    whu: whuCount > 0 ? sumWhu / whuCount : 0,
+    qa: countQa > 0 ? sumQa / countQa : 0,
+    attendance: attDuty > 0 ? (attPresence / attDuty) * 100 : 0,
+    agentsCount: dataset.length,
+  };
+};
 
 interface Props {
   data: AgentKPI[];
   previousData?: AgentKPI[];
   previousData2?: AgentKPI[];
   previousData3?: AgentKPI[];
+  /** Monday–Sunday weeks of the selected range (WoW over a longer range) and their KPI rows, same order. */
+  weekRanges?: CalendarWeek[];
+  weekData?: AgentKPI[][];
 }
 
-export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], previousData2 = [], previousData3 = [] }) => {
+export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], previousData2 = [], previousData3 = [], weekRanges = [], weekData = [] }) => {
   const [search, setSearch] = useState("");
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const { startDate, endDate, comparisonMode } = useStore(useShallow((s) => ({
@@ -34,51 +80,11 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
   }, [data, search]);
 
   const stats = useMemo(() => {
-    const calculate = (dataset: AgentKPI[]) => {
-      let totalProd = 0, sumManDays = 0, sumSla1m = 0, sumSla3m = 0, sumWhu = 0;
-      let sumCsatScFull = 0, countCsatScFull = 0, sumCsatScFair = 0, countCsatScFair = 0;
-      let sumQa = 0, countQa = 0, sla1mCount = 0, sla3mCount = 0, whuCount = 0, attPresence = 0, attDuty = 0;
-      const officialCsat = getOfficialCsatAggregate(dataset);
-
-      dataset.forEach((d) => {
-        totalProd += d.productivityTotal;
-        sumManDays += d.manDays;
-        if (d.sla1m !== null) { sumSla1m += d.sla1m; sla1mCount++; }
-        if (d.sla3m !== null) { sumSla3m += d.sla3m; sla3mCount++; }
-        if (d.whu !== null) { sumWhu += d.whu; whuCount++; }
-        sumCsatScFull += d.csatScGoodCount || 0;
-        countCsatScFull += d.csatScTotalValid || 0;
-        sumCsatScFair += d.csatScFairGoodCount || 0;
-        countCsatScFair += d.csatScFairTotalValid || 0;
-        sumQa += d.qaScoreSum;
-        countQa += d.qaScoreCount;
-        attPresence += d.attendancePresence || 0;
-        attDuty += d.attendanceDuty || 0;
-      });
-
-      return {
-        productivity: totalProd,
-        avgProductivity: sumManDays > 0 ? totalProd / sumManDays : 0,
-        csat: officialCsat.score || 0,
-        csatPercent: officialCsat.score !== null ? (officialCsat.score / 5) * 100 : 0,
-        csatScFull: countCsatScFull > 0 ? (sumCsatScFull / countCsatScFull) * 100 : 0,
-        csatScFullCount: countCsatScFull,
-        csatScFair: countCsatScFair > 0 ? (sumCsatScFair / countCsatScFair) * 100 : 0,
-        csatScFairCount: countCsatScFair,
-        sla1m: sla1mCount > 0 ? sumSla1m / sla1mCount : 0,
-        sla3m: sla3mCount > 0 ? sumSla3m / sla3mCount : 0,
-        whu: whuCount > 0 ? sumWhu / whuCount : 0,
-        qa: countQa > 0 ? sumQa / countQa : 0,
-        attendance: attDuty > 0 ? (attPresence / attDuty) * 100 : 0,
-        agentsCount: dataset.length,
-      };
-    };
-
     return {
-      current: calculate(data),
-      previous: calculate(previousData),
-      previous2: calculate(previousData2),
-      previous3: calculate(previousData3),
+      current: calculatePeriodStats(data),
+      previous: calculatePeriodStats(previousData),
+      previous2: calculatePeriodStats(previousData2),
+      previous3: calculatePeriodStats(previousData3),
     };
   }, [data, previousData, previousData2, previousData3]);
 
@@ -105,6 +111,78 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
       a.sla1m !== null ||
       a.whu !== null,
     );
+
+  // Weeks are shown only once they have real activity: man-days from the schedule and QA rows
+  // exist for future weeks too, so they can't be the signal here.
+  const weekHasData = (d: AgentKPI[]) =>
+    d.some((a) =>
+      a.productivityTotal > 0 ||
+      a.csatScTotalValid > 0 ||
+      (a.csat4Count || 0) + (a.csat5Count || 0) > 0 ||
+      a.sla1m !== null ||
+      a.whu !== null,
+    );
+
+  const reportPanel = useMemo(() => {
+    const dateLabel = (value: string) => formatReportDate(value);
+    const rangeTitle = (start: string, end: string) => `${dateLabel(start)} - ${dateLabel(end)}`;
+
+    // WoW over a multi-week range: the Monday–Sunday weeks of the range side by side (W1, W2, …).
+    if (comparisonMode === 'wow' && weekRanges.length > 0) {
+      if (weekData.length !== weekRanges.length) return null; // week data still being computed
+      const columns: ReportColumn[] = [];
+      weekRanges.forEach((week, i) => {
+        if (!weekHasData(weekData[i])) return;
+        columns.push({
+          key: `w${week.index}`,
+          label: `W${week.index}`,
+          sublabel: formatWeekSpan(week.start, week.end),
+          title: rangeTitle(week.start, week.end),
+          stats: calculatePeriodStats(weekData[i]),
+        });
+      });
+      if (columns.length < 2) return null;
+      const partial = weekRanges
+        .filter((week) => week.days < 7 && columns.some((c) => c.key === `w${week.index}`))
+        .map((week) => `W${week.index} (${week.days} hari)`);
+      return {
+        title: 'Weekly Performance Report',
+        columns,
+        deltaTo: columns.length - 1,
+        deltaFrom: columns.length - 2,
+        note: partial.length > 0
+          ? `Minggu kalender Senin–Minggu. Minggu parsial: ${partial.join(', ')}. Total Productivity minggu parsial tidak sebanding dengan minggu penuh — gunakan Avg Productivity.`
+          : 'Minggu kalender Senin–Minggu.',
+      };
+    }
+
+    if (!periodHasActivity(previousData)) return null;
+    const getPrevRange = comparisonMode === 'mom' ? getPreviousMonthPeriod : getPreviousPeriod;
+    const prevRange = getPrevRange(startDate, endDate);
+    const prev2Range = getPrevRange(prevRange.start, prevRange.end);
+    const prev3Range = getPrevRange(prev2Range.start, prev2Range.end);
+    const labelOf = (end: string) => formatPeriodLabel(end, comparisonMode);
+    const columns: ReportColumn[] = [
+      { key: 'cur', label: labelOf(endDate), title: rangeTitle(startDate, endDate), stats: currentStats },
+      { key: 'p1', label: labelOf(prevRange.end), title: rangeTitle(prevRange.start, prevRange.end), stats: previousStats },
+    ];
+    if (periodHasActivity(previousData2)) {
+      columns.push({ key: 'p2', label: labelOf(prev2Range.end), title: rangeTitle(prev2Range.start, prev2Range.end), stats: previousStats2 });
+    }
+    if (comparisonMode !== 'mom' && periodHasActivity(previousData3)) {
+      columns.push({ key: 'p3', label: labelOf(prev3Range.end), title: rangeTitle(prev3Range.start, prev3Range.end), stats: previousStats3 });
+    }
+    return {
+      title: comparisonMode === 'mom' ? 'Monthly Performance Report' : 'Weekly Performance Report',
+      columns,
+      deltaTo: 0,
+      deltaFrom: 1,
+      note: undefined,
+    };
+  }, [
+    comparisonMode, weekRanges, weekData, previousData, previousData2, previousData3,
+    startDate, endDate, currentStats, previousStats, previousStats2, previousStats3,
+  ]);
 
   const generateDailyTrend = (dataset: AgentKPI[]) => {
     type DayAcc = {
@@ -487,17 +565,13 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
           />
 
           {/* Weekly Report Panel - only shown when comparison is active + has data */}
-          {isComparisonEnabled && periodHasActivity(previousData) && (
+          {isComparisonEnabled && reportPanel && (
             <WeeklyReportPanel
-              currentStats={currentStats}
-              previousStats={previousStats}
-              previousStats2={previousStats2}
-              previousStats3={previousStats3}
-              hasPrev2={periodHasActivity(previousData2)}
-              hasPrev3={periodHasActivity(previousData3)}
-              startDate={startDate}
-              endDate={endDate}
-              comparisonMode={comparisonMode}
+              title={reportPanel.title}
+              columns={reportPanel.columns}
+              deltaTo={reportPanel.deltaTo}
+              deltaFrom={reportPanel.deltaFrom}
+              note={reportPanel.note}
             />
           )}
 
@@ -855,96 +929,87 @@ const StatCard = ({
 };
 
 // --- Weekly Report Panel ---
+type ReportColumn = {
+  key: string;
+  label: string;
+  /** Small second line under the label (e.g. "5–11 Okt"). */
+  sublabel?: string;
+  /** Tooltip with the exact date range. */
+  title: string;
+  stats: PeriodStats;
+};
+
+const formatReportDate = (d: string) => {
+  if (!d) return '-';
+  const dt = new Date(d);
+  return isNaN(dt.getTime()) ? d : new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(dt);
+};
+
+const formatWeekSpan = (start: string, end: string) => {
+  const s = new Date(start);
+  const e = new Date(end);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
+  const month = new Intl.DateTimeFormat('id-ID', { month: 'short' }).format(e);
+  return s.getDate() === e.getDate() ? `${e.getDate()} ${month}` : `${s.getDate()}–${e.getDate()} ${month}`;
+};
+
+const formatPeriodLabel = (dateStr: string, mode: 'wow' | 'mom') => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const month = new Intl.DateTimeFormat('id-ID', { month: 'short' }).format(d);
+  if (mode === 'mom') return `${month} ${d.getFullYear()}`;
+  return `W${Math.ceil(d.getDate() / 7)} ${month}`;
+};
+
+type ReportMetric = {
+  label: string;
+  key: string;
+  target: number | null;
+  kpiType: KpiType | null;
+  kind: 'count' | 'score' | 'percent';
+};
+
+const REPORT_METRICS: ReportMetric[] = [
+  { label: 'Total Productivity', key: 'productivity', target: null, kpiType: null, kind: 'count' },
+  { label: 'Avg Productivity', key: 'avgProductivity', target: 100, kpiType: 'productivity', kind: 'count' },
+  { label: 'CSAT Official', key: 'csat', target: 3.75, kpiType: 'csatOfficial', kind: 'score' },
+  { label: 'CSAT SC Full', key: 'csatScFull', target: 75, kpiType: 'csatFull', kind: 'percent' },
+  { label: 'CSAT SC After Takeout', key: 'csatScFair', target: 92, kpiType: 'csatFair', kind: 'percent' },
+  { label: 'SLA 1 Menit', key: 'sla1m', target: 92, kpiType: 'sla1m', kind: 'percent' },
+  { label: 'SLA 3 Menit', key: 'sla3m', target: 96, kpiType: 'sla3m', kind: 'percent' },
+  { label: 'WHU (%)', key: 'whu', target: 96, kpiType: 'whu', kind: 'percent' },
+  { label: 'QA Score', key: 'qa', target: 92, kpiType: 'qa', kind: 'percent' },
+  { label: 'Attendance', key: 'attendance', target: 95, kpiType: 'attendance', kind: 'percent' },
+];
+
 const WeeklyReportPanel = ({
-  currentStats,
-  previousStats,
-  previousStats2,
-  previousStats3,
-  hasPrev2,
-  hasPrev3,
-  startDate,
-  endDate,
-  comparisonMode,
+  title,
+  columns,
+  deltaTo,
+  deltaFrom,
+  note,
 }: {
-  currentStats: any;
-  previousStats: any;
-  previousStats2?: any;
-  previousStats3?: any;
-  hasPrev2?: boolean;
-  hasPrev3?: boolean;
-  startDate: string;
-  endDate: string;
-  comparisonMode: 'wow' | 'mom';
+  title: string;
+  columns: ReportColumn[];
+  /** Column indexes whose values the "Perubahan" column compares (to − from). */
+  deltaTo: number;
+  deltaFrom: number;
+  note?: string;
 }) => {
-  const formatDate = (d: string) => {
-    if (!d) return '-';
-    const dt = new Date(d);
-    return isNaN(dt.getTime()) ? d : new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(dt);
+  const formatValue = (metric: ReportMetric, value: number) => {
+    if (metric.kind === 'count') return formatNum(value, 0);
+    if (metric.kind === 'score') return formatNum(value);
+    return formatNum(value) + '%';
   };
-
-  const getPeriodLabel = (dateStr: string) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const month = new Intl.DateTimeFormat('id-ID', { month: 'short' }).format(d);
-    if (comparisonMode === 'mom') {
-      return `${month} ${d.getFullYear()}`;
-    }
-    const weekNum = Math.ceil(d.getDate() / 7);
-    return `W${weekNum} ${month}`;
-  };
-
-  const getPrevRange = comparisonMode === 'mom' ? getPreviousMonthPeriod : getPreviousPeriod;
-  const prevRange = getPrevRange(startDate, endDate);
-  const prev2Range = getPrevRange(prevRange.start, prevRange.end);
-  const prev3Range = getPrevRange(prev2Range.start, prev2Range.end);
-
-  const prevStart = (() => {
-    return prevRange.start;
-  })();
-  const prevEnd = (() => {
-    return prevRange.end;
-  })();
-  
-  const prev2Start = (() => {
-    return prev2Range.start;
-  })();
-  const prev2End = (() => {
-    return prev2Range.end;
-  })();
-  
-  const prev3Start = (() => {
-    return prev3Range.start;
-  })();
-  const prev3End = (() => {
-    return prev3Range.end;
-  })();
-
-  const showPrev3 = comparisonMode !== 'mom' && Boolean(hasPrev3);
-
-  const rows: Array<{
-    label: string; curr: string; prev: string; prev2: string; prev3: string;
-    delta: number; isCount: boolean; target: number | null;
-    kpiType: KpiType | null;
-    rawCurr: number; rawPrev: number; rawPrev2: number; rawPrev3: number;
-  }> = [
-    { label: 'Total Productivity', curr: formatNum(currentStats.productivity, 0),  prev: formatNum(previousStats.productivity, 0), prev2: formatNum(previousStats2?.productivity || 0, 0), prev3: formatNum(previousStats3?.productivity || 0, 0), delta: currentStats.productivity - previousStats.productivity,   isCount: true, target: null, kpiType: null,  rawCurr: currentStats.productivity,    rawPrev: previousStats.productivity, rawPrev2: previousStats2?.productivity || 0, rawPrev3: previousStats3?.productivity || 0 },
-    { label: 'Avg Productivity',   curr: formatNum(currentStats.avgProductivity, 0),prev: formatNum(previousStats.avgProductivity, 0),prev2: formatNum(previousStats2?.avgProductivity || 0, 0),prev3: formatNum(previousStats3?.avgProductivity || 0, 0),delta: currentStats.avgProductivity - previousStats.avgProductivity,isCount: true,  target: 100,   kpiType: 'productivity', rawCurr: currentStats.avgProductivity, rawPrev: previousStats.avgProductivity, rawPrev2: previousStats2?.avgProductivity || 0, rawPrev3: previousStats3?.avgProductivity || 0 },
-    { label: 'CSAT Official',      curr: formatNum(currentStats.csat),        prev: formatNum(previousStats.csat), prev2: formatNum(previousStats2?.csat || 0), prev3: formatNum(previousStats3?.csat || 0), delta: currentStats.csat - previousStats.csat,                     isCount: false, target: 3.75,    kpiType: 'csatOfficial', rawCurr: currentStats.csat,            rawPrev: previousStats.csat, rawPrev2: previousStats2?.csat || 0, rawPrev3: previousStats3?.csat || 0 },
-    { label: 'CSAT SC Full',       curr: formatNum(currentStats.csatScFull) + '%',  prev: formatNum(previousStats.csatScFull) + '%', prev2: formatNum(previousStats2?.csatScFull || 0) + '%', prev3: formatNum(previousStats3?.csatScFull || 0) + '%', delta: currentStats.csatScFull - previousStats.csatScFull,         isCount: false, target: 75,    kpiType: 'csatFull', rawCurr: currentStats.csatScFull,      rawPrev: previousStats.csatScFull, rawPrev2: previousStats2?.csatScFull || 0, rawPrev3: previousStats3?.csatScFull || 0 },
-    { label: 'CSAT SC After Takeout', curr: formatNum(currentStats.csatScFair) + '%', prev: formatNum(previousStats.csatScFair) + '%', prev2: formatNum(previousStats2?.csatScFair || 0) + '%', prev3: formatNum(previousStats3?.csatScFair || 0) + '%', delta: currentStats.csatScFair - previousStats.csatScFair, isCount: false, target: 92, kpiType: 'csatFair', rawCurr: currentStats.csatScFair, rawPrev: previousStats.csatScFair, rawPrev2: previousStats2?.csatScFair || 0, rawPrev3: previousStats3?.csatScFair || 0 },
-    { label: 'SLA 1 Menit',        curr: formatNum(currentStats.sla1m) + '%',       prev: formatNum(previousStats.sla1m) + '%', prev2: formatNum(previousStats2?.sla1m || 0) + '%', prev3: formatNum(previousStats3?.sla1m || 0) + '%', delta: currentStats.sla1m - previousStats.sla1m,                   isCount: false, target: 92,    kpiType: 'sla1m', rawCurr: currentStats.sla1m,           rawPrev: previousStats.sla1m, rawPrev2: previousStats2?.sla1m || 0, rawPrev3: previousStats3?.sla1m || 0 },
-    { label: 'SLA 3 Menit',        curr: formatNum(currentStats.sla3m) + '%',       prev: formatNum(previousStats.sla3m) + '%', prev2: formatNum(previousStats2?.sla3m || 0) + '%', prev3: formatNum(previousStats3?.sla3m || 0) + '%', delta: currentStats.sla3m - previousStats.sla3m,                   isCount: false, target: 96,    kpiType: 'sla3m', rawCurr: currentStats.sla3m,           rawPrev: previousStats.sla3m, rawPrev2: previousStats2?.sla3m || 0, rawPrev3: previousStats3?.sla3m || 0 },
-    { label: 'WHU (%)',             curr: formatNum(currentStats.whu) + '%',         prev: formatNum(previousStats.whu) + '%', prev2: formatNum(previousStats2?.whu || 0) + '%', prev3: formatNum(previousStats3?.whu || 0) + '%', delta: currentStats.whu - previousStats.whu,                       isCount: false, target: 96,    kpiType: 'whu', rawCurr: currentStats.whu,             rawPrev: previousStats.whu, rawPrev2: previousStats2?.whu || 0, rawPrev3: previousStats3?.whu || 0 },
-    { label: 'QA Score',           curr: formatNum(currentStats.qa) + '%',          prev: formatNum(previousStats.qa) + '%', prev2: formatNum(previousStats2?.qa || 0) + '%', prev3: formatNum(previousStats3?.qa || 0) + '%', delta: currentStats.qa - previousStats.qa,                         isCount: false, target: 92,    kpiType: 'qa', rawCurr: currentStats.qa,              rawPrev: previousStats.qa, rawPrev2: previousStats2?.qa || 0, rawPrev3: previousStats3?.qa || 0 },
-    { label: 'Attendance',         curr: formatNum(currentStats.attendance) + '%',  prev: formatNum(previousStats.attendance) + '%', prev2: formatNum(previousStats2?.attendance || 0) + '%', prev3: formatNum(previousStats3?.attendance || 0) + '%', delta: currentStats.attendance - previousStats.attendance,         isCount: false, target: 95,    kpiType: 'attendance', rawCurr: currentStats.attendance,      rawPrev: previousStats.attendance, rawPrev2: previousStats2?.attendance || 0, rawPrev3: previousStats3?.attendance || 0 },
-  ];
 
   const cellClass = (rawVal: number, kpiType: KpiType | null) => {
     if (kpiType === null) return 'text-text-primary';
     const st = getKpiStatus(rawVal, kpiType);
     return st === 'miss' ? 'text-danger' : st === 'watch' ? 'text-warning' : 'text-text-primary';
   };
+
+  const deltaTitle = `${columns[deltaTo]?.label ?? ''} vs ${columns[deltaFrom]?.label ?? ''}`;
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-6 relative group">
@@ -955,45 +1020,23 @@ const WeeklyReportPanel = ({
             <TrendingUp className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">
-              {comparisonMode === 'mom' ? 'Monthly Performance Report' : 'Weekly Performance Report'}
-            </h2>
+            <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">{title}</h2>
             <p className="text-[10px] text-text-muted mt-0.5">Perbandingan antar periode</p>
           </div>
         </div>
         <div className="flex items-center gap-2 text-[11px] flex-wrap justify-end mt-2 sm:mt-0">
-          <div
-            className="flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-full font-bold whitespace-nowrap"
-            title={`${formatDate(startDate)} - ${formatDate(endDate)}`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-            {getPeriodLabel(endDate)}
-          </div>
-          <div
-            className="flex items-center gap-1.5 bg-surface-muted text-text-muted px-2 py-1 rounded-full font-semibold whitespace-nowrap"
-            title={`${formatDate(prevStart)} - ${formatDate(prevEnd)}`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-text-muted"></span>
-            {getPeriodLabel(prevEnd)}
-          </div>
-          {hasPrev2 && (
+          {columns.map((col, i) => (
             <div
-              className="flex items-center gap-1.5 bg-surface-muted text-text-muted px-2 py-1 rounded-full font-semibold whitespace-nowrap"
-              title={`${formatDate(prev2Start)} - ${formatDate(prev2End)}`}
+              key={col.key}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-full whitespace-nowrap ${
+                i === deltaTo ? 'bg-primary/10 text-primary font-bold' : 'bg-surface-muted text-text-muted font-semibold'
+              }`}
+              title={col.title}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-text-muted"></span>
-              {getPeriodLabel(prev2End)}
+              <span className={`w-1.5 h-1.5 rounded-full ${i === deltaTo ? 'bg-primary' : 'bg-text-muted'}`}></span>
+              {col.label}
             </div>
-          )}
-          {showPrev3 && (
-            <div
-              className="flex items-center gap-1.5 bg-surface-muted text-text-muted px-2 py-1 rounded-full font-semibold whitespace-nowrap"
-              title={`${formatDate(prev3Start)} - ${formatDate(prev3End)}`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-text-muted"></span>
-              {getPeriodLabel(prev3End)}
-            </div>
-          )}
+          ))}
         </div>
       </div>
 
@@ -1004,43 +1047,51 @@ const WeeklyReportPanel = ({
             <tr className="border-b border-border">
               <th className="text-left px-5 py-3 text-[11px] font-medium text-text-muted tracking-wide">KPI</th>
               <th className="text-right px-4 py-3 text-[11px] font-medium text-text-muted tracking-wide">Target</th>
-              <th className="text-right px-4 py-3 text-[11px] font-medium text-text-muted tracking-wide">{getPeriodLabel(endDate)}</th>
-              <th className="text-right px-4 py-3 text-[11px] font-medium text-text-muted tracking-wide">{getPeriodLabel(prevEnd)}</th>
-              {hasPrev2 && <th className="text-right px-4 py-3 text-[11px] font-medium text-text-muted tracking-wide">{getPeriodLabel(prev2End)}</th>}
-              {showPrev3 && <th className="text-right px-4 py-3 text-[11px] font-medium text-text-muted tracking-wide">{getPeriodLabel(prev3End)}</th>}
-              <th className="text-right px-5 py-3 text-[11px] font-medium text-text-muted tracking-wide">Perubahan</th>
+              {columns.map((col) => (
+                <th key={col.key} className="text-right px-4 py-3 text-[11px] font-medium text-text-muted tracking-wide whitespace-nowrap" title={col.title}>
+                  {col.label}
+                  {col.sublabel && <span className="block text-[10px] font-normal text-text-muted/80">{col.sublabel}</span>}
+                </th>
+              ))}
+              <th className="text-right px-5 py-3 text-[11px] font-medium text-text-muted tracking-wide whitespace-nowrap" title={deltaTitle}>
+                Perubahan
+                <span className="block text-[10px] font-normal text-text-muted/80">{deltaTitle}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => {
-              const isUp = row.delta > 0;
-              const isFlat = Math.abs(row.delta) < 0.01;
+            {REPORT_METRICS.map((metric, i) => {
+              const delta = (columns[deltaTo]?.stats[metric.key] ?? 0) - (columns[deltaFrom]?.stats[metric.key] ?? 0);
+              const isUp = delta > 0;
+              const isFlat = Math.abs(delta) < 0.01;
 
               return (
-                <tr key={i} className={`border-b border-border/50 transition-colors ${ i % 2 === 0 ? 'bg-surface/20' : '' }`}>
+                <tr key={metric.key} className={`border-b border-border/50 transition-colors ${ i % 2 === 0 ? 'bg-surface/20' : '' }`}>
                   <td className="px-5 py-3 font-semibold text-text-primary text-[13px] whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
-                      {row.label}
-                      <FormulaTooltip title={row.label} />
+                      {metric.label}
+                      <FormulaTooltip title={metric.label} />
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-[12px] font-medium text-text-muted">
-                    {row.target !== null ? row.label === 'CSAT Official' ? formatNum(row.target) : `${row.target}%` : '-'}
+                    {metric.target !== null ? metric.kind === 'score' ? formatNum(metric.target) : `${metric.target}%` : '-'}
                   </td>
-                  <td className={`px-4 py-3 text-right font-bold text-[14px] ${cellClass(row.rawCurr, row.kpiType)}`}>
-                    {row.curr}
-                  </td>
-                  <td className={`px-4 py-3 text-right text-[14px] font-bold ${cellClass(row.rawPrev, row.kpiType)}`}>{row.prev}</td>
-                  {hasPrev2 && <td className={`px-4 py-3 text-right text-[14px] font-bold ${cellClass(row.rawPrev2, row.kpiType)}`}>{row.prev2}</td>}
-                  {showPrev3 && <td className={`px-4 py-3 text-right text-[14px] font-bold ${cellClass(row.rawPrev3, row.kpiType)}`}>{row.prev3}</td>}
+                  {columns.map((col) => {
+                    const raw = col.stats[metric.key] ?? 0;
+                    return (
+                      <td key={col.key} className={`px-4 py-3 text-right text-[14px] font-bold ${cellClass(raw, metric.kpiType)}`}>
+                        {formatValue(metric, raw)}
+                      </td>
+                    );
+                  })}
                   <td className="px-5 py-3 text-right">
                     {isFlat ? (
                       <span className="text-[11px] font-semibold text-text-muted">–</span>
                     ) : (
                       <span className={`inline-flex items-center gap-1 text-[12px] font-semibold tabular-nums ${isUp ? 'text-success' : 'text-danger'}`}>
                         {isUp ? '▲' : '▼'}
-                        {Math.abs(row.delta).toFixed(row.isCount ? 0 : 2)}
-                        {row.isCount ? '' : ' poin'}
+                        {Math.abs(delta).toFixed(metric.kind === 'count' ? 0 : 2)}
+                        {metric.kind === 'count' ? '' : ' poin'}
                       </span>
                     )}
                   </td>
@@ -1050,8 +1101,7 @@ const WeeklyReportPanel = ({
           </tbody>
         </table>
       </div>
+      {note && <p className="px-5 py-3 text-[10px] leading-relaxed text-text-muted border-t border-border/50">{note}</p>}
     </div>
   );
 };
-
-

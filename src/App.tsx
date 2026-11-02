@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from './store';
 import { getPreviousMonthPeriod, getPreviousPeriod } from './lib/dataProcessor';
+import { getCalendarWeeks } from './lib/weeks';
 import { isAdminMode } from './lib/adminMode';
 import { formatRelativeTime, isStaleSync, countDataRows, extractCsIds, getProductivityDuplicateCount } from './lib/dataQuality';
 import { laggingSources } from './lib/sourceFreshness';
@@ -214,6 +215,8 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
     </div>
   );
 }
+
+const NO_WEEKS: ReturnType<typeof getCalendarWeeks> = [];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('summary');
@@ -491,6 +494,16 @@ export default function App() {
     return { prev1, prev2, prev3 } as const;
   }, [needsComparisonData, comparisonMode, startDate, endDate]);
 
+  // Summary's Weekly Performance Report lays out the Monday–Sunday weeks of the selected
+  // range side by side when it spans more than one week (W1 Okt, W2 Okt, …); a single
+  // week still compares against the previous 7 days.
+  const weekRanges = useMemo(() => {
+    if (!needsComparisonData || activeTab !== 'summary' || comparisonMode !== 'wow') return NO_WEEKS;
+    const weeks = getCalendarWeeks(startDate, endDate);
+    const totalDays = weeks.reduce((sum, week) => sum + week.days, 0);
+    return totalDays > 7 ? weeks.slice(-6) : NO_WEEKS;
+  }, [needsComparisonData, activeTab, comparisonMode, startDate, endDate]);
+
   const hasSourceData =
     productivityData.length > 0
     || csatScData.length > 0
@@ -522,6 +535,7 @@ export default function App() {
     prev3: comparisonRanges.prev3,
     // Simulasi Insentif runs on the live active period.
     incentivePeriod: incentivePeriodRange,
+    weekPeriods: weekRanges,
     enabled: !isHydrating && hasSourceData,
   });
 
@@ -531,14 +545,16 @@ export default function App() {
     previousRawData2,
     previousRawData3,
     incentiveRawData,
+    weekRawData,
   } = kpiRawBundle;
 
-  const { kpiData, previousKpiData, previousKpiData2, previousKpiData3, incentiveKpiData, incentivePeriod, tlList, agentList } = useFilteredKpis({
+  const { kpiData, previousKpiData, previousKpiData2, previousKpiData3, weekKpiData, incentiveKpiData, incentivePeriod, tlList, agentList } = useFilteredKpis({
     rawData,
     previousRawData,
     previousRawData2,
     previousRawData3,
     incentiveRawData,
+    weekRawData,
     activeTab,
     startDate,
     endDate,
@@ -701,6 +717,9 @@ export default function App() {
   const comparisonHint = (() => {
     if (!isComparisonEnabled || !startDate) return null;
     const end = endDate || startDate;
+    if (comparisonMode === 'wow' && weekRanges.length > 0) {
+      return `WoW: ${weekRanges.length} minggu kalender (Senin–Minggu) dalam ${formatFilterDate(startDate)} – ${formatFilterDate(end)}`;
+    }
     const getPrevRange = comparisonMode === 'mom' ? getPreviousMonthPeriod : getPreviousPeriod;
     const prev = getPrevRange(startDate, end);
     if (!prev.start || !prev.end) return null;
@@ -1100,7 +1119,7 @@ export default function App() {
             <div key={activeTab}>
               <TabErrorBoundary label={activeNavLabel}>
                 <React.Suspense fallback={<TabLoading />}>
-                  {activeTab === 'summary' && <DashboardSummary data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
+                  {activeTab === 'summary' && <DashboardSummary data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekRanges={weekRanges} weekData={weekKpiData} />}
                   {activeTab === 'leaderboard' && <Leaderboard data={kpiData} />}
                   {activeTab === 'incentive' && (
                     isProcessingKpis && incentiveKpiData.length === 0

@@ -24,6 +24,8 @@ export type KpiBundle = {
   previousRawData3: AgentKPI[];
   /** Current period with QA bucketed by Tanggal Case (Simulasi Insentif only). */
   incentiveRawData: AgentKPI[];
+  /** One entry per requested calendar week (Weekly Performance Report), same order as `periods.weeks`. */
+  weekRawData: AgentKPI[][];
 };
 
 export type KpiWorkerRequest =
@@ -38,6 +40,7 @@ export type KpiWorkerRequest =
         prev2: PeriodRange;
         prev3: PeriodRange;
         incentive?: PeriodRange;
+        weeks?: { start: string; end: string }[];
       };
     };
 

@@ -64,6 +64,7 @@ ctx.onmessage = (ev) => {
         previousRawData2: runPeriod(d, msg.periods.prev2),
         previousRawData3: runPeriod(d, msg.periods.prev3),
         incentiveRawData: runPeriod(d, msg.periods.incentive ?? null, 'case'),
+        weekRawData: (msg.periods.weeks ?? []).map((week) => runPeriod(d, week)),
       },
     });
   }

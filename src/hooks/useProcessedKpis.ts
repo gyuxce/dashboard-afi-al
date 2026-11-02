@@ -8,6 +8,7 @@ export type ProcessedKpiBundle = {
   previousRawData2: AgentKPI[];
   previousRawData3: AgentKPI[];
   incentiveRawData: AgentKPI[];
+  weekRawData: AgentKPI[][];
 };
 
 const EMPTY_BUNDLE: ProcessedKpiBundle = {
@@ -16,6 +17,7 @@ const EMPTY_BUNDLE: ProcessedKpiBundle = {
   previousRawData2: [],
   previousRawData3: [],
   incentiveRawData: [],
+  weekRawData: [],
 };
 
 type PeriodRange = { start: string; end: string } | null;
@@ -36,6 +38,8 @@ type Args = {
   prev3: PeriodRange;
   /** Simulasi Insentif pass: same period, QA bucketed by Tanggal Case. Null = skip. */
   incentivePeriod: PeriodRange;
+  /** Calendar weeks for the Weekly Performance Report. Empty = skip. Keep the array reference stable. */
+  weekPeriods: { start: string; end: string }[];
   /** Skip heavy work while bootstrapping empty state */
   enabled?: boolean;
 };
@@ -90,6 +94,7 @@ export function useProcessedKpis(args: Args): {
     prev2,
     prev3,
     incentivePeriod,
+    weekPeriods,
     enabled = true,
   } = args;
 
@@ -137,6 +142,7 @@ export function useProcessedKpis(args: Args): {
       prev2: needsComparisonData ? prev2 : null,
       prev3: needsComparisonData ? prev3 : null,
       incentive: incentivePeriod && incentivePeriod.start ? incentivePeriod : null,
+      weeks: weekPeriods,
     };
 
     const finish = (next: ProcessedKpiBundle) => {
@@ -193,8 +199,14 @@ export function useProcessedKpis(args: Args): {
       if (previousRawData3 === null) return;
       const incentiveRawData = await runPrev(periods.incentive, 'case');
       if (incentiveRawData === null) return;
+      const weekRawData: AgentKPI[][] = [];
+      for (const week of periods.weeks) {
+        const weekData = await runPrev(week);
+        if (weekData === null) return;
+        weekRawData.push(weekData);
+      }
 
-      finish({ rawData, previousRawData, previousRawData2, previousRawData3, incentiveRawData });
+      finish({ rawData, previousRawData, previousRawData2, previousRawData3, incentiveRawData, weekRawData });
     };
 
     const worker = getKpiWorker();
@@ -286,6 +298,7 @@ export function useProcessedKpis(args: Args): {
     prev2,
     prev3,
     incentivePeriod,
+    weekPeriods,
   ]);
 
   return { bundle, isProcessing };
