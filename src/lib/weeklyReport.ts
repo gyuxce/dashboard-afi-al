@@ -129,8 +129,9 @@ export function buildReportSlideModel(args: {
   deltaFrom: number;
   note?: string;
   highlights?: string[];
+  headline?: SlideModel['headline'];
 }): SlideModel {
-  const { title, columns, deltaTo, deltaFrom, note, highlights } = args;
+  const { title, columns, deltaTo, deltaFrom, note, highlights, headline } = args;
   const starts = columns.map((c) => c.start).filter(Boolean).sort();
   const ends = columns.map((c) => c.end).filter(Boolean).sort();
   const range = starts.length && ends.length
@@ -168,5 +169,6 @@ export function buildReportSlideModel(args: {
     deltaSub: deltaTitle,
     note,
     highlights,
+    headline,
   };
 }

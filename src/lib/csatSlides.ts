@@ -5,9 +5,12 @@ import {
   canvasToPng,
   createSlideCanvas,
   drawSlideHeader,
+  drawHeadline,
   fitText,
+  headlineOffset,
   layoutHighlights,
   roundRect,
+  type SlideHeadline,
 } from './slideExport';
 
 /**
@@ -88,6 +91,7 @@ function wrapClamp(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
 export type CategoriesSlide = {
   title: string;
   subtitle: string;
+  headline?: SlideHeadline;
   columns: (SlideWeek & { rows: TopCategory[] })[];
   highlights?: string[];
 };
@@ -103,9 +107,12 @@ export async function renderCategoriesSlide(model: CategoriesSlide): Promise<Blo
   const contentBottom = tableTop + headH + rowH * rowsMax;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
-  const { canvas, ctx } = await createSlideCanvas(WIDTH, height);
+  const off = headlineOffset(model.headline);
+  const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
 
   drawSlideHeader(ctx, model.title, model.subtitle);
+  drawHeadline(ctx, model.headline);
+  ctx.translate(0, off);
 
   model.columns.forEach((col, ci) => {
     const x = PAD + ci * (colW + GAP);
@@ -175,6 +182,7 @@ export async function renderCategoriesSlide(model: CategoriesSlide): Promise<Blo
 export type AgentsSlide = {
   title: string;
   subtitle: string;
+  headline?: SlideHeadline;
   columns: (SlideWeek & { agents: TopAgent[]; repeatIds?: ReadonlySet<string> })[];
   highlights?: string[];
 };
@@ -189,9 +197,12 @@ export async function renderAgentsSlide(model: AgentsSlide): Promise<Blob> {
   const contentBottom = listTop + blockH * agentsMax;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
-  const { canvas, ctx } = await createSlideCanvas(WIDTH, height);
+  const off = headlineOffset(model.headline);
+  const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
 
   drawSlideHeader(ctx, model.title, model.subtitle);
+  drawHeadline(ctx, model.headline);
+  ctx.translate(0, off);
 
   model.columns.forEach((col, ci) => {
     const x = PAD + ci * (colW + GAP);
@@ -251,6 +262,7 @@ export async function renderAgentsSlide(model: AgentsSlide): Promise<Blob> {
 export type RespondentsSlide = {
   title: string;
   subtitle: string;
+  headline?: SlideHeadline;
   columns: (SlideWeek & { stats: RespondentStats; deltaFromPrevious: number | null })[];
   daily: { title: string; points: (DailyRespondents & { label: string })[] };
   highlights?: string[];
@@ -260,8 +272,11 @@ export async function renderRespondentsSlide(model: RespondentsSlide): Promise<B
   const contentBottom = 918;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = contentBottom + (hl ? hl.height + 36 : 0) + 82;
-  const { canvas, ctx } = await createSlideCanvas(WIDTH, height);
+  const off = headlineOffset(model.headline);
+  const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   drawSlideHeader(ctx, model.title, model.subtitle);
+  drawHeadline(ctx, model.headline);
+  ctx.translate(0, off);
 
   const gridTop = 178;
   const cardW = 440;
@@ -406,6 +421,7 @@ export async function renderRespondentsSlide(model: RespondentsSlide): Promise<B
 export type PositiveRateSlide = {
   title: string;
   subtitle: string;
+  headline?: SlideHeadline;
   columns: (SlideWeek & { full: number | null; fair: number | null })[];
   targets: { full: number; fair: number };
   highlights?: string[];
@@ -416,8 +432,11 @@ export async function renderPositiveRateSlide(model: PositiveRateSlide): Promise
   const contentBottom = baseH - 70;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = baseH + (hl ? hl.height + 36 : 0);
-  const { canvas, ctx } = await createSlideCanvas(WIDTH, height);
+  const off = headlineOffset(model.headline);
+  const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   drawSlideHeader(ctx, model.title, model.subtitle);
+  drawHeadline(ctx, model.headline);
+  ctx.translate(0, off);
 
   // legend
   ctx.textBaseline = 'alphabetic';
@@ -529,6 +548,7 @@ export async function renderPositiveRateSlide(model: PositiveRateSlide): Promise
 export type HeadcountSlide = {
   title: string;
   subtitle: string;
+  headline?: SlideHeadline;
   columns: (SlideWeek & {
     teamLeaders: number;
     agents: number;
@@ -547,8 +567,11 @@ export async function renderHeadcountSlide(model: HeadcountSlide): Promise<Blob>
   const contentBottom = baseH - 40;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = baseH + (hl ? hl.height + 36 : 0);
-  const { canvas, ctx } = await createSlideCanvas(WIDTH, height);
+  const off = headlineOffset(model.headline);
+  const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   drawSlideHeader(ctx, model.title, model.subtitle);
+  drawHeadline(ctx, model.headline);
+  ctx.translate(0, off);
 
   const n = Math.max(model.columns.length, 1);
   const top = 190;
@@ -693,25 +716,38 @@ export async function renderHeadcountSlide(model: HeadcountSlide): Promise<Blob>
 export type TlSamplingSlide = {
   title: string;
   subtitle: string;
-  rows: { name: string; dsat: number; /** null = no sampling entered yet */ analyzed: number | null }[];
+  headline?: SlideHeadline;
+  rows: {
+    name: string;
+    dsat: number;
+    /** The categories behind this team's DSAT, so the slide is useful before any sampling. */
+    topCategories: { name: string; count: number }[];
+    /** null = no sampling entered yet */
+    analyzed: number | null;
+  }[];
   highlights?: string[];
 };
 
 export async function renderTlSamplingSlide(model: TlSamplingSlide): Promise<Blob> {
-  const rowH = 78;
+  const rowH = 128;
   const top = 190;
   const headH = 60;
   const rows = model.rows;
   const contentBottom = top + headH + rowH * (rows.length + 1) + 10;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
-  const { canvas, ctx } = await createSlideCanvas(WIDTH, height);
+  const off = headlineOffset(model.headline);
+  const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   drawSlideHeader(ctx, model.title, model.subtitle);
+  drawHeadline(ctx, model.headline);
+  ctx.translate(0, off);
 
   const nameX = PAD + 16;
-  const dsatRight = PAD + 560;
-  const analyzedRight = PAD + 760;
-  const barL = PAD + 820;
+  const dsatRight = PAD + 400;
+  const causeX = PAD + 440;
+  const causeW = 600;
+  const analyzedRight = PAD + 1290;
+  const barL = PAD + 1340;
   const pctRight = WIDTH - PAD - 16;
   const barR = pctRight - 150;
 
@@ -725,16 +761,20 @@ export async function renderTlSamplingSlide(model: TlSamplingSlide): Promise<Blo
   ctx.fillText('Team Leader', nameX, top + headH / 2);
   ctx.textAlign = 'right';
   ctx.fillText('DSAT (1–2)', dsatRight, top + headH / 2);
+  ctx.textAlign = 'left';
+  ctx.fillText('Penyebab terbanyak', causeX, top + headH / 2);
+  ctx.textAlign = 'right';
   ctx.fillText('Dianalisis', analyzedRight, top + headH / 2);
   ctx.textAlign = 'left';
   ctx.fillText('% Dianalisis', barL, top + headH / 2);
 
   const totalDsat = rows.reduce((sum, r) => sum + r.dsat, 0);
+  const maxDsat = Math.max(1, ...rows.map((r) => r.dsat));
   const entered = rows.filter((r) => r.analyzed !== null);
   const totalAnalyzed = entered.reduce((sum, r) => sum + (r.analyzed ?? 0), 0);
   const all = [
     ...rows.map((r) => ({ ...r, total: false })),
-    { name: 'Total', dsat: totalDsat, analyzed: entered.length ? totalAnalyzed : null, total: true },
+    { name: 'Total', dsat: totalDsat, topCategories: [], analyzed: entered.length ? totalAnalyzed : null, total: true },
   ];
 
   all.forEach((row, i) => {
@@ -750,13 +790,39 @@ export async function renderTlSamplingSlide(model: TlSamplingSlide): Promise<Blo
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
     ctx.fillStyle = COLORS.ink;
-    ctx.font = `${row.total ? 800 : 700} 28px ${FONT}`;
+    ctx.font = `${row.total ? 800 : 700} 29px ${FONT}`;
     ctx.fillText(row.name, nameX, mid);
 
+    // DSAT count with a small bar relative to the biggest team
     ctx.textAlign = 'right';
-    ctx.font = `700 30px ${FONT}`;
-    ctx.fillText(String(row.dsat), dsatRight, mid);
+    ctx.font = `800 32px ${FONT}`;
+    ctx.fillText(String(row.dsat), dsatRight, row.total ? mid : mid - 12);
+    if (!row.total) {
+      const w = Math.max(6, (row.dsat / maxDsat) * 130);
+      ctx.fillStyle = '#F2B8B2';
+      roundRect(ctx, dsatRight - w, mid + 16, w, 10, 5);
+      ctx.fill();
+    }
+
+    // causes
+    if (row.topCategories.length) {
+      ctx.textAlign = 'left';
+      row.topCategories.forEach((c, k) => {
+        const ly = mid - 28 + k * 28;
+        ctx.fillStyle = COLORS.muted;
+        ctx.font = `500 21px ${FONT}`;
+        ctx.fillText(fitText(ctx, c.name, causeW - 70), causeX, ly);
+        ctx.fillStyle = COLORS.ink;
+        ctx.font = `700 21px ${FONT}`;
+        ctx.textAlign = 'right';
+        ctx.fillText(String(c.count), causeX + causeW, ly);
+        ctx.textAlign = 'left';
+      });
+    }
+
+    ctx.textAlign = 'right';
     ctx.fillStyle = row.analyzed === null ? COLORS.muted : COLORS.ink;
+    ctx.font = `700 30px ${FONT}`;
     ctx.fillText(row.analyzed === null ? '–' : String(row.analyzed), analyzedRight, mid);
 
     ctx.fillStyle = '#E8EEF4';
@@ -787,7 +853,7 @@ export async function renderTlSamplingSlide(model: TlSamplingSlide): Promise<Blo
   ctx.fillStyle = COLORS.muted;
   ctx.font = `500 19px ${FONT}`;
   ctx.fillText(
-    '% Dianalisis = DSAT yang dianalisis TL ÷ total DSAT tim TL itu. Jumlah dianalisis diisi manual dari hasil sampling.',
+    '% Dianalisis = DSAT yang dianalisis TL ÷ total DSAT tim TL itu. Penyebab terbanyak dari data; jumlah dianalisis diisi manual dari hasil sampling.',
     PAD,
     height - 36,
   );
@@ -801,6 +867,7 @@ export async function renderTlSamplingSlide(model: TlSamplingSlide): Promise<Blo
 export type TakeoutSimSlide = {
   title: string;
   subtitle: string;
+  headline?: SlideHeadline;
   months: { label: string; rows: TakeoutScenario[] }[];
   highlights?: string[];
 };
@@ -819,8 +886,11 @@ export async function renderTakeoutSimSlide(model: TakeoutSimSlide): Promise<Blo
   const contentBottom = top + monthH + subH + rowH * scenarioCount;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
-  const { canvas, ctx } = await createSlideCanvas(WIDTH, height);
+  const off = headlineOffset(model.headline);
+  const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   drawSlideHeader(ctx, model.title, model.subtitle);
+  drawHeadline(ctx, model.headline);
+  ctx.translate(0, off);
 
   // legend of the two formulas
   ctx.textBaseline = 'alphabetic';
@@ -943,5 +1013,102 @@ export async function renderTakeoutSimSlide(model: TakeoutSimSlide): Promise<Blo
     PAD,
     height - 36,
   );
+  return canvasToPng(canvas);
+}
+
+/* ------------------------------------------------------------------ */
+/* Slide 1: three key numbers under the date band                      */
+/* ------------------------------------------------------------------ */
+
+export type ChipTone = 'good' | 'warn' | 'bad' | 'neutral';
+
+const CHIP_STYLE: Record<ChipTone, { bg: string; fg: string }> = {
+  good: { bg: '#E4F4EE', fg: '#0B5F4D' },
+  warn: { bg: '#FFF1D6', fg: '#8A5A00' },
+  bad: { bg: '#FBE7E4', fg: '#9E1D14' },
+  neutral: { bg: '#EDF1F5', fg: '#13202D' },
+};
+
+export type SnapshotSlide = {
+  caption: string;
+  chips: { label: string; value: string; note?: string; tone: ChipTone }[];
+};
+
+export async function renderSnapshotChips(model: SnapshotSlide): Promise<Blob> {
+  const n = Math.max(model.chips.length, 1);
+  const width = 1400;
+  const pad = 20;
+  const gap = 20;
+  const chipW = (width - pad * 2 - gap * (n - 1)) / n;
+  const height = 250;
+  const { canvas, ctx } = await createSlideCanvas(width, height);
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = `700 24px ${FONT}`;
+  ctx.fillText(model.caption, pad, 44);
+
+  model.chips.forEach((chip, i) => {
+    const x = pad + i * (chipW + gap);
+    const y = 68;
+    const style = CHIP_STYLE[chip.tone];
+    ctx.fillStyle = style.bg;
+    roundRect(ctx, x, y, chipW, 150, 18);
+    ctx.fill();
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = `600 22px ${FONT}`;
+    ctx.textAlign = 'left';
+    ctx.fillText(chip.label, x + 26, y + 40);
+    ctx.fillStyle = style.fg;
+    ctx.font = `800 58px ${FONT}`;
+    ctx.fillText(chip.value, x + 26, y + 100);
+    if (chip.note) {
+      ctx.fillStyle = style.fg;
+      ctx.font = `700 22px ${FONT}`;
+      ctx.fillText(chip.note, x + 26, y + 132);
+    }
+  });
+  return canvasToPng(canvas);
+}
+
+/* ------------------------------------------------------------------ */
+/* Slide 2: one status line per section of the table of contents       */
+/* ------------------------------------------------------------------ */
+
+export type SectionSummarySlide = {
+  rows: { section: string; headline: string; detail: string; tone: ChipTone }[];
+};
+
+export async function renderSectionSummary(model: SectionSummarySlide): Promise<Blob> {
+  const rowH = 170;
+  const width = 980;
+  const pad = 12;
+  const height = rowH * model.rows.length + pad * 2;
+  const { canvas, ctx } = await createSlideCanvas(width, height);
+
+  model.rows.forEach((row, i) => {
+    const y = pad + i * rowH;
+    const style = CHIP_STYLE[row.tone];
+    ctx.fillStyle = style.bg;
+    roundRect(ctx, pad, y + 8, width - pad * 2, rowH - 16, 18);
+    ctx.fill();
+    ctx.fillStyle = style.fg;
+    ctx.beginPath();
+    ctx.arc(pad + 38, y + rowH / 2, 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = `700 19px ${FONT}`;
+    ctx.fillText(row.section.toUpperCase(), pad + 70, y + 52);
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = `800 34px ${FONT}`;
+    ctx.fillText(fitText(ctx, row.headline, width - pad * 2 - 100), pad + 70, y + 94);
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = `500 23px ${FONT}`;
+    ctx.fillText(fitText(ctx, row.detail, width - pad * 2 - 100), pad + 70, y + 128);
+  });
   return canvasToPng(canvas);
 }

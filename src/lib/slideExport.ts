@@ -8,6 +8,9 @@
 
 export type SlideTone = 'plain' | 'watch' | 'miss';
 
+/** One-line takeaway shown above a slide's content. */
+export type SlideHeadline = { text: string; tone: 'good' | 'bad' | 'warn' | 'neutral' };
+
 export type SlideCell = { text: string; tone: SlideTone };
 
 export type SlideColumn = {
@@ -35,6 +38,7 @@ export type SlideModel = {
   note?: string;
   /** Bullets for the "Highlight" box under the table. */
   highlights?: string[];
+  headline?: SlideHeadline;
 };
 
 export const COLORS = {
@@ -108,16 +112,17 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const tableBottom = tableTop + headRowH + rowH * model.rows.length;
   const height = Math.ceil(tableBottom + noteH + (hl ? hl.height + 32 : 0) + 48);
+  const off = headlineOffset(model.headline);
 
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH * SCALE;
-  canvas.height = height * SCALE;
+  canvas.height = (height + off) * SCALE;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas tidak tersedia');
   ctx.scale(SCALE, SCALE);
 
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, WIDTH, height);
+  ctx.fillRect(0, 0, WIDTH, height + off);
 
   // Header
   ctx.textBaseline = 'alphabetic';
@@ -130,6 +135,9 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
   ctx.fillStyle = COLORS.muted;
   ctx.font = `500 25px ${FONT}`;
   ctx.fillText(model.subtitle, PAD_X + 26, headTop + titleH + 24);
+
+  drawHeadline(ctx, model.headline);
+  ctx.translate(0, off);
 
   // Column geometry
   const xLabel = PAD_X;
@@ -347,4 +355,38 @@ export function layoutHighlights(lines: string[], width = WIDTH, padX = 72) {
       });
     },
   };
+}
+
+/** Extra canvas height a headline needs; content is translated down by this much. */
+export const HEADLINE_H = 74;
+export const headlineOffset = (headline?: SlideHeadline) => (headline ? HEADLINE_H : 0);
+
+const HEADLINE_STYLE: Record<SlideHeadline['tone'], { bar: string; bg: string; ink: string }> = {
+  good: { bar: '#0E7C66', bg: '#E4F4EE', ink: '#0B5F4D' },
+  bad: { bar: '#C0261B', bg: '#FBE7E4', ink: '#9E1D14' },
+  warn: { bar: '#D98A00', bg: '#FFF1D6', ink: '#8A5A00' },
+  neutral: { bar: '#5E7089', bg: '#EDF1F5', ink: '#13202D' },
+};
+
+/** One-line takeaway under the slide title, coloured by tone. Drawn before content is translated down. */
+export function drawHeadline(ctx: CanvasRenderingContext2D, headline?: SlideHeadline, padX = 72) {
+  if (!headline) return;
+  const style = HEADLINE_STYLE[headline.tone];
+  const x = padX;
+  const y = 154;
+  const w = WIDTH - padX * 2;
+  const h = 58;
+  ctx.save();
+  ctx.fillStyle = style.bg;
+  roundRect(ctx, x, y, w, h, 12);
+  ctx.fill();
+  ctx.fillStyle = style.bar;
+  roundRect(ctx, x, y, 10, h, 5);
+  ctx.fill();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = style.ink;
+  ctx.font = `700 29px ${FONT}`;
+  ctx.fillText(fitText(ctx, headline.text, w - 56), x + 32, y + h / 2 + 1);
+  ctx.restore();
 }

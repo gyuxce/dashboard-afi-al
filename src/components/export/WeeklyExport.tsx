@@ -27,21 +27,33 @@ import {
   renderHeadcountSlide,
   renderPositiveRateSlide,
   renderRespondentsSlide,
+  renderSectionSummary,
+  renderSnapshotChips,
   renderTakeoutSimSlide,
   renderTlSamplingSlide,
+  type ChipTone,
   type SlideWeek,
 } from '../../lib/csatSlides';
 import {
+  agentHeadline,
   agentHighlights,
+  categoryHeadline,
   categoryHighlights,
+  headcountHeadline,
   headcountHighlights,
+  overviewHeadline,
   overviewHighlights,
+  positiveRateHeadline,
   positiveRateHighlights,
+  respondentHeadline,
   respondentHighlights,
+  takeoutSimHeadline,
   takeoutSimHighlights,
+  tlHeadline,
   tlSamplingHighlights,
 } from '../../lib/weeklyHighlights';
 import { downloadBlob, renderTableSlide } from '../../lib/slideExport';
+import { canonicalBpoName, isSmallBpoName } from '../../lib/bpoNames';
 import {
   REPORT_METRICS,
   buildReportSlideModel,
@@ -74,28 +86,31 @@ const deckRange = (start: string, end: string, spaced: boolean) => {
 };
 
 /** Not in the data: QC / Trainer headcount and turnover per week (typed in, remembered per BPO). */
-type Manual = { qc: number; trainer: number; turnover: Record<string, number> };
+type Manual = { qc: number; trainer: number; turnover: Record<string, number>; ldNote: string };
 const TURNOVER_THRESHOLD = 5;
-const manualKey = (bpo: string) => `weekly-export-headcount:${(bpo || 'All BPO').toUpperCase()}`;
-const tlKey = (bpo: string, weekStart: string) => `weekly-export-tl:${(bpo || 'All BPO').toUpperCase()}:${weekStart}`;
+const bpoKey = (bpo: string) => canonicalBpoName(bpo || 'All BPO').toUpperCase();
+const manualKey = (bpo: string) => `weekly-export-headcount:${bpoKey(bpo)}`;
+const tlKey = (bpo: string, weekStart: string) => `weekly-export-tl:${bpoKey(bpo)}:${weekStart}`;
 
 const defaultManual = (bpo: string): Manual => {
-  const upper = (bpo || '').toUpperCase();
-  if (upper === 'TIN') return { qc: 1, trainer: 0, turnover: {} };
-  if (upper === 'TCID') return { qc: 2, trainer: 1, turnover: {} };
-  return { qc: 0, trainer: 0, turnover: {} };
+  const upper = canonicalBpoName(bpo || '').toUpperCase();
+  if (upper === 'NSI') return { qc: 1, trainer: 0, turnover: {}, ldNote: '' };
+  if (upper === 'TCID') return { qc: 2, trainer: 1, turnover: {}, ldNote: '' };
+  return { qc: 0, trainer: 0, turnover: {}, ldNote: '' };
 };
 
 const loadManual = (bpo: string): Manual => {
   const fallback = defaultManual(bpo);
   try {
-    const raw = localStorage.getItem(manualKey(bpo));
+    // Values typed before the TIN → NSI rename were saved under the old name.
+    const raw = localStorage.getItem(manualKey(bpo)) ?? (bpoKey(bpo) === 'NSI' ? localStorage.getItem('weekly-export-headcount:TIN') : null);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     return {
       qc: Number.isFinite(parsed.qc) ? parsed.qc : fallback.qc,
       trainer: Number.isFinite(parsed.trainer) ? parsed.trainer : fallback.trainer,
       turnover: parsed.turnover && typeof parsed.turnover === 'object' ? parsed.turnover : {},
+      ldNote: typeof parsed.ldNote === 'string' ? parsed.ldNote : '',
     };
   } catch {
     return fallback;
@@ -130,6 +145,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [withHighlights, setWithHighlights] = useState(true);
+  const [withHeadline, setWithHeadline] = useState(true);
   const [manual, setManual] = useState<Manual>(() => loadManual(selectedBpo));
   const [tlAnalyzed, setTlAnalyzed] = useState<Record<string, number>>({});
 
@@ -146,12 +162,11 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
     }
   };
 
-  const upperBpo = (selectedBpo || '').toUpperCase();
   // Same rule as the CSAT Room: the smallest BPO views show fewer categories and agents.
-  const isSmallBpo = upperBpo === 'TCID' || upperBpo === 'TCID X TIN' || upperBpo === 'TIN X TCID';
+  const isSmallBpo = isSmallBpoName(selectedBpo || '');
   const topCatsLimit = isSmallBpo ? 5 : 10;
   const topAgentsLimit = isSmallBpo ? 2 : 5;
-  const bpoLabel = selectedBpo && selectedBpo !== 'All BPO' ? `AFI ${selectedBpo}` : 'AFI';
+  const bpoLabel = selectedBpo && selectedBpo !== 'All BPO' ? `AFI ${canonicalBpoName(selectedBpo)}` : 'AFI';
 
   // Chronological columns (oldest → newest) of the last four weeks with data.
   const cols = useMemo(() => {
@@ -193,7 +208,30 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
     const range = `${cols[0].label} – ${cols[cols.length - 1].label} ${year}`;
     const subtitle = `${modeLabel} · ${range}`;
     const hlOn = withHighlights;
+    const hdOn = withHeadline;
     const last = cols[cols.length - 1];
+    const prevCol = cols[cols.length - 2];
+
+    // KPI numbers of the latest week (and the one before it), shared by slides 1, 2 and 4.
+    const lastStats = calculatePeriodStats(last.rows);
+    const prevStats = calculatePeriodStats(prevCol.rows);
+    const kpiItems = REPORT_METRICS.map((metric) => {
+      const v = lastStats[metric.key] ?? 0;
+      return {
+        label: metric.label,
+        text: formatMetricValue(metric, v),
+        miss: metric.kpiType !== null && getKpiStatus(v, metric.kpiType) === 'miss',
+        hasTarget: metric.target !== null,
+        delta: metric.kind === 'count' ? null : v - (prevStats[metric.key] ?? 0),
+      };
+    });
+    const toneOf = (value: number, type: 'csatFair' | 'qa'): ChipTone => {
+      const st = getKpiStatus(value, type);
+      return st === 'miss' ? 'bad' : st === 'watch' ? 'warn' : 'good';
+    };
+    const lastCounts = headcountStats(last.rows);
+    const lastTurnover = manual.turnover[last.week.start] ?? 0;
+    const signed = (d: number) => (d >= 0 ? `▲ +${d.toFixed(2)} poin` : `▼ ${Math.abs(d).toFixed(2)} poin`);
 
     // Overview: every week of the selected period that has data (as in the dashboard report).
     const overviewCols: ReportColumn[] = weekRanges
@@ -222,6 +260,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         return renderHeadcountSlide({
           title: `Headcount CS ${bpoLabel}`,
           subtitle: range,
+          headline: hdOn ? headcountHeadline(last.label, counts[counts.length - 1].agents, turnover[turnover.length - 1], TURNOVER_THRESHOLD) : undefined,
           threshold: TURNOVER_THRESHOLD,
           columns: cols.map((_, i) => ({
             ...weeks[i],
@@ -252,18 +291,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         file: 'slide-04-overview',
         render: () => {
           const lastCol = overviewCols[overviewCols.length - 1];
-          const prevCol = overviewCols[overviewCols.length - 2];
-          const items = REPORT_METRICS.map((metric) => {
-            const v = lastCol.stats[metric.key] ?? 0;
-            const before = prevCol.stats[metric.key] ?? 0;
-            return {
-              label: metric.label,
-              text: formatMetricValue(metric, v),
-              miss: metric.kpiType !== null && getKpiStatus(v, metric.kpiType) === 'miss',
-              hasTarget: metric.target !== null,
-              delta: metric.kind === 'count' ? null : v - before,
-            };
-          });
+          const prevOverview = overviewCols[overviewCols.length - 2];
           return renderTableSlide(
             buildReportSlideModel({
               title: 'Weekly Performance Report',
@@ -271,7 +299,8 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
               deltaTo: overviewCols.length - 1,
               deltaFrom: overviewCols.length - 2,
               note: 'Minggu kalender Senin–Minggu; minggu pertama dan terakhir bisa mencakup tanggal bulan sebelum/sesudahnya, jadi jumlah semua minggu tidak selalu sama dengan total bulan.',
-              highlights: hlOn ? overviewHighlights(lastCol.label, prevCol.label, items) : undefined,
+              headline: hdOn ? overviewHeadline(lastCol.label, kpiItems) ?? undefined : undefined,
+              highlights: hlOn ? overviewHighlights(lastCol.label, prevOverview.label, kpiItems) : undefined,
             }),
           );
         },
@@ -288,6 +317,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         return renderPositiveRateSlide({
           title: 'Positive Rate Before & After Takeout',
           subtitle: `CSAT SC · ${range}`,
+          headline: hdOn ? positiveRateHeadline(cols.map((c, i) => ({ label: c.label, ...rates[i] })), { full: 75, fair: 92 }) ?? undefined : undefined,
           targets: { full: 75, fair: 92 },
           columns: cols.map((_, i) => ({ ...weeks[i], ...rates[i] })),
           highlights: hlOn
@@ -308,6 +338,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         return renderRespondentsSlide({
           title: 'Respondents',
           subtitle,
+          headline: hdOn ? respondentHeadline(cols.map((c, i) => ({ label: c.label, respondents: stats[i].respondents, rate: stats[i].rate }))) ?? undefined : undefined,
           columns: cols.map((_, i) => ({
             ...weeks[i],
             stats: stats[i],
@@ -332,6 +363,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         return renderCategoriesSlide({
           title: 'Top Categories (Score 1 & 2)',
           subtitle,
+          headline: hdOn ? categoryHeadline(cols.map((c, i) => ({ label: c.label, top: tops[i], totalBad: totals[i].total, takeoutBad: totals[i].takeout }))) ?? undefined : undefined,
           columns: cols.map((_, i) => ({ ...weeks[i], rows: tops[i] })),
           highlights: hlOn
             ? categoryHighlights(cols.map((c, i) => ({ label: c.label, top: tops[i], totalBad: totals[i].total, takeoutBad: totals[i].takeout })))
@@ -346,10 +378,11 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       title: 'Analyzed DSAT by TL %',
       file: 'slide-08-analyzed-dsat-by-tl',
       render: () => {
-        const rows = tlRows.map((t) => ({ name: t.name, dsat: t.dsat, analyzed: tlAnalyzed[t.name] ?? null }));
+        const rows = tlRows.map((t) => ({ name: t.name, dsat: t.dsat, topCategories: t.topCategories, analyzed: tlAnalyzed[t.name] ?? null }));
         return renderTlSamplingSlide({
           title: 'Analyzed DSAT by TL %',
           subtitle: `${modeLabel} · ${last.label} (${formatWeekSpan(last.week.start, last.week.end)})`,
+          headline: hdOn ? tlHeadline(last.label, rows) ?? undefined : undefined,
           rows,
           highlights: hlOn ? tlSamplingHighlights(last.label, rows) : undefined,
         });
@@ -366,6 +399,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         return renderAgentsSlide({
           title: 'Agent Bottom Score 1–2',
           subtitle,
+          headline: hdOn ? agentHeadline(cols.map((c, i) => ({ label: c.label, agents: agentCols[i] }))) ?? undefined : undefined,
           columns: cols.map((_, i) => ({
             ...weeks[i],
             agents: agentCols[i],
@@ -389,6 +423,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
             title: 'Simulasi CSAT SC: tambahan kategori takeout',
             subtitle: `${monthRanges[0].label} – ${monthRanges[monthRanges.length - 1].label} ${monthRanges[monthRanges.length - 1].end.slice(0, 4)}`,
             months,
+            headline: hdOn ? takeoutSimHeadline(months.map((m) => ({ rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92) ?? undefined : undefined,
             highlights: hlOn
               ? takeoutSimHighlights(extraNames, months.map((m) => ({ label: m.label, rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92)
               : undefined,
@@ -396,8 +431,75 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         },
       });
     }
-    return list;
-  }, [cols, mode, topCatsLimit, topAgentsLimit, withHighlights, manual, bpoLabel, weekRanges, weekData, monthRanges, monthData, tlRows, tlAnalyzed]);
+    const missed = kpiItems.filter((i) => i.hasTarget && i.miss);
+    const totalTargets = kpiItems.filter((i) => i.hasTarget).length;
+    const fairValue = lastStats.csatScFair ?? 0;
+    const qaValue = lastStats.qa ?? 0;
+    const intro: Slide[] = [
+      {
+        id: 'snapshot',
+        no: 1,
+        title: 'Ringkasan di bawah tanggal (judul)',
+        file: 'slide-01-ringkasan',
+        render: () =>
+          renderSnapshotChips({
+            caption: `Ringkasan ${last.label} · ${formatWeekSpan(last.week.start, last.week.end)}`,
+            chips: [
+              { label: 'Agent aktif', value: String(lastCounts.agents), note: `${lastCounts.teamLeaders} TL`, tone: 'neutral' },
+              {
+                label: 'CSAT SC After Takeout',
+                value: `${fairValue.toFixed(2)}%`,
+                note: signed(fairValue - (prevStats.csatScFair ?? 0)),
+                tone: toneOf(fairValue, 'csatFair'),
+              },
+              { label: 'QA Score', value: `${qaValue.toFixed(2)}%`, note: signed(qaValue - (prevStats.qa ?? 0)), tone: toneOf(qaValue, 'qa') },
+            ],
+          }),
+      },
+      {
+        id: 'toc-summary',
+        no: 2,
+        title: 'Status per bagian (daftar isi)',
+        file: 'slide-02-status-bagian',
+        render: () =>
+          renderSectionSummary({
+            rows: [
+              {
+                section: 'Headcount',
+                headline: `${lastCounts.agents} agent, ${lastCounts.teamLeaders} TL`,
+                detail: `Turn over ${String(lastTurnover)}% (batas ${TURNOVER_THRESHOLD}%)`,
+                tone: lastTurnover > TURNOVER_THRESHOLD ? 'bad' : 'good',
+              },
+              {
+                section: 'Overview',
+                headline: missed.length === 0 ? 'Semua KPI tercapai' : `${missed.length} dari ${totalTargets} KPI di bawah target`,
+                detail: missed.length === 0 ? 'Tidak ada KPI di bawah target' : missed.slice(0, 2).map((m) => m.label).join(', '),
+                tone: missed.length === 0 ? 'good' : missed.length <= 3 ? 'warn' : 'bad',
+              },
+              {
+                section: 'KPI Performance',
+                headline: `After Takeout ${fairValue.toFixed(2)}%`,
+                detail: `Target 92% · responden ${respondentStats(last.rows, mode).respondents}`,
+                tone: toneOf(fairValue, 'csatFair'),
+              },
+              {
+                section: 'QA Performance',
+                headline: `QA Score ${qaValue.toFixed(2)}%`,
+                detail: 'Target 92%',
+                tone: toneOf(qaValue, 'qa'),
+              },
+              {
+                section: 'L&D',
+                headline: manual.ldNote.trim() || 'Belum ada catatan',
+                detail: 'Diisi manual',
+                tone: 'neutral',
+              },
+            ],
+          }),
+      },
+    ];
+    return [...intro, ...list];
+  }, [cols, mode, topCatsLimit, topAgentsLimit, withHighlights, withHeadline, manual, bpoLabel, weekRanges, weekData, monthRanges, monthData, tlRows, tlAnalyzed]);
 
   // Render previews whenever the data or the view changes.
   useEffect(() => {
@@ -516,6 +618,16 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       </div>
 
       <div className="space-y-3 rounded-xl border border-border bg-card px-4 py-3">
+        <label className="mr-5 inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-text-primary">
+          <input
+            id="weekly-export-headline"
+            type="checkbox"
+            checked={withHeadline}
+            onChange={(e) => setWithHeadline(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          Sertakan kalimat kesimpulan di atas slide
+        </label>
         <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-text-primary">
           <input
             id="weekly-export-highlights"
@@ -528,6 +640,12 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
         </label>
 
         <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+          <label htmlFor="weekly-export-ld" className="inline-flex items-center gap-1.5">
+            <span className="font-semibold text-text-primary">Slide 2 · catatan L&D</span>
+            <input id="weekly-export-ld" type="text" value={manual.ldNote} placeholder="mis. 2 sesi coaching"
+              className="h-8 w-56 rounded-md border border-border bg-surface px-2 text-xs text-text-primary"
+              onChange={(e) => updateManual({ ...manual, ldNote: e.target.value })} />
+          </label>
           <span className="font-semibold text-text-primary">Slide 3 · Headcount (isi manual)</span>
           <label htmlFor="weekly-export-qc" className="inline-flex items-center gap-1.5">
             QC

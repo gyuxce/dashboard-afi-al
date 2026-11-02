@@ -1,3 +1,4 @@
+import { canonicalBpoName } from './bpoNames';
 import { findHeader } from './sheetHeaders';
 
 export type AgentDictionary = Record<string, {
@@ -39,7 +40,7 @@ export function buildAgentDictionary(data: unknown[][]): AgentDictionary {
     if (!id || ['cs id', 'csid', 'id', 'undefined', '-'].includes(id.toLowerCase())) continue;
 
     const name = columns.name >= 0 ? String(row[columns.name] || '').trim() : '';
-    const bpo = columns.bpo >= 0 ? String(row[columns.bpo] || '').trim() : '';
+    const bpo = columns.bpo >= 0 ? canonicalBpoName(String(row[columns.bpo] || '').trim()) : '';
     const teamLeader = columns.teamLeader >= 0
       ? String(row[columns.teamLeader] || '').trim()
       : '';

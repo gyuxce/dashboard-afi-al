@@ -215,18 +215,35 @@ export function takeoutScenarios(rows: Csat[], extra: readonly string[] = EXTRA_
   ];
 }
 
-/** Bad (1–2) ratings per team leader, most first. */
-export function dsatByTeamLeader(rows: Csat[], mode: CsatMode): { name: string; dsat: number }[] {
-  const totals = new Map<string, number>();
+export type TlDsat = { name: string; dsat: number; topCategories: { name: string; count: number }[] };
+
+/** Bad (1–2) ratings per team leader, most first, with the three categories behind them. */
+export function dsatByTeamLeader(rows: Csat[], mode: CsatMode): TlDsat[] {
+  const totals = new Map<string, { dsat: number; cats: Map<string, { label: string; count: number }> }>();
   rows.forEach((a) => {
-    const bad = (a.csatHistory || []).filter(
-      (h) => (mode === 'full' || !h.isTakeout) && (h.score === 1 || h.score === 2),
-    ).length;
     const tl = (a.teamLeader || '').trim() || '(Tanpa TL)';
-    totals.set(tl, (totals.get(tl) || 0) + bad);
+    const entry = totals.get(tl) || { dsat: 0, cats: new Map() };
+    (a.csatHistory || [])
+      .filter((h) => (mode === 'full' || !h.isTakeout) && (h.score === 1 || h.score === 2))
+      .forEach((h) => {
+        entry.dsat += 1;
+        const label = String(h.category || '').trim().replace(/\s+/g, ' ') || 'Tanpa kategori';
+        const key = label.toLowerCase();
+        const cat = entry.cats.get(key) || { label, count: 0 };
+        cat.count += 1;
+        entry.cats.set(key, cat);
+      });
+    totals.set(tl, entry);
   });
   return Array.from(totals.entries())
-    .map(([name, dsat]) => ({ name, dsat }))
+    .map(([name, entry]) => ({
+      name,
+      dsat: entry.dsat,
+      topCategories: Array.from(entry.cats.values())
+        .sort((x, y) => y.count - x.count)
+        .slice(0, 3)
+        .map((c) => ({ name: c.label, count: c.count })),
+    }))
     .filter((t) => t.dsat > 0)
-    .sort((a, b) => b.dsat - a.dsat);
+    .sort((x, y) => y.dsat - x.dsat);
 }

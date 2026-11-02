@@ -243,3 +243,95 @@ export function takeoutSimHighlights(
   );
   return lines;
 }
+
+/* ---------------- One-line headlines (shown above each slide) ---------------- */
+
+export type Headline = { text: string; tone: 'good' | 'bad' | 'warn' | 'neutral' };
+
+export function positiveRateHeadline(cols: RateCol[], targets: { full: number; fair: number }): Headline | null {
+  const last = cols[cols.length - 1];
+  const prev = cols.length > 1 ? cols[cols.length - 2] : null;
+  if (!last || last.fair === null) return null;
+  if (prev && prev.fair !== null) {
+    const d = last.fair - prev.fair;
+    if (Math.abs(d) < 0.005) return { text: `After Takeout tetap ${nf(last.fair)}%`, tone: 'neutral' };
+    const text = `After Takeout ${d > 0 ? 'naik' : 'turun'} ${pts(d)} poin ke ${nf(last.fair)}%`;
+    return { text, tone: d < 0 ? 'bad' : last.fair >= targets.fair ? 'good' : 'warn' };
+  }
+  return { text: `After Takeout ${nf(last.fair)}% (target ${targets.fair}%)`, tone: last.fair >= targets.fair ? 'good' : 'warn' };
+}
+
+export function respondentHeadline(cols: RespCol[]): Headline | null {
+  const last = cols[cols.length - 1];
+  const prev = cols.length > 1 ? cols[cols.length - 2] : null;
+  if (!last) return null;
+  if (!prev) return { text: `Responden ${last.label}: ${count(last.respondents)}`, tone: 'neutral' };
+  const d = last.respondents - prev.respondents;
+  return {
+    text: d === 0
+      ? `Responden tetap ${count(last.respondents)}`
+      : `Responden ${d > 0 ? 'naik' : 'turun'} ${count(Math.abs(d))} menjadi ${count(last.respondents)}`,
+    tone: 'neutral',
+  };
+}
+
+export function categoryHeadline(cols: CatCol[]): Headline | null {
+  const last = cols[cols.length - 1];
+  if (!last || last.top.length === 0) return null;
+  return {
+    text: `${last.top[0].name} masih jadi penyebab DSAT terbanyak: ${last.top[0].count} rating buruk`,
+    tone: 'bad',
+  };
+}
+
+export function agentHeadline(cols: AgentCol[]): Headline | null {
+  const last = cols[cols.length - 1];
+  const prev = cols.length > 1 ? cols[cols.length - 2] : null;
+  if (!last || last.agents.length === 0) return null;
+  const prevIds = new Set((prev?.agents ?? []).map((a) => a.csId));
+  const repeats = last.agents.filter((a) => prevIds.has(a.csId)).length;
+  const first = last.agents[0];
+  return repeats > 0
+    ? { text: `${repeats} agent berulang dari ${prev?.label}; ${first.name} tertinggi (${first.badCount} rating 1–2)`, tone: 'warn' }
+    : { text: `${first.name} tertinggi: ${first.badCount} rating 1–2, tidak ada agent yang berulang`, tone: 'warn' };
+}
+
+export function tlHeadline(weekLabel: string, tls: TlItem[]): Headline | null {
+  const totalDsat = tls.reduce((s, t) => s + t.dsat, 0);
+  if (totalDsat === 0) return { text: `Tidak ada DSAT di ${weekLabel}`, tone: 'good' };
+  const entered = tls.filter((t) => t.analyzed !== null);
+  if (entered.length === 0) return { text: `Belum ada sampling TL; ${totalDsat} DSAT menunggu dianalisis`, tone: 'warn' };
+  const analyzed = entered.reduce((s, t) => s + (t.analyzed ?? 0), 0);
+  const pct = (analyzed / totalDsat) * 100;
+  return {
+    text: `${nf(pct, 1)}% DSAT sudah dianalisis TL (${analyzed} dari ${totalDsat})`,
+    tone: pct >= 100 ? 'good' : pct >= 50 ? 'warn' : 'bad',
+  };
+}
+
+export function headcountHeadline(label: string, agents: number, turnover: number, threshold: number): Headline {
+  const t = nf(turnover, 1).replace(/\.0$/, '');
+  return turnover > threshold
+    ? { text: `Turn over ${label} ${t}%, di atas batas ${threshold}%`, tone: 'bad' }
+    : { text: `Turn over ${label} ${t}%, ${agents} agent aktif`, tone: 'good' };
+}
+
+export function overviewHeadline(label: string, items: OverviewItem[]): Headline | null {
+  const withTarget = items.filter((i) => i.hasTarget);
+  if (withTarget.length === 0) return null;
+  const missed = withTarget.filter((i) => i.miss).length;
+  if (missed === 0) return { text: `Semua KPI bertarget tercapai di ${label}`, tone: 'good' };
+  return { text: `${missed} dari ${withTarget.length} KPI di bawah target di ${label}`, tone: missed <= 3 ? 'warn' : 'bad' };
+}
+
+export function takeoutSimHeadline(months: { rows: TakeoutSimRow[] }[], target: number): Headline | null {
+  const gains = months
+    .map((m) => (m.rows[1]?.a != null && m.rows[m.rows.length - 1]?.a != null ? (m.rows[m.rows.length - 1].a as number) - (m.rows[1].a as number) : null))
+    .filter((g): g is number => g !== null);
+  if (gains.length === 0) return null;
+  const best = Math.max(...months.flatMap((m) => m.rows.slice(1).map((r) => r.a ?? -Infinity)));
+  return {
+    text: `Tambahan takeout hanya menaikkan After Takeout ${nf(Math.min(...gains))}–${nf(Math.max(...gains))} poin${best < target ? `; target ${target}% tetap jauh` : ''}`,
+    tone: best >= target ? 'good' : 'neutral',
+  };
+}

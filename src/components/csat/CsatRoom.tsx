@@ -15,6 +15,7 @@ import { KpiRankLists } from '../ui/KpiRankLists';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { CsatDetailModal } from "./CsatDetailModal";
 import { chart } from '../../lib/themeColors';
+import { isSmallBpoName } from '../../lib/bpoNames';
 import type { WeekCompare } from '../../lib/weekCompare';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, AreaChart, Area } from 'recharts';
 
@@ -1497,7 +1498,7 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, we
 
   const selectedBpo = useStore(state => state.selectedBpo);
   const upperBpo = (selectedBpo || '').toUpperCase();
-  const isSmallBpo = upperBpo === 'TCID' || upperBpo === 'TCID X TIN' || upperBpo === 'TIN X TCID';
+  const isSmallBpo = isSmallBpoName(upperBpo);
   const topCatsLimit = isSmallBpo ? 5 : 10;
   const topAgentsLimit = isSmallBpo ? 2 : 5;
 

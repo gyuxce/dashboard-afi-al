@@ -894,7 +894,7 @@ export default function App() {
                 <span className="hidden lg:inline text-[10px] font-medium text-text-muted tracking-wide w-10 shrink-0">Scope</span>
                 <div className="w-[100px] shrink-0 [&_button]:h-8 [&_button]:rounded-lg [&_button]:text-xs [&_button]:px-2.5">
                   <SearchableSelect 
-                    options={['TIN', 'TCID', 'TCID X TIN']}
+                    options={['NSI', 'TCID', 'TCID X NSI']}
                     value={selectedBpo}
                     onChange={handleBpoChange}
                     allOptionLabel="All BPO"

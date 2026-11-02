@@ -1,5 +1,6 @@
 import { cell, findLegacyCsIdIndex, isLegacyCsId } from './sheetHeaders';
 import { isAgentDictionaryPopulated } from './csid';
+import { canonicalBpoName } from './bpoNames';
 import { normalizeDateStr } from './dates';
 import { processSchedule } from './processors/schedule';
 import { processProductivity } from './processors/productivity';
@@ -172,17 +173,17 @@ const normalizeScopeValue = (value: unknown) =>
   String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
 
 /**
- * Keep standalone BPOs distinct from the shared TCID × TIN roster.
+ * Keep standalone BPOs distinct from the shared TCID × NSI roster (NSI was formerly TIN).
  * Source sheets use a few separators (`x`, `×`, `&`, `/`), so normalize
  * them into one canonical combined value before strict scope comparison.
  */
 const normalizeBpoScope = (value: unknown) => {
-  const normalized = normalizeScopeValue(value)
+  const normalized = canonicalBpoName(normalizeScopeValue(value))
     .replace(/[×&/+]/g, " X ")
     .replace(/\s*X\s*/g, " X ")
     .trim();
   const tokens = new Set(normalized.split(" ").filter(Boolean));
-  if (tokens.has("TCID") && tokens.has("TIN")) return "TCID X TIN";
+  if (tokens.has("TCID") && tokens.has("NSI")) return "TCID X NSI";
   return normalized;
 };
 

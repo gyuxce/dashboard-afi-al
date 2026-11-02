@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agentHeadline,
+  categoryHeadline,
+  headcountHeadline,
+  overviewHeadline,
+  positiveRateHeadline,
+  respondentHeadline,
+  takeoutSimHeadline,
+  tlHeadline,
   agentHighlights,
   categoryHighlights,
   headcountHighlights,
@@ -111,5 +119,59 @@ describe('weekly highlights (Indonesian)', () => {
     );
     expect(lines[0]).toBe('Menambah chat/call terputus dan kendala QRIS ke takeout menaikkan After Takeout 0.97–1.29 poin (rumus A).');
     expect(lines[2]).toBe('Target After Takeout 92% belum tercapai di skenario mana pun.');
+  });
+});
+
+describe('slide headlines', () => {
+  it('flags a drop in After Takeout as bad and a rise below target as a warning', () => {
+    const cols = [
+      { label: 'W4 Okt', full: 65.72, fair: 78.03 },
+      { label: 'W5 Okt', full: 66.44, fair: 72.61 },
+    ];
+    expect(positiveRateHeadline(cols, { full: 75, fair: 92 })).toEqual({ text: 'After Takeout turun 5.42 poin ke 72.61%', tone: 'bad' });
+    expect(positiveRateHeadline([cols[1], { label: 'W6', full: 70, fair: 80 }], { full: 75, fair: 92 })?.tone).toBe('warn');
+  });
+
+  it('keeps respondents neutral and names the change', () => {
+    expect(
+      respondentHeadline([
+        { label: 'W4 Okt', respondents: 787, rate: 12.6 },
+        { label: 'W5 Okt', respondents: 776, rate: 11.9 },
+      ]),
+    ).toEqual({ text: 'Responden turun 11 menjadi 776', tone: 'neutral' });
+  });
+
+  it('names the top category, repeating agents and TL sampling state', () => {
+    const cat = { rank: 1, name: 'Tidak Bisa Transaksi', count: 147, goodPct: null, isTakeout: true };
+    expect(categoryHeadline([{ label: 'W5', top: [cat], totalBad: 254, takeoutBad: 162 }])?.tone).toBe('bad');
+
+    const agent = (csId: string, badCount: number) => ({ csId, name: csId, badCount, topCategories: [] });
+    expect(agentHeadline([{ label: 'W4', agents: [agent('a', 9)] }, { label: 'W5', agents: [agent('a', 8)] }])?.text).toBe(
+      '1 agent berulang dari W4; a tertinggi (8 rating 1–2)',
+    );
+
+    expect(tlHeadline('W5', [{ name: 'Fandi', dsat: 40, analyzed: null }])).toEqual({
+      text: 'Belum ada sampling TL; 40 DSAT menunggu dianalisis',
+      tone: 'warn',
+    });
+    expect(tlHeadline('W5', [{ name: 'Fandi', dsat: 40, analyzed: 40 }])?.tone).toBe('good');
+  });
+
+  it('writes the headcount and overview headlines', () => {
+    expect(headcountHeadline('W5 Okt', 14, 0, 5)).toEqual({ text: 'Turn over W5 Okt 0%, 14 agent aktif', tone: 'good' });
+    expect(headcountHeadline('W5 Okt', 14, 8, 5).tone).toBe('bad');
+    const item = (miss: boolean) => ({ label: 'x', text: '1', miss, hasTarget: true, delta: null });
+    expect(overviewHeadline('W5 Okt', [item(true), item(false), item(false)])).toEqual({
+      text: '1 dari 3 KPI di bawah target di W5 Okt',
+      tone: 'warn',
+    });
+    expect(overviewHeadline('W5 Okt', [item(false)])?.tone).toBe('good');
+  });
+
+  it('summarises the takeout simulation gain', () => {
+    const months = [
+      { rows: [{ label: 'Full', a: 69, b: 66 }, { label: 'After', a: 79.42, b: 77 }, { label: 'Semua', a: 80.71, b: 78 }] },
+    ];
+    expect(takeoutSimHeadline(months, 92)?.text).toBe('Tambahan takeout hanya menaikkan After Takeout 1.29–1.29 poin; target 92% tetap jauh');
   });
 });

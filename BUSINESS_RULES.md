@@ -138,11 +138,11 @@ Panel "Naik Tier" di Simulasi Insentif memakai tabel ini (`planTierUp` di `incen
 
 | BPO | Keterangan |
 |---|---|
-| TIN | Vendor TIN saja |
+| NSI | Vendor NSI saja (sebelumnya bernama TIN) |
 | TCID | Vendor TCID saja |
-| TCID X TIN | Roster gabungan |
+| TCID X NSI | Roster gabungan |
 
-Separator `x`, `×`, `&`, `/` dinormalisasi ke `X`.
+Separator `x`, `×`, `&`, `/` dinormalisasi ke `X`. Sheet lama yang masih menulis `TIN` / `TCID X TIN` tetap terbaca dan ditampilkan sebagai NSI.
 
 ## 9. CSAT — Definisi per Tab
 
