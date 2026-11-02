@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from './store';
 import { getPreviousMonthPeriod, getPreviousPeriod } from './lib/dataProcessor';
-import { getCalendarWeeks } from './lib/weeks';
+import { getCalendarWeeks, getMonthRanges } from './lib/weeks';
 import { buildWeekCompare } from './lib/weekCompare';
 import { isAdminMode } from './lib/adminMode';
 import { formatRelativeTime, isStaleSync, countDataRows, extractCsIds, getProductivityDuplicateCount } from './lib/dataQuality';
@@ -18,6 +18,7 @@ import {
   Star,
   UserCircle,
   FolderDown,
+  ImageDown,
   CheckCircle,
   Menu,
   X,
@@ -53,6 +54,7 @@ const SlaWhuMonitor = React.lazy(() => import('./components/sla/SlaWhuMonitor').
 const QaAgent360 = React.lazy(() => import('./components/qa/QaAgent360').then(module => ({ default: module.QaAgent360 })));
 const Leaderboard = React.lazy(() => import('./components/team/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const IncentiveSimulation = React.lazy(() => import('./components/team/IncentiveSimulation').then(module => ({ default: module.IncentiveSimulation })));
+const WeeklyExport = React.lazy(() => import('./components/export/WeeklyExport').then(module => ({ default: module.WeeklyExport })));
 const ScheduleAttendance = React.lazy(() => import('./components/team/ScheduleAttendance').then(module => ({ default: module.ScheduleAttendance })));
 
 function TabLoading() {
@@ -218,6 +220,7 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
 }
 
 const NO_WEEKS: ReturnType<typeof getCalendarWeeks> = [];
+const NO_MONTHS: ReturnType<typeof getMonthRanges> = [];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('summary');
@@ -499,11 +502,17 @@ export default function App() {
   // (W1 Okt, W2 Okt, …) — Summary's report lays them side by side, the Productivity / CSAT tabs
   // use the last four. A single week still compares against the previous 7 days.
   const weekRanges = useMemo(() => {
-    if (!needsComparisonData || comparisonMode !== 'wow') return NO_WEEKS;
+    if (!(needsComparisonData && comparisonMode === 'wow') && activeTab !== 'weekly_export') return NO_WEEKS;
     const weeks = getCalendarWeeks(startDate, endDate);
     const totalDays = weeks.reduce((sum, week) => sum + week.daysInRange, 0);
     return totalDays > 7 ? weeks.slice(-6) : NO_WEEKS;
-  }, [needsComparisonData, comparisonMode, startDate, endDate]);
+  }, [needsComparisonData, comparisonMode, activeTab, startDate, endDate]);
+
+  // Ekspor Weekly also shows the selected month and the two before it (takeout simulation).
+  const monthRanges = useMemo(
+    () => (activeTab === 'weekly_export' && endDate ? getMonthRanges(endDate, 3) : NO_MONTHS),
+    [activeTab, endDate],
+  );
 
   const hasSourceData =
     productivityData.length > 0
@@ -537,6 +546,7 @@ export default function App() {
     // Simulasi Insentif runs on the live active period.
     incentivePeriod: incentivePeriodRange,
     weekPeriods: weekRanges,
+    extraPeriods: monthRanges,
     enabled: !isHydrating && hasSourceData,
   });
 
@@ -547,15 +557,17 @@ export default function App() {
     previousRawData3,
     incentiveRawData,
     weekRawData,
+    extraRawData,
   } = kpiRawBundle;
 
-  const { kpiData, previousKpiData, previousKpiData2, previousKpiData3, weekKpiData, incentiveKpiData, incentivePeriod, tlList, agentList } = useFilteredKpis({
+  const { kpiData, previousKpiData, previousKpiData2, previousKpiData3, weekKpiData, extraKpiData, incentiveKpiData, incentivePeriod, tlList, agentList } = useFilteredKpis({
     rawData,
     previousRawData,
     previousRawData2,
     previousRawData3,
     incentiveRawData,
     weekRawData,
+    extraRawData,
     activeTab,
     startDate,
     endDate,
@@ -638,6 +650,7 @@ export default function App() {
     // { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, section: 'Team' },
     { id: 'incentive', label: 'Simulasi Insentif', icon: Calculator, section: 'Team' },
     { id: 'schedule', label: 'Jadwal & Kehadiran', icon: Calendar, section: 'Team' },
+    { id: 'weekly_export', label: 'Ekspor Weekly', icon: ImageDown, section: 'Laporan' },
     ...(isAdmin ? [{ id: 'files', label: 'File Center', icon: FolderDown, section: 'Data' }] : []),
   ];
 
@@ -1136,6 +1149,7 @@ export default function App() {
                   {(activeTab === 'sla' || activeTab === 'whu') && <SlaWhuMonitor data={kpiData} />}
                   {activeTab === 'qa' && <QaAgent360 data={kpiData} />}
                   {activeTab === 'schedule' && <ScheduleAttendance data={kpiData} />}
+                  {activeTab === 'weekly_export' && <WeeklyExport weekCompare={weekCompare} weekRanges={weekRanges} weekData={weekKpiData} monthRanges={monthRanges} monthData={extraKpiData} />}
                   {activeTab === 'files' && isAdmin && <FileCenter />}
                 </React.Suspense>
               </TabErrorBoundary>

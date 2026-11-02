@@ -26,6 +26,8 @@ export type KpiBundle = {
   incentiveRawData: AgentKPI[];
   /** One entry per requested calendar week (Weekly Performance Report), same order as `periods.weeks`. */
   weekRawData: AgentKPI[][];
+  /** Extra arbitrary periods (e.g. whole months for the takeout simulation), same order as `periods.extra`. */
+  extraRawData: AgentKPI[][];
 };
 
 export type KpiWorkerRequest =
@@ -41,6 +43,7 @@ export type KpiWorkerRequest =
         prev3: PeriodRange;
         incentive?: PeriodRange;
         weeks?: { start: string; end: string }[];
+        extra?: { start: string; end: string }[];
       };
     };
 

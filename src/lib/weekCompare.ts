@@ -8,6 +8,8 @@ import type { CalendarWeek } from './weeks';
 export type WeekCompare = {
   sets: AgentKPI[][];
   labels: string[];
+  /** The calendar week behind each slot (null for an empty slot), same order as `sets`. */
+  weeks: (CalendarWeek | null)[];
 };
 
 /** A week counts only once it has real activity — man-days and QA rows exist for future weeks too. */
@@ -39,9 +41,11 @@ export function buildWeekCompare(weeks: CalendarWeek[], weekData: AgentKPI[][]):
   if (withData.length < 2) return null;
   const sets: AgentKPI[][] = [];
   const labels: string[] = [];
+  const spans: (CalendarWeek | null)[] = [];
   for (let i = 0; i < 4; i++) {
     sets.push(withData[i]?.rows ?? []);
     labels.push(withData[i] ? weekLabel(withData[i].week) : '');
+    spans.push(withData[i]?.week ?? null);
   }
-  return { sets, labels };
+  return { sets, labels, weeks: spans };
 }

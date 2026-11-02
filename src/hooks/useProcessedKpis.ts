@@ -9,6 +9,7 @@ export type ProcessedKpiBundle = {
   previousRawData3: AgentKPI[];
   incentiveRawData: AgentKPI[];
   weekRawData: AgentKPI[][];
+  extraRawData: AgentKPI[][];
 };
 
 const EMPTY_BUNDLE: ProcessedKpiBundle = {
@@ -18,6 +19,7 @@ const EMPTY_BUNDLE: ProcessedKpiBundle = {
   previousRawData3: [],
   incentiveRawData: [],
   weekRawData: [],
+  extraRawData: [],
 };
 
 type PeriodRange = { start: string; end: string } | null;
@@ -40,6 +42,8 @@ type Args = {
   incentivePeriod: PeriodRange;
   /** Calendar weeks for the Weekly Performance Report. Empty = skip. Keep the array reference stable. */
   weekPeriods: { start: string; end: string }[];
+  /** Other periods to process alongside (e.g. months). Empty = skip. Keep the array reference stable. */
+  extraPeriods: { start: string; end: string }[];
   /** Skip heavy work while bootstrapping empty state */
   enabled?: boolean;
 };
@@ -95,6 +99,7 @@ export function useProcessedKpis(args: Args): {
     prev3,
     incentivePeriod,
     weekPeriods,
+    extraPeriods,
     enabled = true,
   } = args;
 
@@ -143,6 +148,7 @@ export function useProcessedKpis(args: Args): {
       prev3: needsComparisonData ? prev3 : null,
       incentive: incentivePeriod && incentivePeriod.start ? incentivePeriod : null,
       weeks: weekPeriods,
+      extra: extraPeriods,
     };
 
     const finish = (next: ProcessedKpiBundle) => {
@@ -206,7 +212,14 @@ export function useProcessedKpis(args: Args): {
         weekRawData.push(weekData);
       }
 
-      finish({ rawData, previousRawData, previousRawData2, previousRawData3, incentiveRawData, weekRawData });
+      const extraRawData: AgentKPI[][] = [];
+      for (const period of periods.extra) {
+        const extraData = await runPrev(period);
+        if (extraData === null) return;
+        extraRawData.push(extraData);
+      }
+
+      finish({ rawData, previousRawData, previousRawData2, previousRawData3, incentiveRawData, weekRawData, extraRawData });
     };
 
     const worker = getKpiWorker();
@@ -299,6 +312,7 @@ export function useProcessedKpis(args: Args): {
     prev3,
     incentivePeriod,
     weekPeriods,
+    extraPeriods,
   ]);
 
   return { bundle, isProcessing };

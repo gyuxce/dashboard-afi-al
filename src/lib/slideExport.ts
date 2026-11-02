@@ -33,9 +33,11 @@ export type SlideModel = {
   deltaHeader: string;
   deltaSub: string;
   note?: string;
+  /** Bullets for the "Highlight" box under the table. */
+  highlights?: string[];
 };
 
-const COLORS = {
+export const COLORS = {
   ink: '#13202D',
   muted: '#52606D',
   line: '#D8E0E8',
@@ -48,7 +50,7 @@ const COLORS = {
   down: '#C0261B',
 };
 
-const FONT = '"Geist Sans", "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+export const FONT = '"Geist Sans", "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
 const WIDTH = 1920;
 const SCALE = 2;
 const PAD_X = 72;
@@ -103,7 +105,9 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
     noteLines = wrapLines(measure, model.note, WIDTH - PAD_X * 2);
   }
   const noteH = noteLines.length ? noteLines.length * (noteSize + 8) + 28 : 0;
-  const height = Math.ceil(tableTop + headRowH + rowH * model.rows.length + noteH + 48);
+  const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
+  const tableBottom = tableTop + headRowH + rowH * model.rows.length;
+  const height = Math.ceil(tableBottom + noteH + (hl ? hl.height + 32 : 0) + 48);
 
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH * SCALE;
@@ -221,6 +225,7 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
     const baseY = tableTop + headRowH + rowH * model.rows.length + 40;
     noteLines.forEach((line, i) => ctx.fillText(line, PAD_X + 18, baseY + i * (noteSize + 8)));
   }
+  hl?.draw(ctx, tableBottom + noteH + 16);
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Gagal membuat gambar'))), 'image/png');
@@ -236,4 +241,110 @@ export function downloadBlob(filename: string, blob: Blob): void {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+/** Loads the app font, creates a white canvas of the given logical size and scales it for crisp export. */
+export async function createSlideCanvas(width: number, height: number) {
+  try {
+    await Promise.all([
+      document.fonts.load('700 30px "Geist Sans"'),
+      document.fonts.load('500 24px "Geist Sans"'),
+    ]);
+  } catch {
+    /* fall back to the system stack */
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width * SCALE;
+  canvas.height = height * SCALE;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas tidak tersedia');
+  ctx.scale(SCALE, SCALE);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, width, height);
+  return { canvas, ctx };
+}
+
+export function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Gagal membuat gambar'))), 'image/png');
+  });
+}
+
+/** Title block used by every export slide: accent bar, title, one-line subtitle. */
+export function drawSlideHeader(ctx: CanvasRenderingContext2D, title: string, subtitle: string, padX = 72) {
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = COLORS.accent;
+  ctx.fillRect(padX, 58, 8, 46);
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = `700 44px ${FONT}`;
+  ctx.fillText(title, padX + 26, 98);
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = `500 24px ${FONT}`;
+  ctx.fillText(subtitle, padX + 26, 134);
+}
+
+/** Truncates text with an ellipsis so it fits `maxWidth` at the current font. */
+export function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let out = text;
+  while (out.length > 1 && ctx.measureText(`${out}…`).width > maxWidth) out = out.slice(0, -1);
+  return `${out.trimEnd()}…`;
+}
+
+export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/**
+ * "Highlight:" box (dotted border, bullets) drawn under a slide's content. Measures first so the
+ * canvas can be sized to fit, then draws at the requested top.
+ */
+export function layoutHighlights(lines: string[], width = WIDTH, padX = 72) {
+  const measure = document.createElement('canvas').getContext('2d');
+  const innerW = width - padX * 2 - 56 - 34;
+  const fontSize = 26;
+  const lineH = 34;
+  const wrapped: string[][] = lines.map((line) => {
+    if (!measure) return [line];
+    measure.font = `500 ${fontSize}px ${FONT}`;
+    return wrapLines(measure, line, innerW);
+  });
+  const bodyH = wrapped.reduce((sum, w) => sum + w.length * lineH + 8, 0);
+  const height = 24 + 40 + bodyH + 18;
+
+  return {
+    height,
+    draw(ctx: CanvasRenderingContext2D, top: number) {
+      ctx.save();
+      ctx.setLineDash([3, 6]);
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#8B98A5';
+      roundRect(ctx, padX, top, width - padX * 2, height, 18);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = COLORS.ink;
+      ctx.font = `800 30px ${FONT}`;
+      ctx.fillText('Highlight:', padX + 28, top + 24 + 28);
+
+      let y = top + 24 + 40 + 26;
+      ctx.font = `500 ${fontSize}px ${FONT}`;
+      wrapped.forEach((parts) => {
+        ctx.fillStyle = COLORS.ink;
+        ctx.fillText('•', padX + 32, y);
+        parts.forEach((part, i) => ctx.fillText(part, padX + 62, y + i * lineH));
+        y += parts.length * lineH + 8;
+      });
+    },
+  };
 }

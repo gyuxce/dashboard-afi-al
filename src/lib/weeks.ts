@@ -45,3 +45,23 @@ export function getCalendarWeeks(startDate: string, endDate: string): CalendarWe
   }
   return weeks;
 }
+
+export type MonthRange = { label: string; start: string; end: string };
+
+/** The `count` calendar months ending with the month of `endIso` (oldest first), e.g. Agustus, September, Oktober. */
+export function getMonthRanges(endIso: string, count: number): MonthRange[] {
+  const [y, m] = endIso.split('-').map(Number);
+  if (!y || !m) return [];
+  const out: MonthRange[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const first = new Date(y, m - 1 - i, 1);
+    const last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
+    const name = new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(first);
+    out.push({
+      label: name.charAt(0).toUpperCase() + name.slice(1),
+      start: toIso(first),
+      end: toIso(last),
+    });
+  }
+  return out;
+}
