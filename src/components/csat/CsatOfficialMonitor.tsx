@@ -11,11 +11,12 @@ import { SortableHeader } from '../ui/SortableHeader';
 import { EmptyState } from '../ui/EmptyState';
 import { KpiRankLists } from '../ui/KpiRankLists';
 import { chart } from '../../lib/themeColors';
+import type { WeekCompare } from '../../lib/weekCompare';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 import { VirtualizedTbody } from '../ui/VirtualizedTbody';
 import { useVirtualRows } from '../../hooks/useVirtualRows';
 
-export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], previousData2?: AgentKPI[], previousData3?: AgentKPI[] }> = ({ data, previousData = [], previousData2 = [], previousData3 = [] }) => {
+export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], previousData2?: AgentKPI[], previousData3?: AgentKPI[], weekCompare?: WeekCompare | null }> = ({ data, previousData = [], previousData2 = [], previousData3 = [], weekCompare = null }) => {
   const isComparisonEnabled = useStore(state => state.isComparisonEnabled);
   const [search, setSearch] = useState('');
   const [filterTL] = useState<string | null>(null);
@@ -212,11 +213,12 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
       />
 
       {isComparisonEnabled && (
-        <WoWChartPanel 
-          data={data} 
-          previousData={previousData} 
-          previousData2={previousData2} 
-          previousData3={previousData3} 
+        <WoWChartPanel
+          data={weekCompare ? weekCompare.sets[0] : data}
+          previousData={weekCompare ? weekCompare.sets[1] : previousData}
+          previousData2={weekCompare ? weekCompare.sets[2] : previousData2}
+          previousData3={weekCompare ? weekCompare.sets[3] : previousData3}
+          weekLabels={weekCompare?.labels}
         />
       )}
 
@@ -333,7 +335,7 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
   );
 };
 
-const WoWChartPanel = ({ data, previousData, previousData2, previousData3 }: any) => {
+const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekLabels }: any) => {
   const { startDate, endDate, comparisonMode } = useStore(useShallow((s) => ({
     startDate: s.startDate,
     endDate: s.endDate,
@@ -342,6 +344,7 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3 }: any
   const [trendMode, setTrendMode] = useState<'weekly' | 'daily'>('daily');
 
   const getWeekLabel = (offset: number) => {
+    if (weekLabels) return weekLabels[offset] || 'WNaN Invalid Date';
     if (!startDate || !endDate) return `Week -${offset}`;
     const diff = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1;
     const end = new Date(endDate);

@@ -15,6 +15,7 @@ import { KpiRankLists } from '../ui/KpiRankLists';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { CsatDetailModal } from "./CsatDetailModal";
 import { chart } from '../../lib/themeColors';
+import type { WeekCompare } from '../../lib/weekCompare';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, AreaChart, Area } from 'recharts';
 
 /** Normalize any date string the sheet threw at us to a sortable YYYY-MM-DD key. */
@@ -36,7 +37,11 @@ const dateRangeLabel = (startKey: string, endKey: string): string | null => {
     : `${a.getDate()} ${mo(a)}-${b.getDate()} ${mo(b)}`;
 };
 
-export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], previousData2?: AgentKPI[], previousData3?: AgentKPI[] }> = ({ data, previousData = [], previousData2 = [], previousData3 = [] }) => {
+export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], previousData2?: AgentKPI[], previousData3?: AgentKPI[], weekCompare?: WeekCompare | null }> = ({ data, previousData = [], previousData2 = [], previousData3 = [], weekCompare = null }) => {
+  // WoW over a multi-week range: the comparison panels read calendar weeks (newest first), not month-long periods.
+  const wow = weekCompare
+    ? { data: weekCompare.sets[0], previousData: weekCompare.sets[1], previousData2: weekCompare.sets[2], previousData3: weekCompare.sets[3], weekLabels: weekCompare.labels }
+    : { data, previousData, previousData2, previousData3, weekLabels: undefined };
   const isComparisonEnabled = useStore(state => state.isComparisonEnabled);
   const comparisonMode = useStore(state => state.comparisonMode);
   const [search, setSearch] = useState('');
@@ -564,19 +569,8 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
 
       {isComparisonEnabled && (
         <>
-          <WoWChartPanel
-            data={data}
-            previousData={previousData}
-            previousData2={previousData2}
-            previousData3={previousData3}
-          />
-          <RespondentChartPanel
-            data={data} 
-            previousData={previousData} 
-            previousData2={previousData2} 
-            previousData3={previousData3} 
-            viewMode={viewMode}
-          />
+          <WoWChartPanel {...wow} />
+          <RespondentChartPanel {...wow} viewMode={viewMode} />
         </>
       )}
 
@@ -802,10 +796,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
               {isComparisonEnabled ? (
                 <WoWAnalysisPanel 
                   type="category"
-                  data={data} 
-                  previousData={previousData} 
-                  previousData2={previousData2} 
-                  previousData3={previousData3} 
+                  {...wow}
                   viewMode={viewMode}
                   search={search}
                   filterTL={filterTL}
@@ -886,10 +877,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
               {isComparisonEnabled ? (
                 <WoWAnalysisPanel 
                   type="agent"
-                  data={data} 
-                  previousData={previousData} 
-                  previousData2={previousData2} 
-                  previousData3={previousData3} 
+                  {...wow}
                   viewMode={viewMode}
                   search={search}
                   filterTL={filterTL}
@@ -1212,7 +1200,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
   );
 };
 
-const WoWChartPanel = ({ data, previousData, previousData2, previousData3 }: any) => {
+const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekLabels }: any) => {
   const { startDate, endDate, comparisonMode } = useStore(useShallow((s) => ({
     startDate: s.startDate,
     endDate: s.endDate,
@@ -1221,6 +1209,7 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3 }: any
   const [trendMode, setTrendMode] = useState<'weekly' | 'daily'>('daily');
 
   const getWeekLabel = (offset: number) => {
+    if (weekLabels) return weekLabels[offset] || 'WNaN Invalid Date';
     if (!startDate || !endDate) return `Week -${offset}`;
     const diff = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1;
     const end = new Date(endDate);
@@ -1485,7 +1474,7 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3 }: any
   );
 };
 
-const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, viewMode, search, filterTL, type = 'all', onCategoryClick, onAgentClick }: any) => {
+const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, weekLabels, viewMode, search, filterTL, type = 'all', onCategoryClick, onAgentClick }: any) => {
   const { startDate, endDate, comparisonMode } = useStore(useShallow((s) => ({
     startDate: s.startDate,
     endDate: s.endDate,
@@ -1493,6 +1482,7 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, vi
   })));
 
   const getWeekLabel = (offset: number) => {
+    if (weekLabels) return weekLabels[offset] || 'WNaN Invalid Date';
     if (!startDate || !endDate) return `Week -${offset}`;
     const diff = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1;
     const end = new Date(endDate);
@@ -1679,7 +1669,7 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, vi
     </div>
   );
 };
-const RespondentChartPanel = ({ data, previousData, previousData2, previousData3, viewMode }: any) => {
+const RespondentChartPanel = ({ data, previousData, previousData2, previousData3, weekLabels, viewMode }: any) => {
   const { startDate, endDate, comparisonMode } = useStore(useShallow((s) => ({
     startDate: s.startDate,
     endDate: s.endDate,
@@ -1688,6 +1678,7 @@ const RespondentChartPanel = ({ data, previousData, previousData2, previousData3
   const [trendMode, setTrendMode] = useState<'weekly' | 'daily'>('daily');
 
   const getWeekLabel = (offset: number) => {
+    if (weekLabels) return weekLabels[offset] || 'WNaN Invalid Date';
     if (!startDate || !endDate) return `Week -${offset}`;
     const diff = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1;
     const end = new Date(endDate);
@@ -1740,7 +1731,7 @@ const RespondentChartPanel = ({ data, previousData, previousData2, previousData3
       .filter(d => d.name !== 'WNaN Invalid Date')
       // Drop un-populated periods so their card + nonsense % don't show.
       .filter(d => d.processed > 0 || d.respondents > 0);
-  }, [data, previousData, previousData2, previousData3, startDate, endDate, viewMode, comparisonMode]);
+  }, [data, previousData, previousData2, previousData3, weekLabels, startDate, endDate, viewMode, comparisonMode]);
 
   const dailyRespData = React.useMemo(() => {
     const dates = new Map<string, { processed: number, respondents: number, s5: number, s4: number, s3: number, s2: number, s1: number }>();

@@ -21,6 +21,7 @@ import { EmptyState } from "../ui/EmptyState";
 import { MobileScrollHint } from "../ui/ChartScrollArea";
 import { VirtualizedTbody } from "../ui/VirtualizedTbody";
 import { useVirtualRows } from "../../hooks/useVirtualRows";
+import type { WeekCompare } from "../../lib/weekCompare";
 
 const PROD_TARGET = 100;
 
@@ -62,12 +63,19 @@ export const ProductivityDetail: React.FC<{
   previousData?: AgentKPI[];
   previousData2?: AgentKPI[];
   previousData3?: AgentKPI[];
+  weekCompare?: WeekCompare | null;
 }> = ({
   data,
-  previousData = [],
-  previousData2 = [],
-  previousData3 = [],
+  previousData: monthPrevData = [],
+  previousData2: monthPrevData2 = [],
+  previousData3: monthPrevData3 = [],
+  weekCompare = null,
 }) => {
+  // WoW over a multi-week range: compare calendar weeks (newest first) instead of month-long periods.
+  const compareCurrent = weekCompare ? weekCompare.sets[0] : null;
+  const previousData = weekCompare ? weekCompare.sets[1] : monthPrevData;
+  const previousData2 = weekCompare ? weekCompare.sets[2] : monthPrevData2;
+  const previousData3 = weekCompare ? weekCompare.sets[3] : monthPrevData3;
   const [search, setSearch] = useState("");
   const [filterTL] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
@@ -221,13 +229,13 @@ export const ProductivityDetail: React.FC<{
 
       return {
         hour: `${String(hr).padStart(2, "0")}:00`,
-        total: getSum(tableData),
+        total: getSum(compareCurrent ? compareCurrent.filter(filterAgent) : tableData),
         prev: previousData.length ? getSum(prevFiltered) : null,
         prev2: previousData2.length ? getSum(prev2Filtered) : null,
         prev3: previousData3.length ? getSum(prev3Filtered) : null,
       };
     });
-  }, [tableData, previousData, previousData2, previousData3, search, filterTL]);
+  }, [tableData, compareCurrent, previousData, previousData2, previousData3, search, filterTL]);
 
   const intervalCategoryInsights = useMemo(() => {
     return hourlyDataWow.map((hourData, hourIndex) => {
@@ -358,10 +366,10 @@ export const ProductivityDetail: React.FC<{
                   }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
-                <Line type="monotone" name={comparisonMode === "mom" ? "Bulan Ini" : "Minggu Ini"} dataKey="total" stroke={chart.primary} strokeWidth={3} dot={{ r: 3, cursor: "pointer", onClick: handleChartIntervalClick }} activeDot={{ r: 5, cursor: "pointer", onClick: handleChartIntervalClick }} />
-                <Line type="monotone" name={comparisonMode === "mom" ? "Bulan Lalu" : "Minggu Lalu"} dataKey="prev" stroke={chart.secondary} strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                {previousData2.length > 0 && <Line type="monotone" name={comparisonMode === "mom" ? "2 Bulan Lalu" : "2 Minggu Lalu"} dataKey="prev2" stroke={chart.muted} strokeWidth={2} strokeDasharray="3 3" dot={false} />}
-                {previousData3.length > 0 && <Line type="monotone" name={comparisonMode === "mom" ? "3 Bulan Lalu" : "3 Minggu Lalu"} dataKey="prev3" stroke={chart.disabled} strokeWidth={2} strokeDasharray="2 2" dot={false} />}
+                <Line type="monotone" name={weekCompare ? weekCompare.labels[0] : comparisonMode === "mom" ? "Bulan Ini" : "Minggu Ini"} dataKey="total" stroke={chart.primary} strokeWidth={3} dot={{ r: 3, cursor: "pointer", onClick: handleChartIntervalClick }} activeDot={{ r: 5, cursor: "pointer", onClick: handleChartIntervalClick }} />
+                <Line type="monotone" name={weekCompare ? weekCompare.labels[1] : comparisonMode === "mom" ? "Bulan Lalu" : "Minggu Lalu"} dataKey="prev" stroke={chart.secondary} strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                {previousData2.length > 0 && <Line type="monotone" name={weekCompare ? weekCompare.labels[2] : comparisonMode === "mom" ? "2 Bulan Lalu" : "2 Minggu Lalu"} dataKey="prev2" stroke={chart.muted} strokeWidth={2} strokeDasharray="3 3" dot={false} />}
+                {previousData3.length > 0 && <Line type="monotone" name={weekCompare ? weekCompare.labels[3] : comparisonMode === "mom" ? "3 Bulan Lalu" : "3 Minggu Lalu"} dataKey="prev3" stroke={chart.disabled} strokeWidth={2} strokeDasharray="2 2" dot={false} />}
               </LineChart>
             ) : (
               <BarChart data={hourlyDataWow} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>

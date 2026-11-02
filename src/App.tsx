@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useStore } from './store';
 import { getPreviousMonthPeriod, getPreviousPeriod } from './lib/dataProcessor';
 import { getCalendarWeeks } from './lib/weeks';
+import { buildWeekCompare } from './lib/weekCompare';
 import { isAdminMode } from './lib/adminMode';
 import { formatRelativeTime, isStaleSync, countDataRows, extractCsIds, getProductivityDuplicateCount } from './lib/dataQuality';
 import { laggingSources } from './lib/sourceFreshness';
@@ -494,15 +495,15 @@ export default function App() {
     return { prev1, prev2, prev3 } as const;
   }, [needsComparisonData, comparisonMode, startDate, endDate]);
 
-  // Summary's Weekly Performance Report lays out the Monday–Sunday weeks of the selected
-  // range side by side when it spans more than one week (W1 Okt, W2 Okt, …); a single
-  // week still compares against the previous 7 days.
+  // WoW over a range longer than one week compares the Monday–Sunday weeks of that range
+  // (W1 Okt, W2 Okt, …) — Summary's report lays them side by side, the Productivity / CSAT tabs
+  // use the last four. A single week still compares against the previous 7 days.
   const weekRanges = useMemo(() => {
-    if (!needsComparisonData || activeTab !== 'summary' || comparisonMode !== 'wow') return NO_WEEKS;
+    if (!needsComparisonData || comparisonMode !== 'wow') return NO_WEEKS;
     const weeks = getCalendarWeeks(startDate, endDate);
     const totalDays = weeks.reduce((sum, week) => sum + week.daysInRange, 0);
     return totalDays > 7 ? weeks.slice(-6) : NO_WEEKS;
-  }, [needsComparisonData, activeTab, comparisonMode, startDate, endDate]);
+  }, [needsComparisonData, comparisonMode, startDate, endDate]);
 
   const hasSourceData =
     productivityData.length > 0
@@ -567,6 +568,8 @@ export default function App() {
   });
 
 
+
+  const weekCompare = useMemo(() => buildWeekCompare(weekRanges, weekKpiData), [weekRanges, weekKpiData]);
 
   // Keep persisted/stale scope choices from mixing different BPO rosters.
   useEffect(() => {
@@ -1126,9 +1129,9 @@ export default function App() {
                       ? <TabLoading />
                       : <IncentiveSimulation data={incentiveKpiData} period={incentivePeriod} />
                   )}
-                  {activeTab === 'productivity' && <ProductivityDetail data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
-                  {activeTab === 'csat_official' && <CsatOfficialMonitor data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
-                  {activeTab === 'csat' && <CsatRoom data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} />}
+                  {activeTab === 'productivity' && <ProductivityDetail data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
+                  {activeTab === 'csat_official' && <CsatOfficialMonitor data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
+                  {activeTab === 'csat' && <CsatRoom data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
                   {activeTab === 'csat_rca' && <CsatRcaMonitor data={kpiData} />}
                   {(activeTab === 'sla' || activeTab === 'whu') && <SlaWhuMonitor data={kpiData} />}
                   {activeTab === 'qa' && <QaAgent360 data={kpiData} />}

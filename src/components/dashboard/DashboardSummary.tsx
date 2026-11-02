@@ -9,6 +9,7 @@ import { DashboardCharts } from "./DashboardCharts";
 import { TeamLeaderSummary } from "./TeamLeaderSummary";
 import { EmptyState } from "../ui/EmptyState";
 import type { CalendarWeek } from "../../lib/weeks";
+import { weekHasData } from "../../lib/weekCompare";
 
 type PeriodStats = Record<string, number>;
 
@@ -107,17 +108,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
       a.qaScoreCount > 0 ||
       a.csatScTotalValid > 0 ||
       a.manDays > 0 ||
-      (a.csat4Count || 0) + (a.csat5Count || 0) > 0 ||
-      a.sla1m !== null ||
-      a.whu !== null,
-    );
-
-  // Weeks are shown only once they have real activity: man-days from the schedule and QA rows
-  // exist for future weeks too, so they can't be the signal here.
-  const weekHasData = (d: AgentKPI[]) =>
-    d.some((a) =>
-      a.productivityTotal > 0 ||
-      a.csatScTotalValid > 0 ||
       (a.csat4Count || 0) + (a.csat5Count || 0) > 0 ||
       a.sla1m !== null ||
       a.whu !== null,
