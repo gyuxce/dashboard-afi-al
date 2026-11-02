@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { AgentKPI, getOfficialCsatAggregate, getPreviousMonthPeriod, getPreviousPeriod, normalizeDateStr } from "../../lib/dataProcessor";
 import { formatNum, getKpiStatus, parseDateForSort, type KpiType } from "../../lib/utils";
-import { Activity, Star, Clock, CheckCircle, TrendingUp, Users, Info, ChevronDown, ClipboardCheck } from "lucide-react";
+import { Activity, Star, Clock, CheckCircle, TrendingUp, Users, Info, ChevronDown, ClipboardCheck, Download, ClipboardCopy } from "lucide-react";
 import { Sparkline } from "../ui/Sparkline";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../../store";
@@ -10,6 +10,7 @@ import { TeamLeaderSummary } from "./TeamLeaderSummary";
 import { EmptyState } from "../ui/EmptyState";
 import type { CalendarWeek } from "../../lib/weeks";
 import { weekHasData } from "../../lib/weekCompare";
+import { downloadBlob, renderTableSlide, type SlideModel } from "../../lib/slideExport";
 
 type PeriodStats = Record<string, number>;
 
@@ -128,6 +129,8 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
           label: `W${week.index}`,
           sublabel: formatWeekSpan(week.start, week.end),
           title: rangeTitle(week.start, week.end),
+          start: week.start,
+          end: week.end,
           stats: calculatePeriodStats(weekData[i]),
         });
       });
@@ -156,14 +159,14 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
     const prev3Range = getPrevRange(prev2Range.start, prev2Range.end);
     const labelOf = (end: string) => formatPeriodLabel(end, comparisonMode);
     const columns: ReportColumn[] = [
-      { key: 'cur', label: labelOf(endDate), title: rangeTitle(startDate, endDate), stats: currentStats },
-      { key: 'p1', label: labelOf(prevRange.end), title: rangeTitle(prevRange.start, prevRange.end), stats: previousStats },
+      { key: 'cur', label: labelOf(endDate), title: rangeTitle(startDate, endDate), start: startDate, end: endDate, stats: currentStats },
+      { key: 'p1', label: labelOf(prevRange.end), title: rangeTitle(prevRange.start, prevRange.end), start: prevRange.start, end: prevRange.end, stats: previousStats },
     ];
     if (periodHasActivity(previousData2)) {
-      columns.push({ key: 'p2', label: labelOf(prev2Range.end), title: rangeTitle(prev2Range.start, prev2Range.end), stats: previousStats2 });
+      columns.push({ key: 'p2', label: labelOf(prev2Range.end), title: rangeTitle(prev2Range.start, prev2Range.end), start: prev2Range.start, end: prev2Range.end, stats: previousStats2 });
     }
     if (comparisonMode !== 'mom' && periodHasActivity(previousData3)) {
-      columns.push({ key: 'p3', label: labelOf(prev3Range.end), title: rangeTitle(prev3Range.start, prev3Range.end), stats: previousStats3 });
+      columns.push({ key: 'p3', label: labelOf(prev3Range.end), title: rangeTitle(prev3Range.start, prev3Range.end), start: prev3Range.start, end: prev3Range.end, stats: previousStats3 });
     }
     return {
       title: comparisonMode === 'mom' ? 'Monthly Performance Report' : 'Weekly Performance Report',
@@ -929,6 +932,9 @@ type ReportColumn = {
   sublabel?: string;
   /** Tooltip with the exact date range. */
   title: string;
+  /** ISO dates of the period, used for the exported slide's range and file name. */
+  start: string;
+  end: string;
   stats: PeriodStats;
 };
 
@@ -1013,6 +1019,76 @@ const WeeklyReportPanel = ({
 
   const deltaTitle = `${columns[deltaTo]?.label ?? ''} vs ${columns[deltaFrom]?.label ?? ''}`;
 
+  const [exportState, setExportState] = useState<{ busy: boolean; message: string }>({ busy: false, message: '' });
+  const flashMessage = (message: string) => {
+    setExportState({ busy: false, message });
+    setTimeout(() => setExportState((s) => (s.message === message ? { busy: false, message: '' } : s)), 2500);
+  };
+
+  // Presentation version of this table: white, large type, ready to paste into a slide.
+  const buildSlideModel = (): SlideModel => {
+    const starts = columns.map((c) => c.start).filter(Boolean).sort();
+    const ends = columns.map((c) => c.end).filter(Boolean).sort();
+    const range = starts.length && ends.length
+      ? `${formatReportDate(starts[0])} – ${formatReportDate(ends[ends.length - 1])}`
+      : '';
+    return {
+      title: title,
+      subtitle: range,
+      columns: columns.map((col, i) => ({ label: col.label, sublabel: col.sublabel, emphasis: i === deltaTo })),
+      rows: REPORT_METRICS.map((metric) => {
+        const delta = (columns[deltaTo]?.stats[metric.key] ?? 0) - (columns[deltaFrom]?.stats[metric.key] ?? 0);
+        const flat = Math.abs(delta) < 0.01;
+        const digits = metric.kind === 'count' ? 0 : 2;
+        return {
+          label: metric.label,
+          target: metric.target !== null ? (metric.kind === 'score' ? formatNum(metric.target) : `${metric.target}%`) : '-',
+          cells: columns.map((col) => {
+            const raw = col.stats[metric.key] ?? 0;
+            const status = metric.kpiType ? getKpiStatus(raw, metric.kpiType) : 'ok';
+            return { text: formatValue(metric, raw), tone: status === 'miss' ? 'miss' : status === 'watch' ? 'watch' : 'plain' };
+          }),
+          delta: flat
+            ? { text: '–', dir: 'flat' as const }
+            : {
+                text: `${delta > 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(digits)}${metric.kind === 'count' ? '' : ' poin'}`,
+                dir: delta > 0 ? ('up' as const) : ('down' as const),
+              },
+        };
+      }),
+      deltaHeader: deltaTitle,
+      deltaSub: deltaTitle,
+      note,
+    };
+  };
+
+  const slideFileName = () => {
+    const starts = columns.map((c) => c.start).filter(Boolean).sort();
+    const ends = columns.map((c) => c.end).filter(Boolean).sort();
+    return `${title.toLowerCase().replace(/\s+/g, '-')}_${starts[0] ?? ''}_${ends[ends.length - 1] ?? ''}.png`;
+  };
+
+  const handleDownloadSlide = async () => {
+    setExportState({ busy: true, message: '' });
+    try {
+      downloadBlob(slideFileName(), await renderTableSlide(buildSlideModel()));
+      flashMessage('Gambar diunduh');
+    } catch {
+      flashMessage('Gagal membuat gambar');
+    }
+  };
+
+  const handleCopySlide = async () => {
+    setExportState({ busy: true, message: '' });
+    try {
+      const blob = await renderTableSlide(buildSlideModel());
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      flashMessage('Gambar tersalin');
+    } catch {
+      flashMessage('Browser menolak menyalin, pakai Unduh');
+    }
+  };
+
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-6 relative group">
       {/* Header */}
@@ -1039,6 +1115,29 @@ const WeeklyReportPanel = ({
               {col.label}
             </div>
           ))}
+          <div className="flex items-center gap-1.5 sm:ml-2">
+            <button
+              type="button"
+              onClick={handleDownloadSlide}
+              disabled={exportState.busy}
+              title="Unduh sebagai gambar siap tempel ke slide"
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[11px] font-semibold text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Unduh slide
+            </button>
+            <button
+              type="button"
+              onClick={handleCopySlide}
+              disabled={exportState.busy}
+              title="Salin gambar untuk langsung ditempel (Ctrl/Cmd+V) di PowerPoint"
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[11px] font-semibold text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary disabled:opacity-50"
+            >
+              <ClipboardCopy className="h-3.5 w-3.5" />
+              Salin
+            </button>
+            {exportState.message && <span className="text-[11px] font-medium text-text-muted" role="status">{exportState.message}</span>}
+          </div>
         </div>
       </div>
 
