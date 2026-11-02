@@ -22,8 +22,14 @@ const SECTION_ACCENTS: Record<string, { fill: string; on: string }> = {
 };
 const accentFor = (section: string) => SECTION_ACCENTS[section.trim().toLowerCase()] ?? { fill: RED, on: '#FFFFFF' };
 
-const CARD = { x: 72, y: 192, w: SLIDE_W - 144, h: 790 };
-const AREA = { x: CARD.x + 22, y: CARD.y + 22, w: CARD.w - 44, h: CARD.h - 44 };
+const CARD = { x: 72, y: 142, w: SLIDE_W - 144, h: 868 };
+const AREA = { x: CARD.x + 18, y: CARD.y + 18, w: CARD.w - 36, h: CARD.h - 36 };
+
+/**
+ * Every content picture is designed at 1920 px wide and at most this tall, and is drawn at the same
+ * scale on every slide, so text sizes match from slide to slide.
+ */
+const DESIGN_H = 1000;
 
 let logoPromise: Promise<HTMLImageElement> | null = null;
 
@@ -74,26 +80,26 @@ export async function composeFullSlide(options: FrameOptions): Promise<Blob> {
   // section pill + title
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  ctx.font = `800 24px ${FONT}`;
+  ctx.font = `800 22px ${FONT}`;
   (ctx as unknown as { letterSpacing?: string }).letterSpacing = '4px';
   const label = section.toUpperCase();
   const pillW = ctx.measureText(label).width + 60;
   ctx.fillStyle = accent.fill;
-  roundRect(ctx, 72, 48, pillW, 50, 25);
+  roundRect(ctx, 72, 34, pillW, 46, 23);
   ctx.fill();
   ctx.fillStyle = accent.on;
-  ctx.fillText(label, 102, 74);
+  ctx.fillText(label, 102, 58);
   (ctx as unknown as { letterSpacing?: string }).letterSpacing = '0px';
 
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = COLORS.ink;
-  ctx.font = `800 58px ${FONT}`;
-  ctx.fillText(fitText(ctx, title, SLIDE_W - 144 - 360), 72, 160);
+  ctx.font = `800 52px ${FONT}`;
+  ctx.fillText(fitText(ctx, title, SLIDE_W - 144 - 360), 72, 124);
 
   // logo, top right
-  const logoH = 54;
+  const logoH = 50;
   const logoW = (logo.width / logo.height) * logoH;
-  ctx.drawImage(logo, SLIDE_W - 72 - logoW, 54, logoW, logoH);
+  ctx.drawImage(logo, SLIDE_W - 72 - logoW, 40, logoW, logoH);
 
   // content card
   ctx.save();
@@ -110,7 +116,8 @@ export async function composeFullSlide(options: FrameOptions): Promise<Blob> {
   ctx.stroke();
 
   // content: fit inside the card, centred horizontally, top aligned
-  const scale = Math.min(AREA.w / bitmap.width, AREA.h / bitmap.height);
+  // Content pictures are rendered at 2x, so compare heights in the same unit as the bitmap.
+  const scale = Math.min(AREA.w / bitmap.width, AREA.h / Math.max(bitmap.height, DESIGN_H * 2));
   const w = bitmap.width * scale;
   const h = bitmap.height * scale;
   ctx.imageSmoothingQuality = 'high';
@@ -123,17 +130,17 @@ export async function composeFullSlide(options: FrameOptions): Promise<Blob> {
     ctx.textAlign = 'left';
     ctx.fillStyle = COLORS.muted;
     ctx.font = `500 22px ${FONT}`;
-    ctx.fillText(fitText(ctx, caption, SLIDE_W - 144 - 90), 72, 1036);
+    ctx.fillText(fitText(ctx, caption, SLIDE_W - 144 - 90), 72, 1046);
   }
   if (no !== undefined) {
     ctx.fillStyle = accent.fill;
     ctx.beginPath();
-    ctx.arc(SLIDE_W - 72 - 24, 1036, 24, 0, Math.PI * 2);
+    ctx.arc(SLIDE_W - 72 - 22, 1046, 22, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = accent.on;
     ctx.textAlign = 'center';
     ctx.font = `800 22px ${FONT}`;
-    ctx.fillText(String(no), SLIDE_W - 72 - 24, 1038);
+    ctx.fillText(String(no), SLIDE_W - 72 - 22, 1048);
   }
 
   return canvasToPng(canvas);

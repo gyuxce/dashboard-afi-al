@@ -101,13 +101,13 @@ export async function renderCategoriesSlide(model: CategoriesSlide): Promise<Blo
   const n = Math.max(model.columns.length, 1);
   const rowsMax = Math.max(1, ...model.columns.map((c) => c.rows.length));
   const colW = columnWidth(n);
-  const rowH = model.bare ? 66 : 80;
-  const top = 178;
+  const rowH = model.bare ? 48 : 80;
+  const top = model.bare ? 160 : 178;
   const tableTop = top + 64 + 18;
   const headH = 52;
   const contentBottom = tableTop + headH + rowH * rowsMax;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
-  const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
+  const height = Math.ceil(contentBottom + (hl ? hl.height + (model.bare ? 24 : 36) : 0) + (model.bare ? 52 : 90));
   const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   beginSlide(ctx, model, model.title, model.subtitle);
@@ -142,10 +142,10 @@ export async function renderCategoriesSlide(model: CategoriesSlide): Promise<Blo
       ctx.font = `600 20px ${FONT}`;
       ctx.fillText(String(row.rank), x + 14, mid);
 
-      ctx.font = `600 21px ${FONT}`;
+      ctx.font = `600 ${model.bare ? 19 : 21}px ${FONT}`;
       ctx.fillStyle = row.isTakeout ? COLORS.miss : COLORS.ink;
       const lines = wrapClamp(ctx, row.name, catW, model.bare ? 2 : 3);
-      const lineH = 25;
+      const lineH = model.bare ? 22 : 25;
       lines.forEach((line, li) => {
         ctx.fillText(line, x + 52, mid - ((lines.length - 1) * lineH) / 2 + li * lineH);
       });
@@ -168,7 +168,7 @@ export async function renderCategoriesSlide(model: CategoriesSlide): Promise<Blo
   ctx.fillText(
     'Freq = jumlah rating 1–2. Good % = porsi rating 4–5 pada kategori itu. Merah = kategori takeout.',
     PAD,
-    height - 36,
+    height - (model.bare ? 16 : 36),
   );
   return canvasToPng(canvas);
 }
@@ -190,14 +190,15 @@ export async function renderAgentsSlide(model: AgentsSlide): Promise<Blob> {
   const n = Math.max(model.columns.length, 1);
   const agentsMax = Math.max(1, ...model.columns.map((c) => c.agents.length));
   const colW = columnWidth(n);
-  const blockH = model.bare ? 138 : 156;
-  const lineGap = model.bare ? 25 : 28;
-  const lineStart = model.bare ? 70 : 74;
-  const top = 178;
+  const blockH = model.bare ? 112 : 156;
+  const lineGap = model.bare ? 22 : 28;
+  const lineStart = model.bare ? 58 : 74;
+  const nameY = model.bare ? 30 : 38;
+  const top = model.bare ? 160 : 178;
   const listTop = top + 64 + 18;
   const contentBottom = listTop + blockH * agentsMax;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
-  const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
+  const height = Math.ceil(contentBottom + (hl ? hl.height + (model.bare ? 24 : 36) : 0) + (model.bare ? 40 : 90));
   const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   beginSlide(ctx, model, model.title, model.subtitle);
@@ -217,16 +218,16 @@ export async function renderAgentsSlide(model: AgentsSlide): Promise<Blob> {
       ctx.textAlign = 'left';
       ctx.fillStyle = COLORS.muted;
       ctx.font = `600 20px ${FONT}`;
-      ctx.fillText(String(ai + 1), x + 16, y + 38);
+      ctx.fillText(String(ai + 1), x + 16, y + nameY);
 
       ctx.fillStyle = repeated ? COLORS.miss : COLORS.ink;
       ctx.font = `700 26px ${FONT}`;
-      ctx.fillText(fitText(ctx, agent.name, colW - 48 - 70), x + 48, y + 38);
+      ctx.fillText(fitText(ctx, agent.name, colW - 48 - 70), x + 48, y + nameY);
 
       ctx.textAlign = 'right';
       ctx.fillStyle = COLORS.ink;
       ctx.font = `700 30px ${FONT}`;
-      ctx.fillText(String(agent.badCount), x + colW - 16, y + 38);
+      ctx.fillText(String(agent.badCount), x + colW - 16, y + nameY);
 
       ctx.font = `500 20px ${FONT}`;
       agent.topCategories.forEach((cat, k) => {
@@ -248,7 +249,7 @@ export async function renderAgentsSlide(model: AgentsSlide): Promise<Blob> {
   ctx.fillText(
     'Angka besar = jumlah rating 1–2 per agent. Nama merah = juga masuk 5 teratas periode sebelumnya.',
     PAD,
-    height - 36,
+    height - (model.bare ? 16 : 36),
   );
   return canvasToPng(canvas);
 }
@@ -268,10 +269,10 @@ export type RespondentsSlide = {
 };
 
 export async function renderRespondentsSlide(model: RespondentsSlide): Promise<Blob> {
-  const cardH = model.bare ? 312 : 360;
+  const cardH = model.bare ? 280 : 360;
   const contentBottom = 178 + cardH * 2 + 20;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
-  const height = contentBottom + (hl ? hl.height + 36 : 0) + 82;
+  const height = contentBottom + (hl ? hl.height + (model.bare ? 24 : 36) : 0) + (model.bare ? 46 : 82);
   const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   beginSlide(ctx, model, model.title, model.subtitle);
@@ -279,9 +280,9 @@ export async function renderRespondentsSlide(model: RespondentsSlide): Promise<B
   const gridTop = 178;
   const cardW = 440;
   const cardGap = 20;
-  const bigY = model.bare ? 132 : 140;
-  const deltaY = model.bare ? 166 : 176;
-  const barAreaH = model.bare ? 64 : 90;
+  const bigY = model.bare ? 114 : 140;
+  const deltaY = model.bare ? 146 : 176;
+  const barAreaH = model.bare ? 54 : 90;
 
   model.columns.slice(0, 4).forEach((col, i) => {
     const x = PAD + (i % 2) * (cardW + cardGap);
@@ -418,7 +419,7 @@ export async function renderRespondentsSlide(model: RespondentsSlide): Promise<B
   ctx.fillText(
     'Responden = jumlah rating 1–5 yang masuk. Rate = responden ÷ tiket yang diproses. Panah = selisih dari periode sebelumnya.',
     PAD,
-    height - 36,
+    height - (model.bare ? 16 : 36),
   );
   return canvasToPng(canvas);
 }
@@ -746,14 +747,14 @@ export type TlSamplingSlide = {
 };
 
 export async function renderTlSamplingSlide(model: TlSamplingSlide): Promise<Blob> {
-  const rowH = model.bare ? 104 : 128;
+  const rowH = model.bare ? 92 : 128;
   const causeGap = model.bare ? 24 : 28;
   const top = 190;
   const headH = 60;
   const rows = model.rows;
   const contentBottom = top + headH + rowH * (rows.length + 1) + 10;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
-  const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
+  const height = Math.ceil(contentBottom + (hl ? hl.height + (model.bare ? 24 : 36) : 0) + (model.bare ? 52 : 90));
   const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   beginSlide(ctx, model, model.title, model.subtitle);
@@ -871,7 +872,7 @@ export async function renderTlSamplingSlide(model: TlSamplingSlide): Promise<Blo
   ctx.fillText(
     '% Dianalisis = DSAT yang dianalisis TL ÷ total DSAT tim TL itu. Penyebab terbanyak dari data; jumlah dianalisis diisi manual dari hasil sampling.',
     PAD,
-    height - 36,
+    height - (model.bare ? 16 : 36),
   );
   return canvasToPng(canvas);
 }
@@ -902,7 +903,7 @@ export async function renderTakeoutSimSlide(model: TakeoutSimSlide): Promise<Blo
   const rowH = model.bare ? 84 : 100;
   const contentBottom = top + monthH + subH + rowH * scenarioCount;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
-  const height = Math.ceil(contentBottom + (hl ? hl.height + 36 : 0) + 90);
+  const height = Math.ceil(contentBottom + (hl ? hl.height + (model.bare ? 24 : 36) : 0) + (model.bare ? 52 : 90));
   const { off } = frameLayout(model);
   const { canvas, ctx } = await createSlideCanvas(WIDTH, height + off);
   beginSlide(ctx, model, model.title, model.subtitle);
@@ -1026,7 +1027,7 @@ export async function renderTakeoutSimSlide(model: TakeoutSimSlide): Promise<Blo
   ctx.fillText(
     'Resp = responden yang tersisa. Panah = selisih dari After Takeout sekarang. Good = rating 4–5, bad = rating 1–2.',
     PAD,
-    height - 36,
+    height - (model.bare ? 16 : 36),
   );
   return canvasToPng(canvas);
 }

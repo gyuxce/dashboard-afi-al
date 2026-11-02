@@ -99,8 +99,8 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
   const titleH = 60;
   const subtitleH = 40;
   const tableTop = headTop + titleH + subtitleH + 28;
-  const headRowH = model.bare ? 80 : 96;
-  const rowH = model.bare ? 58 : 78;
+  const headRowH = model.bare ? 84 : 96;
+  const rowH = model.bare ? 48 : 78;
   const noteSize = 20;
 
   // Measure the note first so the canvas height fits it.
@@ -113,7 +113,7 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
   const noteH = noteLines.length ? noteLines.length * (noteSize + 8) + 28 : 0;
   const hl = model.highlights?.length ? layoutHighlights(model.highlights) : null;
   const tableBottom = tableTop + headRowH + rowH * model.rows.length;
-  const height = Math.ceil(tableBottom + noteH + (hl ? hl.height + 32 : 0) + 48);
+  const height = Math.ceil(tableBottom + noteH + (hl ? hl.height + 32 : 0) + (model.bare ? 20 : 48));
   const { off } = frameLayout(model);
 
   const canvas = document.createElement('canvas');
