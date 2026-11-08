@@ -10,84 +10,92 @@
 }
 
 :root {
-  /* Base Surfaces — light off-white (Cursor-like, not blue-slate) */
-  --background: 250 250 249;          /* #FAFAF9 */
+  /* ── Apple-style light theme ──────────────────────────────────────────
+     Canvas is the familiar #F5F5F7 grey, cards are pure white with a hairline
+     and a soft, wide shadow instead of a hard border. Text uses Apple's ink
+     scale. Brand red stays the single accent (nav, primary action, focus). */
+  --background: 245 245 247;          /* #F5F5F7 */
   --surface: 255 255 255;             /* #FFFFFF */
-  --surface-muted: 245 245 244;       /* #F5F5F4 */
+  --surface-muted: 242 242 247;       /* #F2F2F7 — iOS fill */
   --card: 255 255 255;                /* #FFFFFF */
-  --border: 231 229 228;              /* #E7E5E4 */
-  --border-strong: 214 211 209;       /* #D6D3D1 */
+  --border: 232 232 237;              /* #E8E8ED — hairline */
+  --border-strong: 209 209 214;       /* #D1D1D6 */
 
   /* Text */
-  --text-primary: 28 25 23;           /* #1C1917 */
-  --text-secondary: 87 83 78;         /* #57534E */
-  --text-muted: 168 162 158;          /* #A8A29E */
-  --text-disabled: 214 211 209;       /* #D6D3D1 */
+  --text-primary: 29 29 31;           /* #1D1D1F */
+  --text-secondary: 99 99 102;        /* #636366 */
+  --text-muted: 120 120 126;          /* #78787E — 4.4:1 on white */
+  --text-disabled: 199 199 204;       /* #C7C7CC */
 
   /* Brand - Akulaku Red (chrome / CTA) */
   --primary: 227 30 36;               /* #E31E24 */
   --primary-hover: 200 25 30;         /* #C8191E */
-  --primary-soft: 254 242 242;        /* #FEF2F2 */
-  --primary-soft-hover: 254 226 226;  /* #FEE2E2 */
-  --primary-text: 227 30 36;          /* #E31E24 */
+  --primary-soft: 255 240 240;        /* #FFF0F0 */
+  --primary-soft-hover: 255 226 226;  /* #FFE2E2 */
+  --primary-text: 213 24 30;          /* #D5181E */
 
-  /* Semantic — keep KPI traffic lights; danger distinct from brand soft */
-  --success: 22 163 74;               /* #16A34A */
-  --success-soft: 220 252 231;
-  --success-text: 21 128 61;
-  --danger: 185 28 28;                /* #B91C1C — under-target, not brand soft */
-  --danger-soft: 254 226 226;
-  --danger-text: 153 27 27;
-  --warning: 217 119 6;               /* #D97706 */
-  --warning-soft: 254 243 199;
-  --warning-text: 180 83 9;
+  /* Semantic — Apple system colours, text variants kept readable on white */
+  --success: 52 199 89;               /* #34C759 */
+  --success-soft: 232 248 237;        /* #E8F8ED */
+  --success-text: 36 138 61;          /* #248A3D */
+  --danger: 215 38 48;                /* #D72630 */
+  --danger-soft: 255 236 236;         /* #FFECEC */
+  --danger-text: 175 20 30;           /* #AF141E */
+  --warning: 222 120 0;               /* #DE7800 */
+  --warning-soft: 255 245 224;        /* #FFF5E0 */
+  --warning-text: 168 80 0;           /* #A85000 */
 
-  /* Sidebar */
+  /* Sidebar — sidebar-bg is used with alpha + backdrop blur in App.tsx (frosted glass) */
   --sidebar-bg: 255 255 255;
-  --sidebar-bg-hover: 245 245 244;    /* #F5F5F4 */
-  --sidebar-bg-active: 250 250 249;   /* quiet active — not loud red fill */
-  --sidebar-text: 87 83 78;           /* #57534E */
-  --sidebar-text-hover: 28 25 23;     /* #1C1917 */
-  --sidebar-text-active: 28 25 23;    /* #1C1917 — accent bar carries brand */
-  --sidebar-border: 231 229 228;
+  --sidebar-bg-hover: 240 240 244;    /* #F0F0F4 */
+  --sidebar-bg-active: 232 232 237;   /* #E8E8ED — macOS selection */
+  --sidebar-text: 99 99 102;          /* #636366 */
+  --sidebar-text-hover: 29 29 31;
+  --sidebar-text-active: 29 29 31;
+  --sidebar-border: 232 232 237;
   --sidebar-accent: 227 30 36;        /* #E31E24 */
 
-  /* Radius & elevation */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  /* Radius & elevation — generous, squircle-ish */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04), 0 2px 8px rgb(0 0 0 / 0.03);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.04), 0 12px 32px rgb(0 0 0 / 0.06);
+  --shadow-lg: 0 8px 24px rgb(0 0 0 / 0.06), 0 24px 56px rgb(0 0 0 / 0.08);
+  --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Geist Sans", "Geist", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 
   /* KPI Color Identity */
   --kpi-productivity: 227 30 36;
-  --kpi-productivity-soft: 254 226 226;
-  --kpi-productivity-text: 227 30 36;
+  --kpi-productivity-soft: 255 236 236;
+  --kpi-productivity-text: 213 24 30;
 
   --kpi-productivity-avg: 227 30 36;
-  --kpi-productivity-avg-soft: 254 226 226;
-  --kpi-productivity-avg-text: 227 30 36;
+  --kpi-productivity-avg-soft: 255 236 236;
+  --kpi-productivity-avg-text: 213 24 30;
 
-  --kpi-csat: 217 119 6;
-  --kpi-csat-soft: 254 243 199;
-  --kpi-csat-text: 217 119 6;
+  --kpi-csat: 222 120 0;
+  --kpi-csat-soft: 255 245 224;
+  --kpi-csat-text: 168 80 0;
 
-  --kpi-qa: 217 119 6;
-  --kpi-qa-soft: 254 243 199;
-  --kpi-qa-text: 217 119 6;
+  --kpi-qa: 222 120 0;
+  --kpi-qa-soft: 255 245 224;
+  --kpi-qa-text: 168 80 0;
 
-  --kpi-sla: 22 163 74;
-  --kpi-sla-soft: 220 252 231;
-  --kpi-sla-text: 22 163 74;
+  --kpi-sla: 52 199 89;
+  --kpi-sla-soft: 232 248 237;
+  --kpi-sla-text: 36 138 61;
 
-  --kpi-whu: 22 163 74;
-  --kpi-whu-soft: 220 252 231;
-  --kpi-whu-text: 22 163 74;
+  --kpi-whu: 52 199 89;
+  --kpi-whu-soft: 232 248 237;
+  --kpi-whu-text: 36 138 61;
 
-  --kpi-neutral: 82 82 91;            /* zinc — quieter than blue */
-  --kpi-neutral-soft: 244 244 245;
-  --kpi-neutral-text: 63 63 70;
-  --chart-primary: 82 82 91;
+  --kpi-neutral: 99 99 102;
+  --kpi-neutral-soft: 242 242 247;
+  --kpi-neutral-text: 72 72 74;
+  --chart-primary: 99 99 102;
 }
 
 .dark {
@@ -172,6 +180,8 @@
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
 
   --color-background: rgb(var(--background));
   --color-surface: rgb(var(--surface));
@@ -246,7 +256,77 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
+}
+
+/* ── Apple-style finishing layer ─────────────────────────────────────────
+   Unlayered on purpose: it must win over Tailwind utilities that are already
+   spread across every tab, so the whole app picks up the look without
+   touching each component. */
+
+::selection { background: rgb(var(--primary) / 0.18); }
+
+/* Large title on every page (each tab starts with one <h1>). */
+main h1 {
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+main h1 > span { letter-spacing: 0; }
+main h2 { letter-spacing: -0.012em; }
+
+/* Cards: hairline + soft shadow, lifting a touch when hovered. */
+.bg-card.border {
+  border-color: rgb(var(--border) / 0.9);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.35s var(--ease-apple), border-color 0.2s var(--ease-apple), transform 0.35s var(--ease-apple);
+}
+.bg-card.border:hover { box-shadow: var(--shadow-md); }
+
+/* Every button gets a quick, springy press. */
+button:not(:disabled) { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-timing-function: var(--ease-apple); }
+button:not(:disabled):active { transform: scale(0.97); }
+
+/* Focus ring: soft halo instead of a hard outline. */
+:focus-visible { outline: none; }
+:is(button, a, input, select, textarea, [role="tab"], [tabindex]):focus-visible {
+  box-shadow: 0 0 0 3px rgb(var(--primary) / 0.28);
+}
+
+/* Inputs read as iOS fields. */
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+  border-radius: var(--radius-md);
+}
+
+/* Tab content glides in. */
+@keyframes tab-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.tab-enter { animation: tab-enter 0.45s var(--ease-apple) both; }
+
+/* Frosted glass surfaces (sidebar, toolbar). */
+.glass {
+  background-color: rgb(var(--sidebar-bg) / 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+}
+
+/* Light canvas: faint brand + sky tint so the glass has something to blur. */
+html:not(.dark) .app-canvas {
+  background-image:
+    radial-gradient(1100px 520px at 8% -8%, rgb(var(--primary) / 0.07), transparent 62%),
+    radial-gradient(900px 480px at 100% 0%, rgb(0 122 255 / 0.06), transparent 58%);
+}
+
+/* Thin, quiet scrollbars. */
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--border-strong)) transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-enter { animation: none; }
+  button:not(:disabled):active { transform: none; }
 }
 
 @layer utilities {

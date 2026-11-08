@@ -841,16 +841,20 @@ const StatCard = ({
   const isHero = variant === 'hero';
 
   return (
-    <div className={`bg-card w-full border border-border rounded-xl ${isHero ? 'p-4' : 'p-3'} flex flex-col gap-2 hover:border-border-strong transition-colors relative overflow-visible`}>
+    <div className={`bg-card w-full border border-border rounded-2xl ${isHero ? 'p-5' : 'p-4'} flex flex-col gap-2.5 hover:-translate-y-0.5 hover:shadow-md relative overflow-visible`}>
       <div className="flex items-center gap-2 w-full">
-        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 bg-surface-muted border border-border">
-          <Icon size={11} className="text-text-muted" />
-        </div>
-        <p className="min-w-0 flex-1 text-[10px] font-medium text-text-muted tracking-[0.08em] uppercase truncate">{title}</p>
+        {isHero && (
+          <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+            status === 'miss' ? 'bg-danger-soft' : status === 'watch' ? 'bg-warning-soft' : 'bg-surface-muted'
+          }`}>
+            <Icon size={13} className={status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'text-text-secondary'} />
+          </div>
+        )}
+        <p title={title} className="min-w-0 flex-1 text-[11.5px] font-medium text-text-secondary truncate">{title}</p>
         <FormulaTooltip title={title} />
       </div>
 
-      <div className={`flex items-baseline gap-1 tabular-nums font-semibold tracking-tight leading-none ${numberColor} ${isHero ? 'text-[27px]' : 'text-[19px]'}`}>
+      <div className={`flex items-baseline gap-1 tabular-nums font-semibold tracking-tight leading-none ${numberColor} ${isHero ? 'text-[34px]' : 'text-[24px]'}`}>
         <CountUpValue value={value} />
         {unit && <span className="text-[13px] font-medium text-text-muted">{unit}</span>}
       </div>

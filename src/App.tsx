@@ -753,13 +753,13 @@ export default function App() {
   })();
 
   return (
-    <div className="flex h-[100dvh] w-full bg-background font-sans text-text-primary overflow-hidden relative transition-colors duration-300">
+    <div className="app-canvas flex h-[100dvh] w-full bg-background font-sans text-text-primary overflow-hidden relative transition-colors duration-300">
       
       {/* Mobile Top Bar */}
-      <div className="md:hidden flex items-center justify-between p-4 bg-sidebar-bg text-sidebar-text border-b border-sidebar-border absolute top-0 left-0 w-full z-40 transition-colors duration-300">
+      <div className="md:hidden glass flex items-center justify-between p-4 text-sidebar-text border-b border-sidebar-border absolute top-0 left-0 w-full z-40 transition-colors duration-300">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
-          <span className="font-semibold text-sidebar-text-hover tracking-tight text-sm">LIVE DASHBOARD</span>
+          <div className="w-8 h-8 rounded-[10px] bg-gradient-to-b from-[#F0454B] to-primary shadow-[0_2px_6px_rgb(227_30_36/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
+          <span className="font-semibold text-sidebar-text-hover tracking-tight text-sm">Live Dashboard</span>
         </div>
         <button 
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -783,54 +783,55 @@ export default function App() {
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed md:relative top-0 left-0 h-full bg-sidebar-bg text-sidebar-text flex flex-col border-r border-sidebar-border z-[70] transition-all duration-300 ease-out will-change-transform shrink-0 group/sidebar",
+        "glass fixed md:relative top-0 left-0 h-full text-sidebar-text flex flex-col border-r border-sidebar-border z-[70] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform shrink-0 group/sidebar",
         isSidebarOpen ? "translate-x-0 w-60" : "-translate-x-full md:translate-x-0",
         isSidebarMinimized ? "md:w-[72px] w-60" : "w-60"
       )}>
         {/* Toggle Button for Desktop */}
         <button
           onClick={() => setIsSidebarMinimized(!isSidebarMinimized)}
-          className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-12 bg-card border border-border rounded-r-md items-center justify-center text-text-muted hover:text-text-primary z-50 cursor-pointer"
+          className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-card border border-border rounded-full shadow-sm items-center justify-center text-text-muted hover:text-text-primary hover:shadow-md z-50 cursor-pointer"
           title={isSidebarMinimized ? "Expand Sidebar" : "Minimize Sidebar"}
         >
-          {isSidebarMinimized ? <ChevronRight className="w-4 h-4 ml-0.5" /> : <ChevronLeft className="w-4 h-4 ml-0.5" />}
+          {isSidebarMinimized ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
         </button>
 
-        <div className={cn("p-4 border-b border-sidebar-border overflow-hidden", isSidebarMinimized ? "md:px-4" : "")}>
+        <div className={cn("px-4 pt-5 pb-4 overflow-hidden", isSidebarMinimized ? "md:px-4" : "")}>
         <div className={cn("flex items-center gap-3 relative z-10 group cursor-default", isSidebarMinimized ? "md:justify-center" : "")}>
-          <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
-          <span className={cn("font-semibold tracking-tight text-sidebar-text-hover text-sm transition-all duration-300 whitespace-nowrap", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>LIVE DASHBOARD</span>
+          <div className="w-9 h-9 rounded-[11px] bg-gradient-to-b from-[#F0454B] to-primary shadow-[0_3px_10px_rgb(227_30_36/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
+          <span className={cn("font-semibold tracking-tight text-sidebar-text-hover text-[15px] transition-all duration-300 whitespace-nowrap", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>Live Dashboard</span>
         </div>
       </div>
-        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto no-scrollbar">
+        <nav className="flex-1 px-3 pb-2 space-y-0.5 overflow-y-auto no-scrollbar">
           {navItems.map((item, idx) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             const prevItem = navItems[idx - 1];
-            const showSectionSep = idx > 0 && prevItem && item.section !== prevItem.section && !isSidebarMinimized;
+            const isFirstOfSection = !prevItem || item.section !== prevItem.section;
             return (
-              <button
-                key={item.id}
-                onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
-                className={cn(
-                  "group relative w-full flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium transition-colors duration-150 ease-out overflow-hidden cursor-pointer",
-                  showSectionSep && "mt-2 pt-2 border-t border-sidebar-border",
-                  isActive 
-                    ? "bg-sidebar-bg-active text-sidebar-text-active" 
-                    : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-hover",
-                  isSidebarMinimized ? "md:justify-center md:px-0" : ""
+              <React.Fragment key={item.id}>
+                {isFirstOfSection && !isSidebarMinimized && (
+                  <div className={cn("px-3 pb-1 text-[11px] font-semibold tracking-wide text-text-muted", idx > 0 ? "pt-4" : "pt-1")}>{item.section}</div>
                 )}
-                title={isSidebarMinimized ? item.label : undefined}
-              >
-                {isActive && (
-                  <div className="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-sidebar-accent rounded-full" />
-                )}
-                <Icon className={cn(
-                  "w-4 h-4 transition-colors duration-150 ease-out shrink-0", 
-                  isActive ? "text-sidebar-accent" : "text-sidebar-text group-hover:text-sidebar-text-hover"
-                )} />
-                <span className={cn("relative z-10 transition-all duration-300 whitespace-nowrap", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>{item.label}</span>
-              </button>
+                {isFirstOfSection && isSidebarMinimized && idx > 0 && <div className="mx-3 my-2 h-px bg-sidebar-border" />}
+                <button
+                  onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
+                  className={cn(
+                    "group relative w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-[13px] font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden cursor-pointer",
+                    isActive
+                      ? "bg-sidebar-bg-active/80 text-sidebar-text-active"
+                      : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-hover hover:translate-x-0.5",
+                    isSidebarMinimized ? "md:justify-center md:px-0 md:hover:translate-x-0" : ""
+                  )}
+                  title={isSidebarMinimized ? item.label : undefined}
+                >
+                  <Icon className={cn(
+                    "w-[18px] h-[18px] transition-colors duration-200 ease-out shrink-0",
+                    isActive ? "text-sidebar-accent" : "text-sidebar-text group-hover:text-sidebar-text-hover"
+                  )} />
+                  <span className={cn("relative z-10 transition-all duration-300 whitespace-nowrap", isActive && "font-semibold", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>{item.label}</span>
+                </button>
+              </React.Fragment>
             )
           })}
         </nav>
@@ -858,8 +859,8 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col p-3 pt-20 md:p-6 gap-6 overflow-y-auto overflow-x-hidden w-full relative">
-        <div className="bg-card border border-border rounded-lg px-3 py-2 flex flex-col relative z-50 overflow-visible">
+      <main className="flex-1 flex flex-col p-3 pt-20 md:p-8 gap-7 overflow-y-auto overflow-x-hidden w-full relative">
+        <div className="bg-card/85 backdrop-blur-xl border border-border rounded-2xl shadow-sm px-4 py-3 flex flex-col relative z-50 overflow-visible">
           {/* Mobile Filter Toggle */}
           <div className="flex md:hidden items-center justify-between w-full mb-2">
             <span className="text-[11px] font-medium text-text-muted tracking-wide pl-1">Filter</span>
@@ -1131,7 +1132,7 @@ export default function App() {
           {showBootLoading ? (
             <BootLoadingPanel />
           ) : (
-            <div key={activeTab}>
+            <div key={activeTab} className="tab-enter">
               <TabErrorBoundary label={activeNavLabel}>
                 <React.Suspense fallback={<TabLoading />}>
                   {activeTab === 'summary' && <DashboardSummary data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekRanges={weekRanges} weekData={weekKpiData} />}
