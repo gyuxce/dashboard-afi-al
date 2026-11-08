@@ -6,6 +6,7 @@ import {
   type AgentKPI,
 } from '../lib/dataProcessor';
 import { isAgentDictionaryPopulated } from '../lib/csid';
+import { applyCaseBasisQa } from '../lib/incentiveScoring';
 
 type AgentDict = Record<string, { name: string; bpo: string; teamLeader: string }>;
 
@@ -111,17 +112,11 @@ export function useFilteredKpis(args: Args): FilteredKpis {
       previousKpiData3: filteredPrevData3,
       weekKpiData: filteredWeekData,
       extraKpiData: filteredExtraData,
-      // Only the QA score comes from the Tanggal Case pass; CSAT, productivity and
-      // everything else stay exactly as on the other tabs. Empty until that pass lands.
+      // QA (score and the history behind bad-CSAT) comes from the Tanggal Case pass; CSAT good
+      // counts, productivity and everything else stay exactly as on the other tabs.
+      // Empty until that pass lands.
       incentiveKpiData: activeTab === 'incentive' && incentiveRawData.length > 0
-        ? filteredData.map((agent) => {
-            const byCaseDate = incentiveByCsId.get(agent.csId);
-            return {
-              ...agent,
-              qaScoreSum: byCaseDate?.qaScoreSum ?? 0,
-              qaScoreCount: byCaseDate?.qaScoreCount ?? 0,
-            };
-          })
+        ? filteredData.map((agent) => applyCaseBasisQa(agent, incentiveByCsId.get(agent.csId)))
         : [],
       incentivePeriod: { start: startDate || '', end: endDate || '' },
       tlList: Array.from(optionTls).sort((a, b) => a.localeCompare(b)),

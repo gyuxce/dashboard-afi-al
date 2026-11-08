@@ -58,7 +58,7 @@ CSV upload OR Google Sheets ──▶ Zustand store (src/store.ts) ──▶ Ind
 ## Scoring modules (pure, unit-tested)
 
 - `src/lib/kpiScoring.ts` — `calculateCompositeScore` (QA 50 / Prod 20 / CSAT 20 / Training+Quiz fixed 10) → Leaderboard.
-- `src/lib/incentiveScoring.ts` — `buildIncentiveRow`, agent/TL tier curves, QC-points step function, `bestLeaderBonusPerTeamLeader` (Rp500k pool split across all TLs) → Simulasi Insentif.
+- `src/lib/incentiveScoring.ts` — `buildIncentiveRow`, agent/TL tier curves, QC-points step function, `bestLeaderBonuses` (Rp500k to the single top-scoring TL), `applyCaseBasisQa` → Simulasi Insentif.
 
 Keep these free of React/DOM imports so `src/lib/__tests__/` can exercise them directly.
 

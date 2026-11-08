@@ -45,7 +45,7 @@ Dedupe per **calendar day** (normDate), bukan raw header string.
 | QA harian, QA Agent 360, tren Summary | **Checking Date** (kolom N) |
 | **Simulasi Insentif — hanya QA %** | **Tanggal Case** (kolom I) |
 
-CSAT % dan produktivitas di Simulasi Insentif **tidak berubah** (tetap sama seperti tab lain). Untuk QA % insentif, baris tanpa Tanggal Case yang terbaca memakai Checking Date. Kasus bulan yang sudah ditutup yang dicek bulan berikutnya ada di tab QA bulan berikutnya, jadi tab itu ikut dimuat saat sync (hanya untuk bulan yang sudah lewat). Aturan dedupe dan rata-rata sama; hanya kolom tanggalnya yang berbeda.
+Jumlah good CSAT dan produktivitas di Simulasi Insentif **tidak berubah** (tetap sama seperti tab lain). Jumlah **bad CSAT** (kasus DSAT tagging QA) ikut dasar Tanggal Case, sama dengan lembar KPI klien, jadi kasus yang dicek setelah akhir bulan tetap dihitung ke bulan kasusnya. Untuk QA % insentif, baris tanpa Tanggal Case yang terbaca memakai Checking Date. Kasus bulan yang sudah ditutup yang dicek bulan berikutnya ada di tab QA bulan berikutnya, jadi tab itu ikut dimuat saat sync (hanya untuk bulan yang sudah lewat). Aturan dedupe dan rata-rata sama; hanya kolom tanggalnya yang berbeda.
 
 Aturan Checking Date untuk tampilan harian:
 
@@ -123,7 +123,7 @@ Panel "Naik Tier" di Simulasi Insentif memakai tabel ini (`planTierUp` di `incen
 
 ### Lainnya
 - TL gross salary: Rp 4.328.000
-- Best leader bonus: pool Rp 500.000 dibagi rata ke **semua** TL
+- Best leader bonus: Rp 500.000 hanya untuk **satu** TL dengan skor akhir tertinggi (sama dengan lembar KPI klien: `IF(skor = MAX(skor), 500000, 0)`), tidak perlu dapat tier; TL dengan data belum lengkap tidak bisa menang
 - Insentif tidak memakai komponen attendance
 
 ## 7. Leaderboard
@@ -150,7 +150,7 @@ Separator `x`, `×`, `&`, `/` dinormalisasi ke `X`. Sheet lama yang masih menuli
 |---|---|---|
 | Dashboard Summary | Official CSAT (star count) + SC Survey | Productivity sheet + CSAT SC |
 | Leaderboard | QA CSAT/DSAT tagging | QA history |
-| Insentif | QA CSAT/DSAT tagging (sama dengan Leaderboard) | QA history |
+| Insentif | QA CSAT/DSAT tagging (bad dihitung per Tanggal Case) | QA history |
 
 **Catatan**: CSAT di Summary bisa beda dengan Leaderboard karena sumbernya beda. Ini disengaja, bukan bug.
 

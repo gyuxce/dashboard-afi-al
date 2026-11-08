@@ -164,11 +164,36 @@ export const buildIncentiveRow = (agent: AgentKPI): IncentiveRow => {
 };
 
 /**
- * The Rp500.000 "best TL" pool is split evenly across every Team Leader
- * (not just the eligible ones). 5 TL → Rp100.000 each.
+ * The Rp500.000 "best TL" bonus goes to the Team Leader with the highest final
+ * score (same as the client sheet: `IF(score = MAX(score), 500000, 0)`), whether
+ * or not that TL reached a tier. TLs without a score (incomplete data) never win.
+ * Returns the bonus per team leader; a tie pays every tied leader.
  */
-export const bestLeaderBonusPerTeamLeader = (teamLeaderCount: number): number =>
-  teamLeaderCount > 0 ? TEAM_LEADER_BEST_BONUS / teamLeaderCount : 0;
+export const bestLeaderBonuses = (
+  leaders: { teamLeader: string; score: number | null }[],
+): Map<string, number> => {
+  const scored = leaders.filter((l): l is { teamLeader: string; score: number } => l.score !== null);
+  const best = scored.reduce((max, l) => Math.max(max, l.score), -Infinity);
+  return new Map(
+    leaders.map((l) => [
+      l.teamLeader,
+      l.score !== null && Math.abs(l.score - best) < 1e-9 ? TEAM_LEADER_BEST_BONUS : 0,
+    ]),
+  );
+};
+
+/**
+ * Simulasi Insentif takes everything about QA from the Tanggal Case pass: the QA %
+ * (sum/count) and the QA history behind the bad-CSAT count, so a DSAT case that was
+ * checked after month end still counts for the month it belongs to (as in the client
+ * sheet). CSAT good counts and productivity stay as on the other tabs.
+ */
+export const applyCaseBasisQa = (agent: AgentKPI, byCaseDate: AgentKPI | undefined): AgentKPI => ({
+  ...agent,
+  qaScoreSum: byCaseDate?.qaScoreSum ?? 0,
+  qaScoreCount: byCaseDate?.qaScoreCount ?? 0,
+  qaHistory: byCaseDate?.qaHistory ?? [],
+});
 
 // ---------------------------------------------------------------------------
 // What-if scoring + "naik tier" planner. Same formulas as buildIncentiveRow,

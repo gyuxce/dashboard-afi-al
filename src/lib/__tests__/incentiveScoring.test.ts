@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { AgentKPI } from '../dataProcessor';
 import {
   DAILY_LIVECHAT_TARGET,
-  bestLeaderBonusPerTeamLeader,
+  bestLeaderBonuses,
+  applyCaseBasisQa,
   buildIncentiveRow,
   countRemainingWorkDays,
   estimateRemainingQaTickets,
@@ -64,15 +65,55 @@ describe('getTier (agent) vs getTeamLeaderTier', () => {
   });
 });
 
-describe('bestLeaderBonusPerTeamLeader (Rp500k pool split)', () => {
-  it('splits evenly across every TL', () => {
-    expect(bestLeaderBonusPerTeamLeader(5)).toBe(100000);
-    expect(bestLeaderBonusPerTeamLeader(4)).toBe(125000);
-    expect(bestLeaderBonusPerTeamLeader(1)).toBe(500000);
+describe('bestLeaderBonuses (Rp500k to the top TL only)', () => {
+  // Oktober 2026 AFI Live Chat, skor TL dari lembar KPI klien.
+  const oct = [
+    { teamLeader: 'Agra Eka Permana', score: 98.042 },
+    { teamLeader: 'Yuge Giri Purboyo', score: 97.971 },
+    { teamLeader: 'Gagas Bayu Krisnha', score: 97.775 },
+    { teamLeader: 'Fandi Bahtiar Rifai', score: 97.708 },
+    { teamLeader: 'Muhammad Aufar Himdani', score: 97.332 },
+  ];
+
+  it('pays only the highest score, like the client sheet', () => {
+    const bonus = bestLeaderBonuses(oct);
+    expect(bonus.get('Agra Eka Permana')).toBe(500000);
+    expect([...bonus.values()].filter((v) => v > 0)).toHaveLength(1);
   });
 
-  it('is 0 when there are no TLs', () => {
-    expect(bestLeaderBonusPerTeamLeader(0)).toBe(0);
+  it('pays the winner even without a tier, and never an incomplete TL', () => {
+    const bonus = bestLeaderBonuses([
+      { teamLeader: 'A', score: 70 },
+      { teamLeader: 'B', score: 60 },
+      { teamLeader: 'C', score: null },
+    ]);
+    expect(bonus.get('A')).toBe(500000);
+    expect(bonus.get('B')).toBe(0);
+    expect(bonus.get('C')).toBe(0);
+  });
+
+  it('pays nobody when no TL has a score', () => {
+    expect(bestLeaderBonuses([{ teamLeader: 'A', score: null }]).get('A')).toBe(0);
+    expect(bestLeaderBonuses([]).size).toBe(0);
+  });
+});
+
+describe('applyCaseBasisQa', () => {
+  const agent = { csId: 'x', qaScoreSum: 10, qaScoreCount: 1, qaHistory: [{ ticketId: 'checking' }], csat5Count: 7 } as unknown as AgentKPI;
+  const byCase = { csId: 'x', qaScoreSum: 190, qaScoreCount: 2, qaHistory: [{ ticketId: 'a' }, { ticketId: 'b' }] } as unknown as AgentKPI;
+
+  it('takes QA score and QA history from the Tanggal Case pass, keeps everything else', () => {
+    const merged = applyCaseBasisQa(agent, byCase);
+    expect(merged.qaScoreSum).toBe(190);
+    expect(merged.qaScoreCount).toBe(2);
+    expect(merged.qaHistory).toHaveLength(2);
+    expect(merged.csat5Count).toBe(7);
+  });
+
+  it('has no QA when the agent is missing from the case pass', () => {
+    const merged = applyCaseBasisQa(agent, undefined);
+    expect(merged.qaScoreCount).toBe(0);
+    expect(merged.qaHistory).toEqual([]);
   });
 });
 

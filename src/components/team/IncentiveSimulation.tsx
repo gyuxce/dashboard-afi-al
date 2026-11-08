@@ -5,7 +5,7 @@ import {
   DAILY_LIVECHAT_TARGET,
   TEAM_LEADER_GROSS_SALARY,
   TRAINING_QUIZ_DEFAULT,
-  bestLeaderBonusPerTeamLeader,
+  bestLeaderBonuses,
   buildIncentiveRow,
   getCsatStats,
   getTeamLeaderTier,
@@ -187,7 +187,7 @@ const IncentiveDetail = ({
       : [
           { label: "Tier TL", value: item.tier === "-" ? "Tidak eligible" : item.tier },
           { label: "Insentif tier", value: formatCurrency(rawTl?.baseIncentive ?? null) },
-          { label: "Bagian bonus TL", value: formatCurrency(rawTl?.bestLeaderBonus ?? null), tone: "success" },
+          { label: "Bonus TL terbaik", value: formatCurrency(rawTl?.bestLeaderBonus ?? null), tone: "success" },
           { label: "Total insentif", value: formatCurrency(rawTl?.totalIncentive ?? null) },
           { label: "Gaji gross", value: formatCurrency(rawTl?.grossSalary ?? null), tone: "muted" },
           { label: "THP gross", value: formatCurrency(rawTl?.grossThp ?? null) },
@@ -437,17 +437,16 @@ export const IncentiveSimulation: React.FC<{
       })
       .sort((a, b) => (b.finalScore || -1) - (a.finalScore || -1));
 
-    const teamLeaderCount = new Set(
-      simulationRoster.map((agent) => String(agent.teamLeader || "-").trim() || "-"),
-    ).size;
-    // Pool bonus TL terbaik (Rp500.000) dibagi RATA ke seluruh TL, bukan hanya
-    // yang eligible. Contoh 5 TL: masing-masing dapat Rp100.000.
-    const bestBonusPerTeamLeader = bestLeaderBonusPerTeamLeader(teamLeaderCount);
+    // Bonus TL terbaik (Rp500.000) hanya untuk TL dengan skor akhir tertinggi,
+    // seperti di sheet klien. Tidak perlu eligible tier; data belum lengkap tidak bisa menang.
+    const bestBonus = bestLeaderBonuses(
+      leaderRows.map((row) => ({ teamLeader: row.teamLeader, score: row.finalScore })),
+    );
 
     return leaderRows.map((row) => {
       // TL dengan data belum lengkap (totalIncentive null) tidak bisa dihitung
       // THP-nya, jadi bagiannya dibiarkan kosong.
-      const bestLeaderBonus = row.totalIncentive === null ? 0 : bestBonusPerTeamLeader;
+      const bestLeaderBonus = row.totalIncentive === null ? 0 : bestBonus.get(row.teamLeader) ?? 0;
       const totalIncentive = row.totalIncentive === null
         ? null
         : (row.totalIncentive || 0) + bestLeaderBonus;
@@ -660,7 +659,7 @@ export const IncentiveSimulation: React.FC<{
                 <SummaryCard label="TL disimulasikan" value={teamLeaderRows.length} detail="Mengikuti filter global" />
                 <SummaryCard label="Total agent" value={teamLeaderAgentCount} detail="Agent di bawah TL" />
                 <SummaryCard label="Tidak eligible" value={teamLeaderIneligibleCount} detail="Skor total di bawah 80" tone="warning" />
-                <SummaryCard label="Total estimasi" value={formatCurrency(teamLeaderTotalIncentive)} detail="Tier TL + bagian bonus TL" tone="success" />
+                <SummaryCard label="Total estimasi" value={formatCurrency(teamLeaderTotalIncentive)} detail="Tier TL + bonus TL terbaik" tone="success" />
                 <SummaryCard label="Total THP gross" value={formatCurrency(teamLeaderTotalGrossThp)} detail="Gaji gross + insentif TL" tone="success" />
               </>
             )}
@@ -872,7 +871,7 @@ export const IncentiveSimulation: React.FC<{
                 ) : (
                   <>
                     <p className="rounded-lg bg-surface-muted p-3">Skor TL dihitung dari rata-rata KPI agent. Nilai QA memakai rata-rata persentase QA agent, bukan bucket poin agent.</p>
-                    <p className="rounded-lg bg-success-soft p-3 text-success-text">Pool bonus TL terbaik sebesar <strong>Rp500.000</strong> dibagi rata kepada seluruh TL. Contoh 5 TL: masing-masing mendapat <strong>Rp100.000</strong>.</p>
+                    <p className="rounded-lg bg-success-soft p-3 text-success-text">Bonus TL terbaik sebesar <strong>Rp500.000</strong> hanya untuk TL dengan skor akhir tertinggi, tidak dibagi rata.</p>
                     <p className="rounded-lg bg-surface-muted p-3">Gaji gross TL per bulan <strong className="text-text-primary">Rp4.328.000</strong>. THP gross = gaji gross + insentif TL.</p>
                     <p className="rounded-lg bg-warning-soft p-3 text-warning-text">THP gross belum dikurangi pajak/BPJS dan belum termasuk lembur, hari libur, atau shift malam.</p>
                   </>

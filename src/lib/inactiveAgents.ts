@@ -17,6 +17,8 @@ export type InactiveAgentRule = {
  */
 export const INACTIVE_AGENT_RULES: readonly InactiveAgentRule[] = [
   { name: 'edgar gasita adhigama', inactiveFrom: '2026-06' },
+  // Resign 17 Okt 2026 (Database: Non Active); lembar KPI klien tidak memasukkannya untuk Oktober.
+  { name: 'santi', inactiveFrom: '2026-10' },
 ];
 
 /** True when `agent` should be excluded from ranking/incentive for a period ending on `periodEnd`. */
