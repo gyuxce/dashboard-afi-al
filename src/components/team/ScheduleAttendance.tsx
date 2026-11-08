@@ -25,11 +25,12 @@ const StatCard: React.FC<{
   icon: React.ReactNode;
   iconBg: string;
   valueClass?: string;
-}> = ({ label, value, note, icon, iconBg, valueClass = 'text-text-primary' }) => (
-  <div className="bg-card rounded-lg border border-border p-4 flex flex-col">
+  tint?: string;
+}> = ({ label, value, note, icon, valueClass = 'text-text-primary', tint = 'tint-blue' }) => (
+  <div className={`bg-card tint-card ${tint} rounded-2xl border border-border p-4 flex flex-col`}>
     <div className="flex justify-between items-start mb-2">
       <div className="text-[11px] font-medium text-text-secondary tracking-wide">{label}</div>
-      <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${iconBg}`}>{icon}</div>
+      <div className="tint-ico w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0">{icon}</div>
     </div>
     <div className={`text-2xl font-semibold tracking-tight ${valueClass}`}>{value}</div>
     {note ? <p className="mt-1 text-[10px] text-text-muted">{note}</p> : null}
@@ -88,6 +89,7 @@ export const ScheduleAttendance: React.FC<{ data: AgentKPI[]; initialView?: View
       <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
         <StatCard
           label="Avg Team Attendance"
+          tint="tint-teal"
           value={`${formatNum(summary.avgTeamAttendance, 1)}%`}
           icon={<Users className="w-3.5 h-3.5 text-primary" />}
           iconBg="bg-primary-soft"
@@ -95,6 +97,7 @@ export const ScheduleAttendance: React.FC<{ data: AgentKPI[]; initialView?: View
         />
         <StatCard
           label="Di Bawah Target"
+          tint="tint-red"
           value={formatNum(summary.belowTarget, 0)}
           note={`Target attendance ${KPI_TARGETS.attendance}%`}
           icon={<AlertTriangle className="w-3.5 h-3.5 text-danger" />}
@@ -103,18 +106,21 @@ export const ScheduleAttendance: React.FC<{ data: AgentKPI[]; initialView?: View
         />
         <StatCard
           label="Total Cuti (C)"
+          tint="tint-orange"
           value={formatNum(summary.totalC, 0)}
           icon={<HeartPulse className="w-3.5 h-3.5 text-warning" />}
           iconBg="bg-warning-soft"
         />
         <StatCard
           label="Total Sick (S)"
+          tint="tint-pink"
           value={formatNum(summary.totalSick, 0)}
           icon={<HeartPulse className="w-3.5 h-3.5 text-danger" />}
           iconBg="bg-danger-soft"
         />
         <StatCard
           label="Total PULLOUT"
+          tint="tint-green"
           value={formatNum(summary.totalPullout, 0)}
           icon={<UserMinus className="w-3.5 h-3.5 text-success" />}
           iconBg="bg-success-soft"

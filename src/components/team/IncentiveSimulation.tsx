@@ -84,14 +84,16 @@ const SummaryCard = ({
   value,
   detail,
   tone = "neutral",
+  tint,
 }: {
   label: string;
   value: string | number;
   detail: string;
   tone?: "neutral" | "success" | "warning";
+  tint?: string;
 }) => (
-  <div className="rounded-lg border border-border bg-card p-4">
-    <p className="text-[10px] font-medium tracking-wide text-text-muted">{label}</p>
+  <div className={cn("tint-card rounded-2xl border border-border bg-card p-4", tint || (tone === "success" ? "tint-green" : tone === "warning" ? "tint-orange" : "tint-blue"))}>
+    <p className="text-[11px] font-medium text-text-secondary">{label}</p>
     <p className={cn(
       "mt-1 text-xl font-bold",
       tone === "success" ? "text-success-text" : tone === "warning" ? "text-warning-text" : "text-text-primary",
@@ -144,7 +146,10 @@ const KpiBar = ({
         </span>
       </div>
       <div className="relative h-2 overflow-hidden rounded-full bg-border">
-        <div className="absolute inset-y-0 left-0 rounded-full bg-text-secondary" style={{ width: `${width}%` }} />
+        <div
+          className={cn("tint-bar absolute inset-y-0 left-0 rounded-full", /csat/i.test(label) ? "tint-orange" : /prod/i.test(label) ? "tint-green" : "tint-blue")}
+          style={{ width: `${width}%` }}
+        />
       </div>
     </div>
   );
@@ -652,15 +657,15 @@ export const IncentiveSimulation: React.FC<{
                 <SummaryCard label="Agent disimulasikan" value={rows.length} detail="Mengikuti filter global" />
                 <SummaryCard label="Eligible" value={eligibleRows.length} detail="Mendapat tier insentif" tone="success" />
                 <SummaryCard label="Tidak eligible" value={ineligibleRows.length} detail="Skor total di bawah 80" tone="warning" />
-                <SummaryCard label="Total estimasi" value={formatCurrency(totalIncentive)} detail="Tier + bonus produktivitas" tone="success" />
+                <SummaryCard label="Total estimasi" value={formatCurrency(totalIncentive)} detail="Tier + bonus produktivitas" tone="success" tint="tint-purple" />
               </>
             ) : (
               <>
                 <SummaryCard label="TL disimulasikan" value={teamLeaderRows.length} detail="Mengikuti filter global" />
-                <SummaryCard label="Total agent" value={teamLeaderAgentCount} detail="Agent di bawah TL" />
+                <SummaryCard label="Total agent" value={teamLeaderAgentCount} detail="Agent di bawah TL" tint="tint-teal" />
                 <SummaryCard label="Tidak eligible" value={teamLeaderIneligibleCount} detail="Skor total di bawah 80" tone="warning" />
-                <SummaryCard label="Total estimasi" value={formatCurrency(teamLeaderTotalIncentive)} detail="Tier TL + bonus TL terbaik" tone="success" />
-                <SummaryCard label="Total THP gross" value={formatCurrency(teamLeaderTotalGrossThp)} detail="Gaji gross + insentif TL" tone="success" />
+                <SummaryCard label="Total estimasi" value={formatCurrency(teamLeaderTotalIncentive)} detail="Tier TL + bonus TL terbaik" tone="success" tint="tint-purple" />
+                <SummaryCard label="Total THP gross" value={formatCurrency(teamLeaderTotalGrossThp)} detail="Gaji gross + insentif TL" tone="success" tint="tint-pink" />
               </>
             )}
           </div>
@@ -722,9 +727,9 @@ export const IncentiveSimulation: React.FC<{
                             className="flex h-2 overflow-hidden rounded-full bg-surface-muted"
                             title={`QC ${item.qcPts.toFixed(1)} · CSAT ${item.csatPts.toFixed(1)} · Prod ${item.prodPts.toFixed(1)}`}
                           >
-                            <span className="bg-text-secondary" style={{ width: `${item.qcPts}%` }} />
-                            <span className="bg-text-muted" style={{ width: `${item.csatPts}%` }} />
-                            <span className="bg-border-strong" style={{ width: `${item.prodPts}%` }} />
+                            <span className="tint-bar tint-blue" style={{ width: `${item.qcPts}%` }} />
+                            <span className="tint-bar tint-orange" style={{ width: `${item.csatPts}%` }} />
+                            <span className="tint-bar tint-green" style={{ width: `${item.prodPts}%` }} />
                             <span className="bg-border" style={{ width: `${rest}%` }} />
                           </span>
                           <span className="truncate text-[11px] tabular-nums text-text-secondary">
@@ -748,9 +753,9 @@ export const IncentiveSimulation: React.FC<{
                 )}
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-4 py-2.5 text-[10px] text-text-muted">
-                  <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2.5 rounded-sm bg-text-secondary" />QC (55)</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2.5 rounded-sm bg-text-muted" />CSAT (25)</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2.5 rounded-sm bg-border-strong" />Prod (20)</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="tint-bar tint-blue h-2 w-2.5 rounded-sm" />QC (55)</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="tint-bar tint-orange h-2 w-2.5 rounded-sm" />CSAT (25)</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="tint-bar tint-green h-2 w-2.5 rounded-sm" />Prod (20)</span>
                 </div>
               </div>
 

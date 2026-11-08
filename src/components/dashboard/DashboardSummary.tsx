@@ -836,18 +836,21 @@ const StatCard = ({
   const status = targetType ? getKpiStatus(rawValue, targetType) : 'none';
   const numberColor = STATUS_TEXT_CLASS[status] ?? 'text-text-primary';
   const sparkColor =
-    status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'text-text-muted';
+    status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'tint-spark';
   const isCompareMode = previousValue !== undefined;
   const isHero = variant === 'hero';
+  const TINT: Record<string, string> = {
+    productivity: 'tint-blue', 'productivity-avg': 'tint-indigo', csat: 'tint-orange', qa: 'tint-purple',
+    attendance: 'tint-teal', sla: 'tint-green', whu: 'tint-teal',
+  };
+  const tint = TINT[kpiTheme] || 'tint-blue';
 
   return (
-    <div className={`bg-card w-full border border-border rounded-2xl ${isHero ? 'p-5' : 'p-4'} flex flex-col gap-2.5 hover:-translate-y-0.5 hover:shadow-md relative overflow-visible`}>
+    <div className={`bg-card tint-card ${tint} w-full border border-border rounded-2xl ${isHero ? 'p-5' : 'p-4'} flex flex-col gap-2.5 hover:-translate-y-0.5 hover:shadow-md relative overflow-visible`}>
       <div className="flex items-center gap-2 w-full">
         {isHero && (
-          <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-            status === 'miss' ? 'bg-danger-soft' : status === 'watch' ? 'bg-warning-soft' : 'bg-surface-muted'
-          }`}>
-            <Icon size={13} className={status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'text-text-secondary'} />
+          <div className="tint-ico w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0">
+            <Icon size={14} />
           </div>
         )}
         <p title={title} className="min-w-0 flex-1 text-[11.5px] font-medium text-text-secondary truncate">{title}</p>

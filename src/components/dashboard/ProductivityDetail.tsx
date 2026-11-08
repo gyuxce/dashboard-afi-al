@@ -32,23 +32,25 @@ const HeroTile = ({
   sub,
   status = "none",
   progress,
+  tint = "tint-blue",
 }: {
   label: string;
   value: string;
   sub?: string;
   status?: ReturnType<typeof getKpiStatus>;
   progress?: number;
+  tint?: string;
 }) => {
   const valueClass =
     status === "miss" ? "text-danger" : status === "watch" ? "text-warning" : "text-text-primary";
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-text-muted">{label}</div>
+    <div className={`tint-card ${tint} rounded-2xl border border-border bg-card p-4`}>
+      <div className="text-[11px] font-medium text-text-secondary">{label}</div>
       <div className={`mt-2 text-2xl font-bold tabular-nums ${valueClass}`}>{value}</div>
       {typeof progress === "number" ? (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-muted">
           <div
-            className="h-full rounded-full bg-border-strong"
+            className="tint-bar h-full rounded-full"
             style={{ width: `${Math.max(0, Math.min(progress, 100))}%` }}
           />
         </div>
@@ -305,23 +307,27 @@ export const ProductivityDetail: React.FC<{
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <HeroTile
           label="Total chat"
+          tint="tint-blue"
           value={formatNum(totalChat, 0)}
           sub={`${activeAgents} agent aktif · ${formatNum(totalManDays, 0)} man-day`}
         />
         <HeroTile
           label="Avg / man-day"
+          tint="tint-indigo"
           value={formatNum(totalAvg, 1)}
           status={avgStatus}
           sub={`${totalAvg >= PROD_TARGET ? "+" : ""}${formatNum(totalAvg - PROD_TARGET, 1)} vs ${PROD_TARGET}`}
         />
         <HeroTile
           label="Pencapaian kuota"
+          tint="tint-green"
           value={`${formatNum(quotaAchievement, 0)}%`}
           progress={quotaAchievement}
           sub={`kuota ${formatNum(totalQuota, 0)}`}
         />
         <HeroTile
           label="Gap vs target"
+          tint="tint-orange"
           value={`${totalGap >= 0 ? "+" : ""}${formatNum(totalGap, 0)}`}
           status={totalGap < 0 ? "miss" : "none"}
           sub={`${underTarget} agent di bawah kuota`}
@@ -398,9 +404,9 @@ export const ProductivityDetail: React.FC<{
                       onClick={() => setSelectedHourIndex(index)}
                       fill={
                         index === activeHourIndex
-                          ? "var(--color-text-primary)"
+                          ? "var(--color-primary)"
                           : entry.total > 0
-                            ? "var(--color-border-strong)"
+                            ? "rgb(var(--chart-bar) / 0.42)"
                             : "var(--color-border)"
                       }
                     />

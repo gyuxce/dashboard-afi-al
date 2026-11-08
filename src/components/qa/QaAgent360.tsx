@@ -342,21 +342,21 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="tint-card tint-blue rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium tracking-wide text-text-muted">Total Evaluasi</span>
+            <span className="text-[11px] font-medium text-text-secondary">Total Evaluasi</span>
             <BarChart2 className="h-4 w-4 text-primary" />
           </div>
           <div className="mt-2 text-2xl font-semibold text-text-primary">{formatNum(highlightStats.totalEvaluations, 0)}</div>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="tint-card tint-red rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-medium tracking-wide text-text-muted">Total Temuan</span>
             <AlertCircle className="h-4 w-4 text-danger" />
           </div>
           <div className="mt-2 text-2xl font-semibold text-danger">{formatNum(highlightStats.totalMistakes, 0)}</div>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="tint-card tint-orange rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-medium tracking-wide text-text-muted">% Temuan</span>
             <AlertCircle className="h-4 w-4 text-warning" />

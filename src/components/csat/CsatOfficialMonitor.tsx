@@ -182,7 +182,7 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="tint-card tint-orange rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-medium tracking-wide text-text-muted">Skor CSAT</span>
             <Star className="h-4 w-4 text-warning" />
@@ -192,7 +192,7 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
           </div>
           <p className="mt-1 text-[11px] text-text-muted">Target 3.75</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="tint-card tint-blue rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-medium tracking-wide text-text-muted">Total Responden</span>
             <Users className="h-4 w-4 text-primary" />

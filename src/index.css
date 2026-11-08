@@ -96,6 +96,7 @@
   --kpi-neutral-soft: 242 242 247;
   --kpi-neutral-text: 72 72 74;
   --chart-primary: 99 99 102;
+  --chart-bar: 0 122 255;             /* bars: Apple blue, softened with alpha */
 }
 
 .dark {
@@ -172,6 +173,7 @@
   --kpi-neutral: 138 138 148;
   --kpi-neutral-soft: 35 35 41;
   --kpi-neutral-text: 180 180 189;
+  --chart-bar: 106 167 255;
   --chart-primary: 138 138 148;
 }
 
@@ -285,6 +287,25 @@ main h2 { letter-spacing: -0.012em; }
 }
 .bg-card.border:hover { box-shadow: var(--shadow-md); }
 
+/* Colour identity: Apple system hues. A card with .tint-card gets a soft gradient wash and a tinted hairline;
+   .tint-ico is the matching icon chip, .tint-bar a progress fill. Pair with one .tint-<hue> class. */
+.tint-blue { --tint: 0 122 255; } .tint-purple { --tint: 175 82 222; } .tint-orange { --tint: 255 149 0; }
+.tint-green { --tint: 52 199 89; } .tint-teal { --tint: 48 176 199; } .tint-pink { --tint: 255 45 85; }
+.tint-indigo { --tint: 88 86 214; } .tint-red { --tint: 255 59 48; }
+.bg-card.border.tint-card, .tint-card {
+  background-image: linear-gradient(150deg, rgb(var(--tint) / 0.15), rgb(var(--tint) / 0.035) 58%, transparent);
+  border-color: rgb(var(--tint) / 0.24);
+}
+.dark .bg-card.border.tint-card, .dark .tint-card {
+  background-image: linear-gradient(150deg, rgb(var(--tint) / 0.24), rgb(var(--tint) / 0.05) 58%, transparent);
+  border-color: rgb(var(--tint) / 0.32);
+}
+.tint-ico { background: rgb(var(--tint) / 0.16); color: rgb(var(--tint)); }
+.tint-ico svg { color: rgb(var(--tint)); }
+.tint-bar { background: rgb(var(--tint)); }
+.tint-spark { color: rgb(var(--tint)); }
+.navico { background: linear-gradient(160deg, rgb(var(--tint) / 0.88), rgb(var(--tint))); color: #fff; box-shadow: 0 2px 6px rgb(var(--tint) / 0.35); }
+
 /* Every button gets a quick, springy press. */
 button:not(:disabled) { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-timing-function: var(--ease-apple); }
 button:not(:disabled):active { transform: scale(0.97); }
@@ -317,8 +338,10 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea {
 /* Light canvas: faint brand + sky tint so the glass has something to blur. */
 html:not(.dark) .app-canvas {
   background-image:
-    radial-gradient(1100px 520px at 8% -8%, rgb(var(--primary) / 0.07), transparent 62%),
-    radial-gradient(900px 480px at 100% 0%, rgb(0 122 255 / 0.06), transparent 58%);
+    radial-gradient(1000px 520px at 6% -8%, rgb(255 59 48 / 0.10), transparent 62%),
+    radial-gradient(900px 500px at 100% -4%, rgb(0 122 255 / 0.11), transparent 58%),
+    radial-gradient(900px 520px at 0% 108%, rgb(175 82 222 / 0.09), transparent 60%),
+    radial-gradient(800px 480px at 100% 104%, rgb(48 176 199 / 0.09), transparent 60%);
 }
 
 /* Thin, quiet scrollbars. */

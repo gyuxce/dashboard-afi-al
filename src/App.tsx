@@ -239,7 +239,7 @@ export default function App() {
   
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const stored = localStorage.getItem('theme');
-    return stored === 'light' || stored === 'dark' ? stored : 'dark';
+    return stored === 'light' || stored === 'dark' ? stored : 'light';
   });
 
   useEffect(() => {
@@ -637,6 +637,11 @@ export default function App() {
     || isHydrating
     || (isProcessingKpis && rawData.length === 0 && !hasRenderedKpiOnceRef.current);
 
+  // Apple-Settings-style colour per menu section (RGB triples for the .navico tint).
+  const SECTION_TINT: Record<string, string> = {
+    KPI: '0 122 255', CSAT: '255 149 0', Service: '52 199 89', Team: '175 82 222', Laporan: '255 45 85', Data: '48 176 199',
+  };
+
   const navItems = [
     { id: 'summary', label: 'Dashboard Summary', icon: LayoutDashboard, section: 'KPI' },
     { id: 'productivity', label: 'Productivity Detail', icon: Activity, section: 'KPI' },
@@ -819,16 +824,18 @@ export default function App() {
                   className={cn(
                     "group relative w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-[13px] font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden cursor-pointer",
                     isActive
-                      ? "bg-sidebar-bg-active/80 text-sidebar-text-active"
+                      ? "bg-card text-sidebar-text-active shadow-sm"
                       : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-hover hover:translate-x-0.5",
                     isSidebarMinimized ? "md:justify-center md:px-0 md:hover:translate-x-0" : ""
                   )}
                   title={isSidebarMinimized ? item.label : undefined}
                 >
-                  <Icon className={cn(
-                    "w-[18px] h-[18px] transition-colors duration-200 ease-out shrink-0",
-                    isActive ? "text-sidebar-accent" : "text-sidebar-text group-hover:text-sidebar-text-hover"
-                  )} />
+                  <span
+                    className="navico grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[8px] transition-transform duration-200 group-hover:scale-105"
+                    style={{ '--tint': SECTION_TINT[item.section] || '0 122 255' } as React.CSSProperties}
+                  >
+                    <Icon className="h-[15px] w-[15px]" />
+                  </span>
                   <span className={cn("relative z-10 transition-all duration-300 whitespace-nowrap", isActive && "font-semibold", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>{item.label}</span>
                 </button>
               </React.Fragment>
