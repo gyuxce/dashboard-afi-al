@@ -720,8 +720,8 @@ export default function App() {
       : null,
     hasCustomDateFilter
       ? {
-          label: 'Date',
-          value: `${startDate ? formatFilterDate(startDate) : 'awal'} to ${endDate ? formatFilterDate(endDate) : 'akhir'}`,
+          label: 'Tanggal',
+          value: `${startDate ? formatFilterDate(startDate) : 'awal'} s/d ${endDate ? formatFilterDate(endDate) : 'akhir'}`,
           onClear: resetPeriodToCurrentMonth,
         }
       : null,

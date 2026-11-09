@@ -352,7 +352,7 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
       <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-4 gap-4">
         <h1 className="text-lg font-bold text-text-primary shrink-0">
           Dashboard Summary{" "}
-          <span className="text-text-muted font-normal text-sm ml-2">
+          <span className="block sm:inline text-text-muted font-normal text-sm sm:ml-2">
             Periode aktif: Live
           </span>
         </h1>
@@ -857,19 +857,19 @@ const AttentionStrip = ({ stats, data }: { stats: Record<string, number | null |
           <h2 className="text-sm font-bold text-text-primary">{allGood ? 'Semua KPI utama sesuai target' : 'Perlu perhatian'}</h2>
         </div>
         {shown.map((it) => (
-          <div key={it.key} className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs ${it.level === 'miss' ? 'bg-danger-soft text-danger-text' : 'bg-warning-soft text-warning-text'}`}>
+          <div key={it.key} className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full sm:w-auto rounded-xl px-3 py-1.5 text-xs ${it.level === 'miss' ? 'bg-danger-soft text-danger-text' : 'bg-warning-soft text-warning-text'}`}>
             <span aria-hidden>{it.level === 'miss' ? '▼' : '▽'}</span>
             <span className="font-semibold">{it.title}</span>
             <span className="tabular-nums">{it.value}</span>
-            <span className="tabular-nums opacity-80">· target {it.target} · {it.gap}</span>
+            <span className="tabular-nums opacity-80 w-full sm:w-auto pl-5 sm:pl-0"><span className="hidden sm:inline">· </span>target {it.target} · {it.gap}</span>
           </div>
         ))}
         {lowAgent && lowAgent.pct < KPI_TARGETS.csatFull && (
-          <div className="flex items-center gap-2 rounded-xl bg-surface-muted px-3 py-1.5 text-xs text-text-secondary">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full sm:w-auto rounded-xl bg-surface-muted px-3 py-1.5 text-xs text-text-secondary">
             <Users size={13} aria-hidden />
             <span>CSAT SC agent terendah:</span>
             <span className="font-semibold text-text-primary">{lowAgent.name}</span>
-            <span className="tabular-nums">{formatNum(lowAgent.pct, 1)}% · {formatNum(lowAgent.n, 0)} respons</span>
+            <span className="tabular-nums w-full sm:w-auto pl-5 sm:pl-0">{formatNum(lowAgent.pct, 1)}% · {formatNum(lowAgent.n, 0)} respons</span>
           </div>
         )}
       </div>

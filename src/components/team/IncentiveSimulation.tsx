@@ -649,7 +649,7 @@ export const IncentiveSimulation: React.FC<{
           )}
 
           <div className={cn(
-            "grid grid-cols-1 gap-3 sm:grid-cols-2",
+            "grid grid-cols-2 gap-3",
             viewMode === "tl" ? "xl:grid-cols-5" : "xl:grid-cols-4",
           )}>
             {viewMode === "agent" ? (

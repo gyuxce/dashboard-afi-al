@@ -93,7 +93,7 @@ export const ScheduleAttendance: React.FC<{ data: AgentKPI[]; initialView?: View
           value={`${formatNum(summary.avgTeamAttendance, 1)}%`}
           icon={<Users className="w-3.5 h-3.5 text-primary" />}
           iconBg="bg-primary-soft"
-          valueClass="text-primary"
+          valueClass={summary.avgTeamAttendance < KPI_TARGETS.attendance ? 'text-danger' : 'text-text-primary'}
         />
         <StatCard
           label="Di Bawah Target"
