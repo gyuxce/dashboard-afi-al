@@ -7,6 +7,7 @@ import {
   indexByDate,
   getByCalendarDate,
   type KpiType,
+  formatCsId,
 } from '../../lib/utils';
 import { KpiValue, KpiCue, KpiLegend } from '../ui/KpiCue';
 import { Sparkline } from '../ui/Sparkline';
@@ -174,7 +175,7 @@ export const SlaWhuMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                     <td className="p-2 text-center text-text-muted font-medium w-[48px]">{index + 1}</td>
                     <td className="p-2 min-w-[200px]">
                       <div className="font-semibold text-text-primary truncate" title={agent.csId}>{displayName}</div>
-                      <div className="text-[9px] text-text-muted truncate">{agent.csId}</div>
+                      <div className="text-[9px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
                     </td>
                     <td className="p-2 text-text-secondary min-w-[130px] truncate">
                       <span className="uppercase">{agent.bpo || '-'}</span>

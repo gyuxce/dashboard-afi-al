@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { AgentKPI, getOfficialCsatAggregate, getPreviousMonthPeriod, getPreviousPeriod, normalizeDateStr } from "../../lib/dataProcessor";
-import { formatNum, getKpiStatus, parseDateForSort, type KpiType } from "../../lib/utils";
-import { Activity, Star, Clock, CheckCircle, TrendingUp, Users, Info, ChevronDown, ClipboardCheck, Download, ClipboardCopy } from "lucide-react";
+import { formatNum, getKpiStatus, KPI_TARGETS, parseDateForSort, type KpiType } from "../../lib/utils";
+import { Activity, AlertTriangle, Star, Clock, CheckCircle, TrendingUp, Users, Info, ChevronDown, ClipboardCheck, Download, ClipboardCopy } from "lucide-react";
 import { Sparkline } from "../ui/Sparkline";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../../store";
@@ -353,7 +353,7 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
         <h1 className="text-lg font-bold text-text-primary shrink-0">
           Dashboard Summary{" "}
           <span className="text-text-muted font-normal text-sm ml-2">
-            Active Period: Live
+            Periode aktif: Live
           </span>
         </h1>
 
@@ -405,6 +405,7 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
               dailyTrend.map((d) => d[key] as number | null);
             return (
               <>
+                <AttentionStrip stats={currentStats as unknown as Record<string, number | null | undefined>} data={data} />
                 {/* Hero KPI strip — the five people lead with */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <StatCard
@@ -746,16 +747,29 @@ const KpiRulesPanel = ({
   );
 };
 
+// Accepts Indonesian ("63.121", "3,62") and plain ("3.62") number strings.
 const parseDisplayValue = (value: string) => {
-  const match = value.match(/^(-?\d+(?:\.\d+)?)(.*)$/);
+  const match = value.match(/^(-?[\d.,]+)(.*)$/);
   if (!match) return null;
-  const decimals = match[1].includes(".") ? match[1].split(".")[1].length : 0;
-  return {
-    target: Number(match[1]),
-    decimals,
-    suffix: match[2],
-  };
+  const raw = match[1];
+  let normalized: string;
+  let decimals = 0;
+  if (raw.includes(",")) {
+    normalized = raw.replace(/\./g, "").replace(",", ".");
+    decimals = raw.split(",")[1].length;
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(raw)) {
+    normalized = raw.replace(/\./g, "");
+  } else {
+    normalized = raw;
+    decimals = raw.includes(".") ? raw.split(".")[1].length : 0;
+  }
+  const target = Number(normalized);
+  if (Number.isNaN(target)) return null;
+  return { target, decimals, suffix: match[2] };
 };
+
+const formatCount = (n: number, decimals: number) =>
+  n.toLocaleString("id-ID", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
 const CountUpValue = ({ value }: { value: string }) => {
   const parsed = parseDisplayValue(value);
@@ -768,27 +782,99 @@ const CountUpValue = ({ value }: { value: string }) => {
     }
 
     let animationFrame = 0;
-    const durationMs = 2400;
+    const durationMs = 800;
     const startedAt = performance.now();
 
     const tick = (now: number) => {
       const progress = Math.min((now - startedAt) / durationMs, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       const nextValue = parsed.target * eased;
-      setDisplayValue(`${nextValue.toFixed(parsed.decimals)}${parsed.suffix}`);
+      setDisplayValue(`${formatCount(nextValue, parsed.decimals)}${parsed.suffix}`);
 
       if (progress < 1) {
         animationFrame = requestAnimationFrame(tick);
       }
     };
 
-    setDisplayValue(`${(0).toFixed(parsed.decimals)}${parsed.suffix}`);
+    setDisplayValue(`${formatCount(0, parsed.decimals)}${parsed.suffix}`);
     animationFrame = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(animationFrame);
   }, [value, parsed?.target, parsed?.decimals, parsed?.suffix]);
 
   return <>{displayValue}</>;
+};
+
+
+// --- "Perlu perhatian": KPIs under target (worst first) + the lowest CSAT SC agent ---
+type AttentionItem = { key: string; title: string; value: string; target: string; gap: string; level: 'miss' | 'watch'; rel: number };
+
+const AttentionStrip = ({ stats, data }: { stats: Record<string, number | null | undefined>; data: AgentKPI[] }) => {
+  const defs: { key: string; title: string; type: KpiType; stat: string; unit: string; dec: number }[] = [
+    { key: 'csatFair', title: 'CSAT SC After Takeout', type: 'csatFair', stat: 'csatScFair', unit: '%', dec: 1 },
+    { key: 'csatFull', title: 'CSAT SC Full', type: 'csatFull', stat: 'csatScFull', unit: '%', dec: 1 },
+    { key: 'csatOfficial', title: 'CSAT Official', type: 'csatOfficial', stat: 'csat', unit: '', dec: 2 },
+    { key: 'qa', title: 'QA Score', type: 'qa', stat: 'qa', unit: '%', dec: 1 },
+    { key: 'attendance', title: 'Attendance', type: 'attendance', stat: 'attendance', unit: '%', dec: 1 },
+    { key: 'sla1m', title: 'SLA 1 Menit', type: 'sla1m', stat: 'sla1m', unit: '%', dec: 1 },
+    { key: 'sla3m', title: 'SLA 3 Menit', type: 'sla3m', stat: 'sla3m', unit: '%', dec: 1 },
+    { key: 'whu', title: 'WHU', type: 'whu', stat: 'whu', unit: '%', dec: 1 },
+    { key: 'productivity', title: 'Avg Productivity', type: 'productivity', stat: 'avgProductivity', unit: '', dec: 0 },
+  ];
+  const items: AttentionItem[] = [];
+  defs.forEach((d) => {
+    const val = stats[d.stat];
+    if (val === null || val === undefined || Number.isNaN(val)) return;
+    const status = getKpiStatus(val, d.type);
+    if (status !== 'miss' && status !== 'watch') return;
+    const target = KPI_TARGETS[d.type];
+    items.push({
+      key: d.key, title: d.title, level: status, rel: (val - target) / target,
+      value: `${formatNum(val, d.dec)}${d.unit}`, target: `${formatNum(target, d.type === 'csatOfficial' ? 2 : 0)}${d.unit}`,
+      gap: `−${formatNum(Math.abs(val - target), d.dec)}`,
+    });
+  });
+  items.sort((a, b) => a.rel - b.rel);
+
+  const lowAgent = useMemo(() => {
+    let best: { name: string; pct: number; n: number } | null = null;
+    data.forEach((a) => {
+      const n = a.csatScTotalValid || 0;
+      if (n < 30) return;
+      const pct = ((a.csatScGoodCount || 0) / n) * 100;
+      if (!best || pct < best.pct) best = { name: a.name || a.csId, pct, n };
+    });
+    return best as { name: string; pct: number; n: number } | null;
+  }, [data]);
+
+  const shown = items.slice(0, 4);
+  const allGood = shown.length === 0;
+  return (
+    <section className="rounded-2xl border border-border bg-card px-4 py-3" aria-label="Perlu perhatian">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2 pr-2">
+          {allGood ? <CheckCircle size={16} className="text-success" /> : <AlertTriangle size={16} className="text-warning" />}
+          <h2 className="text-sm font-bold text-text-primary">{allGood ? 'Semua KPI utama sesuai target' : 'Perlu perhatian'}</h2>
+        </div>
+        {shown.map((it) => (
+          <div key={it.key} className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs ${it.level === 'miss' ? 'bg-danger-soft text-danger-text' : 'bg-warning-soft text-warning-text'}`}>
+            <span aria-hidden>{it.level === 'miss' ? '▼' : '▽'}</span>
+            <span className="font-semibold">{it.title}</span>
+            <span className="tabular-nums">{it.value}</span>
+            <span className="tabular-nums opacity-80">· target {it.target} · {it.gap}</span>
+          </div>
+        ))}
+        {lowAgent && lowAgent.pct < KPI_TARGETS.csatFull && (
+          <div className="flex items-center gap-2 rounded-xl bg-surface-muted px-3 py-1.5 text-xs text-text-secondary">
+            <Users size={13} aria-hidden />
+            <span>CSAT SC agent terendah:</span>
+            <span className="font-semibold text-text-primary">{lowAgent.name}</span>
+            <span className="tabular-nums">{formatNum(lowAgent.pct, 1)}% · {formatNum(lowAgent.n, 0)} respons</span>
+          </div>
+        )}
+      </div>
+    </section>
+  );
 };
 
 const STATUS_TEXT_CLASS: Record<string, string> = {
@@ -840,8 +926,8 @@ const StatCard = ({
   const isCompareMode = previousValue !== undefined;
   const isHero = variant === 'hero';
   const TINT: Record<string, string> = {
-    productivity: 'tint-blue', 'productivity-avg': 'tint-indigo', csat: 'tint-orange', qa: 'tint-purple',
-    attendance: 'tint-teal', sla: 'tint-green', whu: 'tint-teal',
+    productivity: 'tint-blue', 'productivity-avg': 'tint-indigo', csat: 'tint-purple', qa: 'tint-teal',
+    attendance: 'tint-indigo', sla: 'tint-teal', whu: 'tint-blue',
   };
   const tint = TINT[kpiTheme] || 'tint-blue';
 

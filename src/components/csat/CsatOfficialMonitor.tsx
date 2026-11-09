@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { AgentKPI, getOfficialCsatAggregate } from '../../lib/dataProcessor';
-import { formatNum, getKpiStatus, getMonthOffsetLabel, parseDateForSort, cn, indexByDate, uniqueCalendarDates, getByCalendarDate } from '../../lib/utils';
+import { formatNum, getKpiStatus, getMonthOffsetLabel, parseDateForSort, cn, indexByDate, uniqueCalendarDates, getByCalendarDate, formatCsId } from '../../lib/utils';
 import { KpiValue, KpiCue } from '../ui/KpiCue';
 import { Sparkline } from '../ui/Sparkline';
 import { DayStrip } from '../ui/DayStrip';
@@ -182,7 +182,7 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="tint-card tint-orange rounded-2xl border border-border bg-card p-4">
+        <div className="tint-card tint-purple rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-medium tracking-wide text-text-muted">Skor CSAT</span>
             <Star className="h-4 w-4 text-warning" />
@@ -267,7 +267,7 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
                     <td className="p-2 text-center text-text-muted font-medium w-[48px]">{index + 1}</td>
                     <td className="p-2 min-w-[200px]">
                       <div className="font-semibold text-text-primary truncate" title={agent.csId}>{displayName}</div>
-                      <div className="text-[9px] text-text-muted truncate">{agent.csId}</div>
+                      <div className="text-[9px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
                     </td>
                     <td className="p-2 text-text-secondary min-w-[130px] truncate">
                       <span className="uppercase">{agent.bpo || '-'}</span>

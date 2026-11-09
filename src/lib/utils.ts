@@ -9,7 +9,14 @@ export function cn(...inputs: ClassValue[]) {
 // Format numbers
 export function formatNum(num: number | null | undefined, decimals = 2, suffix = '') {
   if (num === null || num === undefined || isNaN(num)) return '-';
-  return Number(num).toFixed(decimals) + suffix;
+  // Indonesian format everywhere: 63.121 and 3,62 (not 63121 / 3.62).
+  return Number(num).toLocaleString('id-ID', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + suffix;
+}
+
+/** Long raw CS IDs (NSI export) shrink to `3-1-3…7506`; the full ID stays in the title attribute. */
+export function formatCsId(csId: string | null | undefined) {
+  const id = String(csId || '');
+  return id.length > 14 ? `${id.slice(0, 5)}…${id.slice(-4)}` : id;
 }
 
 export type KpiType = 'productivity' | 'qa' | 'sla1m' | 'sla3m' | 'whu' | 'csatFull' | 'csatFair' | 'csatOfficial' | 'attendance';

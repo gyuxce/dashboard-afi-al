@@ -7,6 +7,7 @@ import {
   indexByDate,
   uniqueCalendarDates,
   getByCalendarDate,
+  formatCsId,
 } from "../../lib/utils";
 import { KpiValue, KpiCue } from "../ui/KpiCue";
 import { Sparkline } from "../ui/Sparkline";
@@ -327,7 +328,7 @@ export const ProductivityDetail: React.FC<{
         />
         <HeroTile
           label="Gap vs target"
-          tint="tint-orange"
+          tint="tint-teal"
           value={`${totalGap >= 0 ? "+" : ""}${formatNum(totalGap, 0)}`}
           status={totalGap < 0 ? "miss" : "none"}
           sub={`${underTarget} agent di bawah kuota`}
@@ -546,7 +547,7 @@ export const ProductivityDetail: React.FC<{
                     <td className="p-2 text-center text-text-muted font-medium w-[48px]">{idx + 1}</td>
                     <td className="p-2 min-w-[200px]">
                       <div className="font-semibold text-text-primary truncate" title={agent.csId}>{displayName}</div>
-                      <div className="text-[9px] text-text-muted truncate">{agent.csId}</div>
+                      <div className="text-[9px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
                     </td>
                     <td className="p-2 text-text-secondary min-w-[130px] truncate">
                       <span className="uppercase">{agent.bpo || "-"}</span>

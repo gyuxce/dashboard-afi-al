@@ -174,7 +174,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
       <div className="bg-card border border-border rounded-lg p-5 min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <h2 className="text-sm font-bold text-text-primary">
-            {trendMode === 'weekly' ? 'Weekly' : 'Daily'} Performance Trend <span className="text-text-muted font-medium text-xs ml-1">(Total Productivity)</span>
+            {trendMode === 'weekly' ? 'Tren mingguan' : 'Tren harian'} <span className="text-text-muted font-medium text-xs ml-1">(Total Productivity)</span>
           </h2>
           <div className="inline-flex items-center self-start rounded-lg border border-border bg-surface-muted p-0.5 sm:self-auto">
             {(['weekly', 'daily'] as const).map(mode => (
@@ -187,7 +187,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
                   trendMode === mode ? 'bg-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-primary',
                 ].join(' ')}
               >
-                {mode === 'weekly' ? 'Weekly' : 'Daily'}
+                {mode === 'weekly' ? 'Mingguan' : 'Harian'}
               </button>
             ))}
           </div>

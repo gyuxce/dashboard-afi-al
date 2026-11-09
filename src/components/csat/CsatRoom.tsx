@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { AgentKPI, CSATEntry, isCsatTakeoutCategory, isValidCsatScScore, normalizeDateStr } from '../../lib/dataProcessor';
-import { formatNum, getKpiStatus, getMonthOffsetLabel, parseDateForSort, cn, indexByDate, uniqueCalendarDates, getByCalendarDate } from '../../lib/utils';
+import { formatNum, getKpiStatus, getMonthOffsetLabel, parseDateForSort, cn, indexByDate, uniqueCalendarDates, getByCalendarDate, formatCsId } from '../../lib/utils';
 import { KpiValue, KpiCue } from '../ui/KpiCue';
 import { Sparkline } from '../ui/Sparkline';
 import { DayStrip } from '../ui/DayStrip';
@@ -967,7 +967,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                       <td className="p-2 text-center text-text-muted font-medium w-[48px]">{index + 1}</td>
                       <td className="p-2 min-w-[200px]">
                         <div className="font-semibold text-text-primary truncate" title={agent.csId}>{displayName}</div>
-                        <div className="text-[9px] text-text-muted truncate">{agent.csId}</div>
+                        <div className="text-[9px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
                       </td>
                       <td className="p-2 text-text-secondary min-w-[130px] truncate">
                         <span className="uppercase">{agent.bpo || '-'}</span>

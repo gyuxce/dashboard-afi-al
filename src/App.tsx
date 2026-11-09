@@ -763,7 +763,7 @@ export default function App() {
       {/* Mobile Top Bar */}
       <div className="md:hidden glass flex items-center justify-between p-4 text-sidebar-text border-b border-sidebar-border absolute top-0 left-0 w-full z-40 transition-colors duration-300">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-[10px] bg-gradient-to-b from-[#F0454B] to-primary shadow-[0_2px_6px_rgb(227_30_36/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
+          <div className="w-8 h-8 rounded-[10px] bg-gradient-to-b from-primary/85 to-primary shadow-[0_2px_6px_rgb(var(--primary)/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
           <span className="font-semibold text-sidebar-text-hover tracking-tight text-sm">Live Dashboard</span>
         </div>
         <button 
@@ -803,7 +803,7 @@ export default function App() {
 
         <div className={cn("px-4 pt-5 pb-4 overflow-hidden", isSidebarMinimized ? "md:px-4" : "")}>
         <div className={cn("flex items-center gap-3 relative z-10 group cursor-default", isSidebarMinimized ? "md:justify-center" : "")}>
-          <div className="w-9 h-9 rounded-[11px] bg-gradient-to-b from-[#F0454B] to-primary shadow-[0_3px_10px_rgb(227_30_36/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
+          <div className="w-9 h-9 rounded-[11px] bg-gradient-to-b from-primary/85 to-primary shadow-[0_3px_10px_rgb(var(--primary)/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
           <span className={cn("font-semibold tracking-tight text-sidebar-text-hover text-[15px] transition-all duration-300 whitespace-nowrap", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>Live Dashboard</span>
         </div>
       </div>
@@ -867,7 +867,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col p-3 pt-20 md:p-8 gap-7 overflow-y-auto overflow-x-hidden w-full relative">
-        <div className="bg-card/85 backdrop-blur-xl border border-border rounded-2xl shadow-sm px-4 py-3 flex flex-col relative z-50 overflow-visible">
+        <div className="bg-card/85 backdrop-blur-xl border border-border rounded-2xl shadow-sm px-4 py-2.5 flex flex-col relative z-50 overflow-visible">
           {/* Mobile Filter Toggle */}
           <div className="flex md:hidden items-center justify-between w-full mb-2">
             <span className="text-[11px] font-medium text-text-muted tracking-wide pl-1">Filter</span>
@@ -1066,6 +1066,22 @@ export default function App() {
                   </>
                 )}
               </div>
+              {activeFilters.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {activeFilters.map((filter) => (
+                    <React.Fragment key={filter.label}>
+                      <ActiveFilterChip label={filter.label} value={filter.value} onClear={filter.onClear} />
+                    </React.Fragment>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-text-muted hover:bg-surface-muted hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    Hapus semua
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-1.5 ml-auto">
                 <button
                   type="button"
@@ -1110,29 +1126,6 @@ export default function App() {
            </div>
           </div>
 
-          {activeFilters.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
-              <span className="text-[10px] font-medium tracking-wide text-text-muted">
-                Filter aktif
-              </span>
-              {activeFilters.map((filter) => (
-                <React.Fragment key={filter.label}>
-                  <ActiveFilterChip
-                    label={filter.label}
-                    value={filter.value}
-                    onClear={filter.onClear}
-                  />
-                </React.Fragment>
-              ))}
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-text-muted hover:bg-surface-muted hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                Hapus semua
-              </button>
-            </div>
-          )}
         </div>
 
         <div className="w-full pb-8">
