@@ -326,7 +326,9 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
 }
-.tab-enter { animation: tab-enter 0.45s var(--ease-apple) both; }
+/* `backwards` (not `both`): once finished the animation must not hold `transform`, otherwise the
+   wrapper becomes the containing block of every `position: fixed` modal inside a tab. */
+.tab-enter { animation: tab-enter 0.45s var(--ease-apple) backwards; }
 
 /* Frosted glass surfaces (sidebar, toolbar). */
 .glass {
