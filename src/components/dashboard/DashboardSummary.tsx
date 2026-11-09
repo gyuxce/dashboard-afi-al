@@ -68,7 +68,9 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
   const previousStats3 = stats.previous3;
 
   const getDelta = (curr: number, prev: number) => {
-    if (!isComparisonEnabled || !previousData.length) return undefined;
+    // Passive mode (Bandingkan off): previousData is last month's same day range.
+    if (!previousData.length || !periodHasActivity(previousData)) return undefined;
+    if (!Number.isFinite(curr) || !Number.isFinite(prev)) return undefined;
     return curr - prev;
   };
 
@@ -438,7 +440,8 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     targetType="csatOfficial"
                     targetLabel="3,75"
                     sparkValues={trend("csat")}
-                    delta={getDelta(currentStats.csatPercent, previousStats.csatPercent)}
+                    delta={getDelta(currentStats.csat, previousStats.csat)}
+                    deltaDec={2}
                     previousValue={prev(formatNum(previousStats.csat) + " / 5")}
                     kpiTheme="csat"
                   />
@@ -895,6 +898,7 @@ const StatCard = ({
   subValue,
   kpiTheme,
   delta,
+  deltaDec,
   previousValue,
   variant = 'mini',
 }: {
@@ -908,6 +912,8 @@ const StatCard = ({
   subValue?: string;
   kpiTheme: string;
   delta?: number;
+  /** Fixed decimals for the delta chip (e.g. 2 for CSAT stars); default: 0 for ≥100, else 1. */
+  deltaDec?: number;
   previousValue?: string;
   variant?: 'hero' | 'mini';
 }) => {
@@ -966,11 +972,15 @@ const StatCard = ({
             target {targetLabel}
           </span>
         )}
-        {isCompareMode && delta !== undefined && delta !== 0 && (
-          <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${
-            delta > 0 ? 'text-success bg-success/10' : 'text-danger bg-danger/10'
-          }`}>
-            {delta > 0 ? '+' : '−'}{Math.abs(delta).toFixed(1)}
+        {delta !== undefined && Math.abs(delta) >= 0.5 * 10 ** -(deltaDec ?? 1) && (
+          <span
+            className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${
+              delta > 0 ? 'text-success bg-success/10' : 'text-danger bg-danger/10'
+            }`}
+            title={isCompareMode ? undefined : 'Dibanding periode yang sama bulan lalu'}
+          >
+            {delta > 0 ? '▲ +' : '▼ −'}{formatNum(Math.abs(delta), deltaDec ?? (Math.abs(delta) >= 100 ? 0 : 1))}
+            {!isCompareMode && <span className="font-normal opacity-75 ml-0.5">vs bln lalu</span>}
           </span>
         )}
         {subValue && !isCompareMode && (

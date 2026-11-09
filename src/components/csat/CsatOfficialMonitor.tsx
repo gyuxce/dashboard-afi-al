@@ -226,7 +226,7 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
         <span className="text-[11px] text-text-muted">Klik baris untuk skor harian &middot; target {CSAT_OFFICIAL_TARGET} / 5</span>
       </div>
       <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl flex-1 max-h-[calc(100vh-200px)]">
-        <table className="kpi-data-table w-full text-left border-collapse">
+        <table className="kpi-data-table rank-table w-full text-left border-collapse">
           <thead className="bg-surface text-text-secondary sticky top-0 z-30">
             <tr>
               <th className="p-2 font-bold text-center border-b border-border bg-surface w-[48px]">No</th>

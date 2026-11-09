@@ -426,3 +426,16 @@ html:not(.dark) .app-canvas {
     }
   }
 }
+
+/* Phone: rank-list tables (No · Nama · BPO·TL · Tren · nilai · vs target · chevron) keep the
+   values on screen by dropping the secondary columns; the row still expands for the day strip. */
+@media (max-width: 639px) {
+  .rank-table :is(th, td):nth-child(3),
+  .rank-table :is(th, td):nth-child(4),
+  .rank-table th:last-child,
+  .rank-table td:not([colspan]):last-child { display: none; }
+  .rank-table.rank-m-hide-5 :is(th, td):nth-child(5) { display: none; }
+  .rank-table.rank-m-hide-7 :is(th, td):nth-child(7) { display: none; }
+  .rank-table :is(th, td):nth-child(1) { width: 36px; min-width: 36px; padding-inline: 6px; }
+  .rank-table :is(th, td):nth-child(2) { min-width: 140px; }
+}

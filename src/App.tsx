@@ -227,7 +227,17 @@ export default function App() {
   const isAdmin = useMemo(() => isAdminMode(), []);
   const formatClock = (date: Date) => date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
+  // Tablet (768–1099px): sidebar starts minimized so content gets the width; manual toggle still works.
+  const TABLET_MQ = '(min-width: 768px) and (max-width: 1099px)';
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(TABLET_MQ).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(TABLET_MQ);
+    const onChange = (e: MediaQueryListEvent) => setIsSidebarMinimized(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   const hasAutoFetchedSheetsRef = useRef(false);
@@ -470,6 +480,10 @@ export default function App() {
     || activeTab === 'csat_official'
     || activeTab === 'csat';
   const needsComparisonData = isComparisonEnabled && comparisonTabs;
+  // Summary always shows a passive "vs bulan lalu" delta on its KPI cards, even with the
+  // Bandingkan toggle off. Costs one extra worker pass (previous month, same day range);
+  // the raw history sheets are fetched on every sync anyway.
+  const passivePrevMonth = !isComparisonEnabled && activeTab === 'summary';
 
   // Auto-disable comparison when switching to a tab that doesn't support it.
   useEffect(() => {
@@ -488,6 +502,9 @@ export default function App() {
   }, [activeTab]);
 
   const comparisonRanges = useMemo(() => {
+    if (passivePrevMonth && startDate && endDate) {
+      return { prev1: getPreviousMonthPeriod(startDate, endDate), prev2: null, prev3: null } as const;
+    }
     if (!needsComparisonData || !startDate || !endDate) {
       return { prev1: null, prev2: null, prev3: null } as const;
     }
@@ -496,7 +513,7 @@ export default function App() {
     const prev2 = getPrevRange(prev1.start, prev1.end);
     const prev3 = getPrevRange(prev2.start, prev2.end);
     return { prev1, prev2, prev3 } as const;
-  }, [needsComparisonData, comparisonMode, startDate, endDate]);
+  }, [needsComparisonData, passivePrevMonth, comparisonMode, startDate, endDate]);
 
   // WoW over a range longer than one week compares the Monday–Sunday weeks of that range
   // (W1 Okt, W2 Okt, …) — Summary's report lays them side by side, the Productivity / CSAT tabs
@@ -538,7 +555,7 @@ export default function App() {
     endDate,
     agentDictionary,
     agentDictionaryByMonth,
-    needsComparisonData,
+    needsComparisonData: needsComparisonData || passivePrevMonth,
     prev1: comparisonRanges.prev1,
     prev2: comparisonRanges.prev2,
     prev3: comparisonRanges.prev3,

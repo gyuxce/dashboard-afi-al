@@ -19,7 +19,6 @@ import { Search, Activity, AlertCircle, ChevronDown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LineChart, Line, Legend } from "recharts";
 import { SortableHeader } from "../ui/SortableHeader";
 import { EmptyState } from "../ui/EmptyState";
-import { MobileScrollHint } from "../ui/ChartScrollArea";
 import { VirtualizedTbody } from "../ui/VirtualizedTbody";
 import { useVirtualRows } from "../../hooks/useVirtualRows";
 import type { WeekCompare } from "../../lib/weekCompare";
@@ -497,12 +496,11 @@ export const ProductivityDetail: React.FC<{
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11px] text-text-muted">Klik baris untuk chat harian · 3 terbawah ditandai garis merah</span>
       </div>
-      <MobileScrollHint label="Geser → untuk lihat semua kolom" />
       <div
         ref={tableScrollRef}
         className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl max-h-[calc(100vh-200px)]"
       >
-        <table className="kpi-data-table w-full text-left border-collapse">
+        <table className="kpi-data-table rank-table rank-m-hide-5 w-full text-left border-collapse">
           <thead className="bg-surface text-text-secondary sticky top-0 z-30">
             <tr>
               <th className="p-2 font-bold text-center border-b border-border bg-surface w-[48px]">No</th>
