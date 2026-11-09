@@ -190,7 +190,7 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
           <div className="mt-2 text-2xl font-semibold text-text-primary">
             {highlightStats.aggregate.score !== null ? `${formatNum(highlightStats.aggregate.score, 2)} / 5` : '-'}
           </div>
-          <p className="mt-1 text-[11px] text-text-muted">Target 3.75</p>
+          <p className="mt-1 text-[11px] text-text-muted">Target 3,75</p>
         </div>
         <div className="tint-card tint-blue rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">

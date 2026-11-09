@@ -436,7 +436,7 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     unit="/ 5"
                     rawValue={currentStats.csat}
                     targetType="csatOfficial"
-                    targetLabel="3.75"
+                    targetLabel="3,75"
                     sparkValues={trend("csat")}
                     delta={getDelta(currentStats.csatPercent, previousStats.csatPercent)}
                     previousValue={prev(formatNum(previousStats.csat) + " / 5")}
@@ -569,7 +569,7 @@ const KPI_FORMULAS: Record<string, KpiFormula> = {
     source: "Data produktivitas dan jadwal",
   },
   "CSAT Official": {
-    target: "3.75 / 5",
+    target: "3,75 / 5",
     formula: "Jumlah poin rating dibagi jumlah responden.",
     source: "Data CSAT Official",
     note: "Rating 1 sampai 5 dihitung sesuai jumlah responden.",
