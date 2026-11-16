@@ -1,39 +1,12 @@
 import React, { useMemo, useRef } from 'react';
 import { AgentKPI } from '../../lib/dataProcessor';
 import { KPI_TARGETS, formatNum } from '../../lib/utils';
+import { hasAttendanceData } from '../../lib/scheduleStats';
 import { KpiValue, KpiLegend } from '../ui/KpiCue';
 import { EmptyState } from '../ui/EmptyState';
 import { MobileScrollHint } from '../ui/ChartScrollArea';
 import { VirtualizedTbody } from '../ui/VirtualizedTbody';
 import { useVirtualRows } from '../../hooks/useVirtualRows';
-
-/** Agents with any attendance signal — avoids listing empty roster-only records. */
-export const hasAttendanceData = (a: AgentKPI) =>
-  a.attendanceDuty > 0 || a.attendancePresence > 0 || a.attendanceS > 0 || a.attendanceC > 0 || a.attendancePullout > 0;
-
-export function summarizeAttendance(rows: AgentKPI[]) {
-  let totDuty = 0;
-  let totPresence = 0;
-  let sick = 0;
-  let pullout = 0;
-  let leaveDays = 0;
-  let belowTarget = 0;
-  rows.forEach((a) => {
-    totDuty += a.attendanceDuty;
-    totPresence += a.attendancePresence;
-    sick += a.attendanceS;
-    pullout += a.attendancePullout;
-    leaveDays += a.attendanceC;
-    if (a.attendanceDuty > 0 && a.attendanceScore < KPI_TARGETS.attendance) belowTarget += 1;
-  });
-  return {
-    avgTeamAttendance: totDuty > 0 ? Math.min(100, (totPresence / totDuty) * 100) : 0,
-    totalSick: sick,
-    totalPullout: pullout,
-    totalC: leaveDays,
-    belowTarget,
-  };
-}
 
 /** Per-agent attendance totals. `data` is already scoped + searched by ScheduleAttendance. */
 export const AttendanceMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
@@ -53,7 +26,7 @@ export const AttendanceMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
         <MobileScrollHint label="Geser → untuk lihat semua kolom" />
         <KpiLegend />
       </div>
-      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-380px)]">
+      <div ref={tableScrollRef} className="ui-card p-0! relative w-full overflow-auto text-sm flex-1 max-h-[calc(100vh-380px)]">
           <table className="kpi-data-table w-full text-left whitespace-nowrap border-collapse">
             <thead className="bg-surface text-text-secondary sticky top-0 z-30">
               <tr>

@@ -1,10 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Search, Users, HeartPulse, UserMinus, AlertTriangle } from 'lucide-react';
 import { AgentKPI } from '../../lib/dataProcessor';
 import { KPI_TARGETS, formatNum } from '../../lib/utils';
+import { hasAttendanceData, summarizeAttendance } from '../../lib/scheduleStats';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { PageHeader } from '../ui/PageHeader';
+import { SearchField } from '../ui/SearchField';
+import { StatCard } from '../ui/StatCard';
 import { ScheduleBoard } from './ScheduleBoard';
-import { AttendanceMonitor, hasAttendanceData, summarizeAttendance } from './AttendanceMonitor';
+import { AttendanceMonitor } from './AttendanceMonitor';
 
 type ViewMode = 'schedule' | 'attendance';
 const VIEW_STORAGE_KEY = 'kpi-schedule-attendance-view';
@@ -17,25 +20,6 @@ function readStoredView(initial: ViewMode): ViewMode {
     return initial;
   }
 }
-
-const StatCard: React.FC<{
-  label: string;
-  value: string;
-  note?: string;
-  icon: React.ReactNode;
-  iconBg: string;
-  valueClass?: string;
-  tint?: string;
-}> = ({ label, value, note, icon, valueClass = 'text-text-primary', tint = 'tint-blue' }) => (
-  <div className={`bg-card tint-card ${tint} rounded-2xl border border-border p-4 flex flex-col`}>
-    <div className="flex justify-between items-start mb-2">
-      <div className="text-[11px] font-medium text-text-secondary tracking-wide">{label}</div>
-      <div className="tint-ico w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0">{icon}</div>
-    </div>
-    <div className={`text-2xl font-semibold tracking-tight ${valueClass}`}>{value}</div>
-    {note ? <p className="mt-1 text-[10px] text-text-muted">{note}</p> : null}
-  </div>
-);
 
 /** One menu for the daily roster and the attendance recap — same agents, same search. */
 export const ScheduleAttendance: React.FC<{ data: AgentKPI[]; initialView?: ViewMode }> = ({
@@ -65,77 +49,47 @@ export const ScheduleAttendance: React.FC<{ data: AgentKPI[]; initialView?: View
   const agentCount = view === 'schedule' ? searched.length : attendanceCount;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold text-text-primary">Jadwal &amp; Kehadiran</h1>
-          <p className="text-xs text-text-muted mt-1">
-            Satu sumber: data Schedule. {formatNum(agentCount, 0)} agen ditampilkan.
-          </p>
-        </div>
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input
-            type="text"
-            placeholder="Cari CS ID atau nama..."
-            aria-label="Cari CS ID atau nama..."
-            className="pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs focus:border-primary focus:outline-none w-full md:w-64 bg-card text-text-primary"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
-        <StatCard
-          label="Avg Team Attendance"
-          tint="tint-teal"
-          value={`${formatNum(summary.avgTeamAttendance, 1)}%`}
-          icon={<Users className="w-3.5 h-3.5 text-primary" />}
-          iconBg="bg-primary-soft"
-          valueClass={summary.avgTeamAttendance < KPI_TARGETS.attendance ? 'text-danger' : 'text-text-primary'}
-        />
-        <StatCard
-          label="Di Bawah Target"
-          tint="tint-red"
-          value={formatNum(summary.belowTarget, 0)}
-          note={`Target attendance ${KPI_TARGETS.attendance}%`}
-          icon={<AlertTriangle className="w-3.5 h-3.5 text-danger" />}
-          iconBg="bg-danger-soft"
-          valueClass="text-danger"
-        />
-        <StatCard
-          label="Total Cuti (C)"
-          tint="tint-orange"
-          value={formatNum(summary.totalC, 0)}
-          icon={<HeartPulse className="w-3.5 h-3.5 text-warning" />}
-          iconBg="bg-warning-soft"
-        />
-        <StatCard
-          label="Total Sick (S)"
-          tint="tint-pink"
-          value={formatNum(summary.totalSick, 0)}
-          icon={<HeartPulse className="w-3.5 h-3.5 text-danger" />}
-          iconBg="bg-danger-soft"
-        />
-        <StatCard
-          label="Total PULLOUT"
-          tint="tint-green"
-          value={formatNum(summary.totalPullout, 0)}
-          icon={<UserMinus className="w-3.5 h-3.5 text-success" />}
-          iconBg="bg-success-soft"
-        />
-      </div>
-
-      <SegmentedControl<ViewMode>
-        aria-label="Tampilan Jadwal & Kehadiran"
-        value={view}
-        onChange={setView}
-        options={[
-          { value: 'schedule', label: 'Jadwal harian' },
-          { value: 'attendance', label: 'Rekap kehadiran' },
-        ]}
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Team"
+        title="Jadwal & Kehadiran"
+        subtitle={`Satu sumber: data Schedule. ${formatNum(agentCount, 0)} agen ditampilkan.`}
+        actions={
+          <>
+            <SegmentedControl<ViewMode>
+              aria-label="Tampilan Jadwal & Kehadiran"
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'schedule', label: 'Jadwal harian' },
+                { value: 'attendance', label: 'Rekap kehadiran' },
+              ]}
+            />
+            <SearchField value={search} onChange={setSearch} />
+          </>
+        }
       />
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-5">
+        <StatCard
+          size="md"
+          label="Avg team attendance"
+          value={formatNum(summary.avgTeamAttendance, 1)}
+          unit="%"
+          tone={summary.avgTeamAttendance < KPI_TARGETS.attendance ? 'bad' : 'ink'}
+          sub="Hadir dibanding duty"
+        />
+        <StatCard
+          size="md"
+          label="Di bawah target"
+          value={formatNum(summary.belowTarget, 0)}
+          tone={summary.belowTarget > 0 ? 'bad' : 'ink'}
+          sub={`Target attendance ${KPI_TARGETS.attendance}%`}
+        />
+        <StatCard size="md" label="Total cuti (C)" value={formatNum(summary.totalC, 0)} sub="Hari cuti" />
+        <StatCard size="md" label="Total sick (S)" value={formatNum(summary.totalSick, 0)} sub="Hari sakit" />
+        <StatCard size="md" label="Total pullout" value={formatNum(summary.totalPullout, 0)} sub="Duty, bukan man-day" />
+      </div>
 
       {view === 'schedule' ? <ScheduleBoard data={searched} /> : <AttendanceMonitor data={searched} />}
     </div>

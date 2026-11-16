@@ -6,21 +6,7 @@ import { VirtualizedTbody } from '../ui/VirtualizedTbody';
 import { useVirtualRows } from '../../hooks/useVirtualRows';
 import { KpiValue } from '../ui/KpiCue';
 import { KPI_TARGETS, formatNum, uniqueCalendarDates, weekSeparatorClass, indexByDate, getByCalendarDate, formatCalendarHeader } from '../../lib/utils';
-
-type ShiftKind = 'shift' | 'sick' | 'off' | 'pullout' | 'none' | 'other';
-
-/** One roster cell → a kind + the label to print. Colour-discipline: only the
- *  watch state (sakit) carries a hue; shifts are neutral chips, the rest plain. */
-function classifyShift(raw: string | null | undefined): { kind: ShiftKind; label: string } {
-  const s = (raw || '').trim();
-  const u = s.toUpperCase();
-  if (!s || s === '-') return { kind: 'none', label: '–' };
-  if (u === 'S') return { kind: 'sick', label: 'S' };
-  if (u === 'OFF' || u === 'C') return { kind: 'off', label: u };
-  if (u === 'PULLOUT' || u === 'P.OUT' || u === 'PO') return { kind: 'pullout', label: 'P.OUT' };
-  if (/^\d+([.,]\d+)?$/.test(u) || /^\d{1,2}:\d{2}/.test(u)) return { kind: 'shift', label: s };
-  return { kind: 'other', label: s };
-}
+import { buildCoverage, classifyShift, type ShiftKind } from '../../lib/scheduleStats';
 
 const CELL_CLASS: Record<ShiftKind, string> = {
   shift: 'bg-surface-muted text-text-secondary font-semibold',
@@ -41,16 +27,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   );
 
   // How many agents are actually on a shift each day — the coverage strip.
-  const coverage = useMemo(() => {
-    return uniqueDates.map((date) => {
-      let count = 0;
-      for (const a of data) {
-        const sched = getByCalendarDate(indexByDate(a.dailyHistory?.schedule), date);
-        if (sched && classifyShift(sched.status).kind === 'shift') count++;
-      }
-      return { date, count };
-    });
-  }, [data, uniqueDates]);
+  const coverage = useMemo(() => buildCoverage(data, uniqueDates), [data, uniqueDates]);
   const maxCoverage = Math.max(1, ...coverage.map((c) => c.count));
 
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -62,9 +39,9 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   const tableColSpan = 6 + uniqueDates.length;
 
   return (
-    <div className="space-y-4 flex flex-col">
+    <div className="flex flex-col gap-5">
       {coverage.length >= 2 && maxCoverage > 0 && (
-        <div className="mx-4 rounded-xl border border-border bg-surface px-4 py-3">
+        <div className="ui-card ui-card-sm">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-medium uppercase tracking-wide text-text-muted">Agen bertugas per hari</span>
             <span className="inline-flex items-center gap-3 text-[9px] text-text-muted">
@@ -98,7 +75,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       )}
 
       <MobileScrollHint label="Geser → untuk lihat semua kolom" />
-      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 mx-4 max-h-[calc(100vh-380px)]">
+      <div ref={tableScrollRef} className="ui-card p-0! relative w-full overflow-auto text-sm flex-1 max-h-[calc(100vh-380px)]">
           <table className="kpi-data-table w-full text-left whitespace-nowrap border-collapse">
             <thead className="bg-surface text-text-secondary sticky top-0 z-30">
               <tr>
@@ -180,7 +157,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           </table>
       </div>
 
-      <div className="mx-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-text-muted">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-text-muted">
         <span className="font-semibold text-text-secondary">Kode</span>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-flex min-w-[26px] justify-center rounded bg-surface-muted px-1 py-0.5 font-semibold text-text-secondary">7</span>
