@@ -8,15 +8,12 @@ import type { AgentKPI } from '../../lib/dataProcessor';
 import type { CalendarWeek, MonthRange } from '../../lib/weeks';
 import { getKpiStatus } from '../../lib/utils';
 import {
-  EXTRA_TAKEOUT_CATEGORIES,
-  prettyCategory,
   badCategoryTotals,
   dailyRespondents,
   dsatByTeamLeader,
   headcountStats,
   positiveRates,
   respondentStats,
-  takeoutScenarios,
   topBadAgents,
   topBadCategories,
   type CsatMode,
@@ -27,7 +24,6 @@ import {
   renderHeadcountSlide,
   renderPositiveRateSlide,
   renderRespondentsSlide,
-  renderTakeoutSimSlide,
   renderTlSamplingSlide,
   type SlideWeek,
 } from '../../lib/csatSlides';
@@ -44,12 +40,12 @@ import {
   positiveRateHighlights,
   respondentHeadline,
   respondentHighlights,
-  takeoutSimHeadline,
-  takeoutSimHighlights,
   tlHeadline,
   tlSamplingHighlights,
 } from '../../lib/weeklyHighlights';
 import { downloadBlob, renderTableSlide } from '../../lib/slideExport';
+import { renderSummarySlide } from '../../lib/summarySlide';
+import { buildWeeklySummary } from '../../lib/weeklySummary';
 import { composeFullSlide } from '../../lib/slideFrame';
 import { renderAgendaSlide, renderCoverSlide } from '../../lib/openingSlides';
 import { canonicalBpoName, isSmallBpoName } from '../../lib/bpoNames';
@@ -322,15 +318,6 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
     const capRange = `${bpoLabel} · ${range}`;
     const capMode = `${bpoLabel} · ${subtitle}`;
     const capLast = `${bpoLabel} · ${modeLabel} · ${last.label} (${formatWeekSpan(last.start, last.end)})`;
-    // The takeout simulation always looks at the last three months with data.
-    const simMonths = monthRanges
-      .map((m, i) => ({ m, rows: monthData[i] ?? [] }))
-      .filter((x) => x.rows.length > 0)
-      .slice(-3);
-    const capMonths = simMonths.length
-      ? `${bpoLabel} · ${simMonths[0].m.label} – ${simMonths[simMonths.length - 1].m.label} ${simMonths[simMonths.length - 1].m.end.slice(0, 4)}`
-      : bpoLabel;
-
     const list: Slide[] = [];
     const scopeText = bpoLabel.replace(/^AFI\s*/, 'AFI - ') || 'AFI';
 
@@ -571,31 +558,42 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       },
     });
 
-    if (simMonths.length > 0) {
-      list.push({
-        id: 'takeout-sim',
-        no: 10,
-        title: 'Simulasi CSAT: tambahan kategori takeout',
-        file: 'slide-10-simulasi-takeout',
-        templateHasHighlight: false,
-        section: 'Insight',
-        titleText: 'Simulasi CSAT: tambahan kategori takeout',
-        caption: capMonths,
-        render: (inImage, bare) => {
-          const months = simMonths.map((x) => ({ label: x.m.label, rows: takeoutScenarios(x.rows) }));
-          const extraNames = EXTRA_TAKEOUT_CATEGORIES.map(prettyCategory).join(' dan ');
-          const lines = takeoutSimHighlights(extraNames, months.map((m) => ({ label: m.label, rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92);
-          return done(renderTakeoutSimSlide({
+    // Kesimpulan: sums up the other slides, After Takeout view, nothing to type in.
+    list.push({
+      id: 'summary',
+      no: 10,
+      title: periodMode === 'monthly' ? 'Kesimpulan bulan ini' : 'Kesimpulan minggu ini',
+      file: 'slide-10-kesimpulan',
+      templateHasHighlight: false,
+      section: 'Insight',
+      titleText: periodMode === 'monthly' ? 'Kesimpulan bulan ini' : 'Kesimpulan minggu ini',
+      caption: `${bpoLabel} · After Takeout · ${last.label} (${formatWeekSpan(last.start, last.end)})`,
+      render: (inImage, bare) => {
+        const lastCat = topBadCategories(last.rows, 'fair', 1)[0] ?? null;
+        const lastAgents = topBadAgents(last.rows, 'fair', topAgentsLimit);
+        const prevAgents = topBadAgents(prevCol.rows, 'fair', topAgentsLimit);
+        const lastResp = respondentStats(last.rows, 'fair');
+        const prevResp = respondentStats(prevCol.rows, 'fair');
+        const summary = buildWeeklySummary({
+          label: last.label,
+          prevLabel: prevCol.label,
+          lastStats,
+          prevStats,
+          csat: {
+            last: { respondents: lastResp.respondents, bad: badCategoryTotals(last.rows, 'fair').total, topCategory: lastCat, agents: lastAgents },
+            prev: { respondents: prevResp.respondents, bad: badCategoryTotals(prevCol.rows, 'fair').total, agents: prevAgents },
+          },
+        });
+        return done(renderSummarySlide({
           bare,
-            title: 'Simulasi CSAT SC: tambahan kategori takeout',
-            subtitle: capMonths.replace(`${bpoLabel} · `, ''),
-            months,
-            headline: hdOn ? takeoutSimHeadline(months.map((m) => ({ rows: m.rows.map((r) => ({ label: r.label, a: r.a, b: r.b })) })), 92) ?? undefined : undefined,
-            highlights: inImage ? lines : undefined,
-          }), lines);
-        },
-      });
-    }
+          title: periodMode === 'monthly' ? 'Kesimpulan Bulan Ini' : 'Kesimpulan Minggu Ini',
+          subtitle: `After Takeout · ${range}`,
+          headline: hdOn ? summary.headline : undefined,
+          summary,
+          highlights: inImage ? summary.lines : undefined,
+        }), summary.lines);
+      },
+    });
     return list;
   }, [cols, mode, topCatsLimit, topAgentsLimit, withHeadline, opening, periodMode, manual, bpoLabel, weekRanges, weekData, monthRanges, monthData, tlRows, tlAnalyzed]);
 
