@@ -1,23 +1,22 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { AgentKPI, QAEntry, normalizeDateStr } from '../../lib/dataProcessor';
+import { AgentKPI, normalizeDateStr } from '../../lib/dataProcessor';
+import { QA_TARGET, buildDefectData, buildQaHighlights, filterQaAgents, isQaDefect, sortDefectAgents, sortPerformanceAgents, type SortConfig } from '../../lib/qaStats';
 import { formatNum, getKpiStatus, groupByDate, uniqueCalendarDates, getGroupByCalendarDate, formatCalendarHeader, parseDateForSort, formatCsId } from '../../lib/utils';
 import { KpiValue, KpiCue, KpiLegend } from '../ui/KpiCue';
 import { Sparkline } from '../ui/Sparkline';
 import { DayStrip } from '../ui/DayStrip';
-import { Search, Eye, X, BarChart2, AlertCircle, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
+import { Eye, X, BarChart2, AlertCircle, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 
 import { SortableHeader } from '../ui/SortableHeader';
 import { EmptyState } from '../ui/EmptyState';
 import { MobileScrollHint } from '../ui/ChartScrollArea';
 import { KpiRankLists } from '../ui/KpiRankLists';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { PageHeader } from '../ui/PageHeader';
+import { SearchField } from '../ui/SearchField';
+import { StatCard } from '../ui/StatCard';
 import { VirtualizedTbody } from '../ui/VirtualizedTbody';
 import { useVirtualRows } from '../../hooks/useVirtualRows';
-
-const isQaDefect = (entry: QAEntry) => {
-  const level = (entry.mistakeLevel || '').toUpperCase();
-  return level.includes('LOW') || level.includes('MEDIUM') || level.includes('HIGH') || level.includes('VERY HIGH');
-};
 
 export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   const [search, setSearch] = useState('');
@@ -36,8 +35,8 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       return next;
     });
   
-  const [perfSortConfig, setPerfSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
-  const [defectSortConfig, setDefectSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  const [perfSortConfig, setPerfSortConfig] = useState<SortConfig>(null);
+  const [defectSortConfig, setDefectSortConfig] = useState<SortConfig>(null);
 
   const handlePerfSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -68,159 +67,15 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const tableData = useMemo(() => {
-    return data.filter(a => {
-      const matchSearch = a.csId.toLowerCase().includes(search.toLowerCase()) || (a.name || '').toLowerCase().includes(search.toLowerCase());
-      const matchTL = filterTL ? a.teamLeader === filterTL : true;
-      return matchSearch && matchTL && a.qaScoreCount > 0;
-    });
-  }, [data, search, filterTL]);
+  const tableData = useMemo(() => filterQaAgents(data, search, filterTL), [data, search, filterTL]);
 
   const uniqueDates = useMemo(() => {
     return uniqueCalendarDates(tableData.map((a) => a.qaHistory));
   }, [tableData]);
 
-  const defectData = useMemo(() => {
-    return tableData.map(agent => {
-      const defects = agent.qaHistory
-        .filter(isQaDefect)
-        .sort((a, b) =>
-          parseDateForSort(b.normDate || b.date || '') -
-          parseDateForSort(a.normDate || a.date || ''),
-        );
-
-      let lowCount = 0;
-      let mediumCount = 0;
-      let highCount = 0;
-      let veryHighCount = 0;
-      
-      const mistakeCounts: Record<string, number> = {};
-
-      defects.forEach(d => {
-        const level = (d.mistakeLevel || '').toUpperCase();
-        if (level.includes('VERY HIGH')) veryHighCount++;
-        else if (level.includes('HIGH')) highCount++;
-        else if (level.includes('MEDIUM')) mediumCount++;
-        else if (level.includes('LOW')) lowCount++;
-
-        const category = d.category || '-';
-        mistakeCounts[category] = (mistakeCounts[category] || 0) + 1;
-      });
-
-      const totalDefect = lowCount + mediumCount + highCount + veryHighCount;
-      
-      let mostFrequentMistake = '-';
-      let maxCount = 0;
-      for (const cat in mistakeCounts) {
-         if (mistakeCounts[cat] > maxCount) {
-             maxCount = mistakeCounts[cat];
-             mostFrequentMistake = cat;
-         }
-      }
-
-      return {
-        ...agent,
-        defects,
-        lowCount,
-        mediumCount,
-        highCount,
-        veryHighCount,
-        totalDefect,
-        mostFrequentMistake
-      };
-    }).sort((a, b) => b.totalDefect - a.totalDefect);
-  }, [tableData]);
-
-  const sortedPerformanceData = useMemo(() => {
-    let sortable = [...defectData];
-    if (perfSortConfig) {
-      sortable.sort((a, b) => {
-        let aVal: any = 0;
-        let bVal: any = 0;
-
-        switch (perfSortConfig.key) {
-          case 'name':
-            aVal = a.name || a.csId;
-            bVal = b.name || b.csId;
-            break;
-          case 'bpo':
-            aVal = a.bpo || '';
-            bVal = b.bpo || '';
-            break;
-          case 'teamLeader':
-            aVal = a.teamLeader || '';
-            bVal = b.teamLeader || '';
-            break;
-          case 'average':
-          default:
-            aVal = a.qaScoreCount > 0 ? a.qaScoreSum / a.qaScoreCount : -1;
-            bVal = b.qaScoreCount > 0 ? b.qaScoreSum / b.qaScoreCount : -1;
-            break;
-        }
-
-        if (aVal < bVal) return perfSortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return perfSortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return sortable;
-  }, [defectData, perfSortConfig]);
-
-  const sortedDefectData = useMemo(() => {
-    let sortable = defectData.filter(agent => agent.totalDefect > 0);
-    if (defectSortConfig) {
-      sortable.sort((a, b) => {
-        let aVal: any = 0;
-        let bVal: any = 0;
-
-        switch (defectSortConfig.key) {
-          case 'name':
-            aVal = a.name || a.csId;
-            bVal = b.name || b.csId;
-            break;
-          case 'bpo':
-            aVal = a.bpo || '';
-            bVal = b.bpo || '';
-            break;
-          case 'teamLeader':
-            aVal = a.teamLeader || '';
-            bVal = b.teamLeader || '';
-            break;
-          case 'low':
-            aVal = a.lowCount || 0;
-            bVal = b.lowCount || 0;
-            break;
-          case 'medium':
-            aVal = a.mediumCount || 0;
-            bVal = b.mediumCount || 0;
-            break;
-          case 'high':
-            aVal = a.highCount || 0;
-            bVal = b.highCount || 0;
-            break;
-          case 'veryHigh':
-            aVal = a.veryHighCount || 0;
-            bVal = b.veryHighCount || 0;
-            break;
-          case 'category':
-            aVal = a.mostFrequentMistake || '';
-            bVal = b.mostFrequentMistake || '';
-            break;
-          default:
-            aVal = a.totalDefect;
-            bVal = b.totalDefect;
-            break;
-        }
-
-        if (aVal < bVal) return defectSortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return defectSortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    } else {
-      sortable.sort((a, b) => b.totalDefect - a.totalDefect);
-    }
-    return sortable;
-  }, [defectData, defectSortConfig]);
+  const defectData = useMemo(() => buildDefectData(tableData), [tableData]);
+  const sortedPerformanceData = useMemo(() => sortPerformanceAgents(defectData, perfSortConfig), [defectData, perfSortConfig]);
+  const sortedDefectData = useMemo(() => sortDefectAgents(defectData, defectSortConfig), [defectData, defectSortConfig]);
 
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const activeTableData = viewMode === 'performance' ? sortedPerformanceData : sortedDefectData;
@@ -232,137 +87,33 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   const perfTableColSpan = 8;
   const defectTableColSpan = 10;
 
-  const highlightStats = useMemo(() => {
-    const totalEvaluations = tableData.reduce((sum, agent) => sum + agent.qaScoreCount, 0);
-    const totalMistakes = defectData.reduce((sum, agent) => sum + agent.totalDefect, 0);
-    const categoryCounts: Record<string, number> = {};
-
-    defectData.forEach(agent => {
-      agent.defects.forEach(defect => {
-        const category = defect.category || 'Tidak ada kategori';
-        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
-      });
-    });
-
-    const categoriesByCount = Object.entries(categoryCounts)
-      .map(([category, count]) => ({ category, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const agentsByQa = [...tableData]
-      .filter(agent => agent.qaScoreCount > 0)
-      .map(agent => ({
-        agent,
-        avg: agent.qaScoreSum / agent.qaScoreCount,
-      }))
-      .sort((a, b) => b.avg - a.avg);
-
-    const dailyMap = new Map<string, { scoreSum: number; scoreCount: number; mistakes: number }>();
-    tableData.forEach(agent => {
-      agent.qaHistory?.forEach(entry => {
-        const date = entry.normDate || normalizeDateStr(entry.date || '') || entry.date;
-        if (!date) return;
-        const current = dailyMap.get(date) || { scoreSum: 0, scoreCount: 0, mistakes: 0 };
-        if (entry.hasScore !== false && typeof entry.score === 'number' && !isNaN(entry.score)) {
-          current.scoreSum += entry.score;
-          current.scoreCount += 1;
-        }
-        if (isQaDefect(entry)) current.mistakes += 1;
-        dailyMap.set(date, current);
-      });
-    });
-
-    const daysByQa = Array.from(dailyMap.entries())
-      .map(([date, stats]) => ({
-        date,
-        avg: stats.scoreCount > 0 ? stats.scoreSum / stats.scoreCount : null,
-        mistakes: stats.mistakes,
-        scoreCount: stats.scoreCount,
-      }))
-      .filter(d => d.avg !== null && d.scoreCount > 0)
-      .sort((a, b) => (a.avg || 0) - (b.avg || 0));
-
-    return {
-      totalEvaluations,
-      totalMistakes,
-      mistakeRate: totalEvaluations > 0 ? (totalMistakes / totalEvaluations) * 100 : 0,
-      topCategories: categoriesByCount.slice(0, 3).map(c => ({
-        label: c.category,
-        value: `${formatNum(c.count, 0)} temuan`,
-      })),
-      bottomDays: daysByQa.slice(0, 3).map(d => ({
-        label: formatCalendarHeader(d.date),
-        subLabel: `${formatNum(d.mistakes, 0)} temuan · ${formatNum(d.scoreCount, 0)} evaluasi`,
-        value: `${formatNum(d.avg, 1)}%`,
-      })),
-      topAgents: agentsByQa.slice(0, 3).map(a => ({
-        label: a.agent.name || a.agent.csId,
-        subLabel: a.agent.teamLeader || a.agent.csId,
-        value: `${formatNum(a.avg, 1)}%`,
-      })),
-      bottomAgents:
-        agentsByQa.length > 3
-          ? agentsByQa.slice(Math.max(3, agentsByQa.length - 3)).reverse().map(a => ({
-              label: a.agent.name || a.agent.csId,
-              subLabel: a.agent.teamLeader || a.agent.csId,
-              value: `${formatNum(a.avg, 1)}%`,
-            }))
-          : [],
-    };
-  }, [tableData, defectData]);
+  const highlightStats = useMemo(() => buildQaHighlights(tableData, defectData), [tableData, defectData]);
 
   return (
-    <div className="flex flex-col gap-4 relative">
-      <div className="flex flex-col md:flex-row md:items-center justify-between xl:gap-8 gap-4 mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-          <h1 className="text-lg font-bold text-text-primary">QA Agent 360</h1>
-          
-          <SegmentedControl
-            value={viewMode}
-            onChange={setViewMode}
-            options={[
-              { value: 'performance', label: 'Ringkasan', icon: BarChart2 },
-              { value: 'defect', label: 'Analisis Defect', icon: AlertCircle },
-            ]}
-          />
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
-            <input 
-              type="text" 
-              placeholder="Cari CS ID atau nama..."
-              aria-label="Cari CS ID atau nama..." 
-              className="pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs focus:border-primary focus:outline-none w-full md:w-56"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+    <div className="flex flex-col gap-5 relative">
+      <PageHeader
+        eyebrow="Kualitas"
+        title="QA Agent 360"
+        subtitle={`Skor QA dan temuan per agent, target ${QA_TARGET}%: dari ringkasan sampai audit trail defect.`}
+        actions={
+          <>
+            <SegmentedControl
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { value: 'performance', label: 'Ringkasan', icon: BarChart2 },
+                { value: 'defect', label: 'Analisis Defect', icon: AlertCircle },
+              ]}
             />
-          </div>
-        </div>
-      </div>
+            <SearchField value={search} onChange={setSearch} />
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="tint-card tint-blue rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-medium text-text-secondary">Total Evaluasi</span>
-            <BarChart2 className="h-4 w-4 text-primary" />
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-text-primary">{formatNum(highlightStats.totalEvaluations, 0)}</div>
-        </div>
-        <div className="tint-card tint-red rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium tracking-wide text-text-muted">Total Temuan</span>
-            <AlertCircle className="h-4 w-4 text-danger" />
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-danger">{formatNum(highlightStats.totalMistakes, 0)}</div>
-        </div>
-        <div className="tint-card tint-orange rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium tracking-wide text-text-muted">% Temuan</span>
-            <AlertCircle className="h-4 w-4 text-warning" />
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-text-primary">{formatNum(highlightStats.mistakeRate, 1)}%</div>
-        </div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-5">
+        <StatCard label="Total evaluasi" value={formatNum(highlightStats.totalEvaluations, 0)} sub="Pada periode terpilih" />
+        <StatCard label="Total temuan" value={formatNum(highlightStats.totalMistakes, 0)} sub="LOW sampai VERY HIGH" />
+        <StatCard label="% temuan" value={formatNum(highlightStats.mistakeRate, 1)} unit="%" sub="Temuan dari total evaluasi" />
       </div>
 
       <KpiRankLists
@@ -381,7 +132,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           <span className="text-[11px] text-text-muted">Klik baris untuk rincian harian &middot; klik angka defect untuk audit trail</span>
           <KpiLegend />
         </div>
-      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-200px)]">
+      <div ref={tableScrollRef} className="ui-card p-0! relative w-full overflow-auto text-sm flex-1 max-h-[calc(100vh-200px)]">
             <table className="kpi-data-table rank-table rank-m-hide-7 w-full text-left border-collapse">
               <thead className="bg-surface text-text-secondary sticky top-0 z-30">
                 <tr>
@@ -411,7 +162,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                     return valid.reduce((a, c) => a + c.score, 0) / valid.length;
                   });
                   const avg = agent.qaScoreCount > 0 ? agent.qaScoreSum / agent.qaScoreCount : null;
-                  const vsTarget = avg !== null ? avg - 92 : null;
+                  const vsTarget = avg !== null ? avg - QA_TARGET : null;
                   const vsStatus = getKpiStatus(avg, 'qa');
                   const isOpen = expandedRows.has(agent.csId);
 
@@ -506,7 +257,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       ) : (
         <>
         <MobileScrollHint label="Geser → untuk lihat semua kolom" />
-      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-200px)]">
+      <div ref={tableScrollRef} className="ui-card p-0! relative w-full overflow-auto text-sm flex-1 max-h-[calc(100vh-200px)]">
             <table className="kpi-data-table w-full text-left whitespace-nowrap border-collapse">
               <thead className="bg-surface text-text-secondary sticky top-0 z-30">
                 <tr>
@@ -653,7 +404,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
             onClick={() => setSelectedAgent(null)}
           >
             <div
-              className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+              className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-border bg-card shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* header */}
