@@ -3,6 +3,8 @@ import { Download, ClipboardCopy, Loader2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { EmptyState } from '../ui/EmptyState';
+import { PageHeader } from '../ui/PageHeader';
+import { buildExportColumns, type PeriodMode } from '../../lib/exportColumns';
 import { weekColumnLabels, weekHasData, type WeekCompare } from '../../lib/weekCompare';
 import type { AgentKPI } from '../../lib/dataProcessor';
 import type { CalendarWeek, MonthRange } from '../../lib/weeks';
@@ -140,8 +142,6 @@ const loadTl = (bpo: string, weekStart: string): Record<string, number> => {
 };
 
 /** One column of the deck: a calendar week or a calendar month, newest last. */
-type ExportCol = { rows: AgentKPI[]; label: string; start: string; end: string };
-type PeriodMode = 'weekly' | 'monthly';
 
 const localDate = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number);
@@ -207,22 +207,10 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
   const bpoLabel = selectedBpo && selectedBpo !== 'All BPO' ? `AFI ${canonicalBpoName(selectedBpo)}` : 'AFI';
 
   // Chronological columns (oldest → newest): the last four weeks, or the last four months, that have data.
-  const cols = useMemo<ExportCol[] | null>(() => {
-    if (periodMode === 'monthly') {
-      const list = monthRanges
-        .map((m, i) => ({ rows: monthData[i] ?? [], label: m.label, start: m.start, end: m.end }))
-        .filter((c) => c.rows.length > 0 && weekHasData(c.rows))
-        .slice(-4);
-      return list.length >= 2 ? list : null;
-    }
-    if (!weekCompare) return null;
-    const list = weekCompare.sets
-      .map((rows, i) => ({ rows, label: weekCompare.labels[i], week: weekCompare.weeks[i] }))
-      .filter((c): c is { rows: AgentKPI[]; label: string; week: CalendarWeek } => c.week !== null)
-      .map((c) => ({ rows: c.rows, label: c.label, start: c.week.start, end: c.week.end }))
-      .reverse();
-    return list.length >= 2 ? list : null;
-  }, [periodMode, weekCompare, monthRanges, monthData]);
+  const cols = useMemo(
+    () => buildExportColumns(periodMode, weekCompare, monthRanges, monthData),
+    [periodMode, weekCompare, monthRanges, monthData],
+  );
 
   const latestWeekStart = cols ? cols[cols.length - 1].start : '';
   useEffect(() => {
@@ -685,8 +673,8 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
 
   if (!cols || !slides) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-xl font-bold text-text-primary">Ekspor Slide</h1>
+      <div className="flex flex-col gap-5">
+        <PageHeader eyebrow="Laporan" title="Ekspor Slide" subtitle="Gambar slide dari data yang sama dengan dashboard." />
         <EmptyState
           variant="filter"
           title={periodMode === 'monthly' ? 'Belum ada bulan yang bisa dibandingkan' : 'Belum ada minggu yang bisa dibandingkan'}
@@ -697,15 +685,13 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-text-primary">Ekspor Slide</h1>
-          <p className="mt-0.5 max-w-2xl text-xs text-text-muted">
-            Gambar slide dari data yang sama dengan dashboard. Weekly memakai empat minggu kalender terakhir (Week 1 = minggu pertama yang kamisnya jatuh di bulan itu), Monthly memakai empat bulan terakhir. Nomor slide mengikuti deck.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Laporan"
+        title="Ekspor Slide"
+        subtitle="Gambar slide dari data yang sama dengan dashboard. Weekly memakai empat minggu kalender terakhir (Week 1 = minggu pertama yang kamisnya jatuh di bulan itu), Monthly memakai empat bulan terakhir. Nomor slide mengikuti deck."
+        actions={
+        <>
           <SegmentedControl<PeriodMode>
             aria-label="Periode laporan"
             options={[
@@ -739,10 +725,11 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
             Unduh semua
           </button>
           {message && <span className="text-xs font-medium text-text-muted" role="status">{message}</span>}
-        </div>
-      </div>
+        </>
+        }
+      />
 
-      <div className="space-y-3 rounded-xl border border-border bg-card px-4 py-3">
+      <div className="ui-card ui-card-sm space-y-3">
         <label className="mr-5 inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-text-primary">
           <input
             id="weekly-export-headline"
@@ -807,7 +794,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
           const p = previews[slide.id];
           const ready = p && p !== 'error';
           return (
-            <section key={slide.id} className="overflow-hidden rounded-xl border border-border bg-card">
+            <section key={slide.id} className="ui-card p-0! overflow-hidden">
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
                 <h2 className="text-sm font-bold text-text-primary">Slide {slide.no} · {slide.title}</h2>
                 <div className="flex flex-wrap items-center gap-1.5">
