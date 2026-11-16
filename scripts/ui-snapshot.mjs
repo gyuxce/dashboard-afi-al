@@ -29,12 +29,11 @@ const TABS = [
   ['export', 'Ekspor Slide'],
 ];
 
-/** Keadaan tambahan: setelah membuka tab, klik teks tertentu lalu potret lagi. */
+/** Keadaan tambahan: setelah membuka tab, klik tab bernama tertentu lalu potret lagi. (Tampilan TL Insentif terkunci PIN, jadi tidak ikut.) */
 const EXTRA = [
   ['qa-defect', 'qa', 'Analisis Defect'],
   ['sla-3m', 'sla', 'SLA 3m'],
   ['csat-room-fair', 'csat-room', 'After Takeout'],
-  ['incentive-tl', 'incentive', 'Team Leaders'],
 ];
 
 const VIEWPORTS = { desktop: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
