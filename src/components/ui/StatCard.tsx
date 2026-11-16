@@ -25,8 +25,8 @@ type StatCardProps = {
   /** Line under the number. */
   sub?: React.ReactNode;
   tone?: StatTone;
-  /** `lg` = headline number, `md` = card inside a dense grid. */
-  size?: 'lg' | 'md';
+  /** `lg` = headline number, `md` = card inside a dense grid, `sm` = long values such as Rp amounts. */
+  size?: 'lg' | 'md' | 'sm';
   /** Top-right slot (pill, info icon). */
   aside?: React.ReactNode;
   /** Bottom slot (sparkline, bar). */
@@ -37,12 +37,12 @@ type StatCardProps = {
 /** Label, huge number, one supporting line. The building block of every summary row. */
 export function StatCard({ label, value, unit, sub, tone = 'ink', size = 'lg', aside, footer, className }: StatCardProps) {
   return (
-    <Card as="article" size={size === 'md' ? 'sm' : 'lg'} className={cn('flex flex-col gap-3', className)}>
+    <Card as="article" size={size === 'lg' ? 'lg' : 'sm'} className={cn('flex flex-col gap-3', className)}>
       <div className="flex items-center justify-between gap-3">
         <span className="ui-card-label">{label}</span>
         {aside}
       </div>
-      <div className={cn('ui-stat-value tabular-nums', size === 'md' ? 'ui-stat-md' : 'ui-stat-lg', TONE_CLASS[tone])}>
+      <div className={cn('ui-stat-value tabular-nums', size === 'lg' ? 'ui-stat-lg' : size === 'md' ? 'ui-stat-md' : 'ui-stat-sm', TONE_CLASS[tone])}>
         {value}
         {unit && <span className="ui-stat-unit">{unit}</span>}
       </div>

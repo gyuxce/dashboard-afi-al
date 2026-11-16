@@ -1,17 +1,26 @@
 import React, { useMemo, useRef } from "react";
 import { Calculator, CheckCircle2, CircleAlert, FileText, KeyRound, LockKeyhole, User, Users, X } from "lucide-react";
+import { PageHeader } from "../ui/PageHeader";
+import { StatCard } from "../ui/StatCard";
+import { SegmentedControl } from "../ui/SegmentedControl";
 import { AgentKPI } from "../../lib/dataProcessor";
 import {
   DAILY_LIVECHAT_TARGET,
-  TEAM_LEADER_GROSS_SALARY,
   TRAINING_QUIZ_DEFAULT,
-  bestLeaderBonuses,
-  buildIncentiveRow,
-  getCsatStats,
-  getTeamLeaderTier,
   type IncentiveRow,
   type IncentiveStatus,
 } from "../../lib/incentiveScoring";
+import {
+  agentListItems,
+  buildAgentRows,
+  buildTeamLeaderRows,
+  isIncentivePeriodEmpty,
+  summarizeAgentRows,
+  summarizeTeamLeaderRows,
+  teamLeaderListItems,
+  type IncentiveListItem as ListItem,
+  type TeamLeaderIncentiveRow,
+} from "../../lib/incentiveTeam";
 import { cn, formatNum } from "../../lib/utils";
 import { isInactiveAgent } from "../../lib/inactiveAgents";
 import { IncompleteDataNotice } from "../ui/IncompleteDataNotice";
@@ -26,27 +35,6 @@ const formatKpiPct = (value: number | null, decimals: number): string => {
   const rounded = Number(value.toFixed(decimals));
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(decimals);
 };
-
-interface TeamLeaderIncentiveRow {
-  teamLeader: string;
-  agentCount: number;
-  incompleteCount: number;
-  finalQaPct: number | null;
-  finalCsatPct: number | null;
-  finalProductivityPct: number | null;
-  averageQaPoints: number | null;
-  averageCsatPoints: number | null;
-  averageProductivityPoints: number | null;
-  finalScore: number | null;
-  tier: string;
-  baseIncentive: number | null;
-  productivityBonus: number;
-  bestLeaderBonus: number;
-  totalIncentive: number | null;
-  grossSalary: number;
-  grossThp: number | null;
-  status: IncentiveStatus;
-}
 
 const formatCurrency = (value: number | null) => {
   if (value === null || Number.isNaN(value)) return "-";
@@ -77,46 +65,6 @@ const statusClass: Record<IncentiveStatus, string> = {
   eligible: "bg-success-soft text-success-text",
   ineligible: "bg-danger-soft text-danger-text",
   incomplete: "bg-warning-soft text-warning-text",
-};
-
-const SummaryCard = ({
-  label,
-  value,
-  detail,
-  tone = "neutral",
-  tint,
-}: {
-  label: string;
-  value: string | number;
-  detail: string;
-  tone?: "neutral" | "success" | "warning";
-  tint?: string;
-}) => (
-  <div className={cn("tint-card rounded-2xl border border-border bg-card p-4", tint || (tone === "success" ? "tint-green" : tone === "warning" ? "tint-orange" : "tint-blue"))}>
-    <p className="text-[11px] font-medium text-text-secondary">{label}</p>
-    <p className={cn(
-      "mt-1 text-xl font-bold",
-      tone === "success" ? "text-success-text" : tone === "warning" ? "text-warning-text" : "text-text-primary",
-    )}>{value}</p>
-    <p className="mt-0.5 text-[11px] text-text-muted">{detail}</p>
-  </div>
-);
-
-/** One row in the tier list — normalised from either an agent or a TL row. */
-type ListItem = {
-  id: string;
-  name: string;
-  meta: string;
-  qcPts: number;
-  csatPts: number;
-  prodPts: number;
-  qcPct: number | null;
-  csatPct: number | null;
-  prodPct: number | null;
-  score: number | null;
-  tier: string;
-  status: IncentiveStatus;
-  total: number | null;
 };
 
 /** Monochrome KPI progress bar for the detail drawer (colour-discipline: no KPI hue). */
@@ -326,179 +274,14 @@ export const IncentiveSimulation: React.FC<{
     [safeData, safePeriod.end],
   );
 
-  const simulationRoster = filteredAgents;
-
-  const rows = useMemo(() => filteredAgents
-      .map(buildIncentiveRow)
-      .sort((a, b) => {
-        if (a.totalScore === null && b.totalScore === null) return a.name.localeCompare(b.name);
-        if (a.totalScore === null) return 1;
-        if (b.totalScore === null) return -1;
-        return b.totalScore - a.totalScore;
-      }), [filteredAgents]);
-
-  const teamLeaderRows = useMemo(() => {
-    const grouped = new Map<string, AgentKPI[]>();
-    filteredAgents.forEach((agent) => {
-      const teamLeader = String(agent.teamLeader || "-").trim() || "-";
-      const current = grouped.get(teamLeader) || [];
-      current.push(agent);
-      grouped.set(teamLeader, current);
-    });
-
-    const leaderRows = Array.from(grouped.entries())
-      .map(([teamLeader, teamAgents]): TeamLeaderIncentiveRow => {
-        const agentRows = teamAgents.map(buildIncentiveRow);
-        const csatStats = teamAgents.reduce(
-          (totals, agent) => {
-            const stats = getCsatStats(agent);
-            return {
-              good: totals.good + stats.good,
-              bad: totals.bad + stats.bad,
-            };
-          },
-          { good: 0, bad: 0 },
-        );
-        const totalDuty = teamAgents.reduce((sum, agent) => sum + agent.manDays, 0);
-        const totalChat = teamAgents.reduce((sum, agent) => sum + agent.productivityTotal, 0);
-        // TL QA uses the simple average of each agent's QA percentage.
-        // Agent-level bucket points are intentionally not used here.
-        const finalQaPct = agentRows.length > 0 && agentRows.every((row) => row.qaPct !== null)
-          ? agentRows.reduce((sum, row) => sum + (row.qaPct || 0), 0) / agentRows.length
-          : null;
-        const csatTotal = csatStats.good + csatStats.bad;
-        const finalCsatPct = csatTotal > 0
-          ? (csatStats.good / csatTotal) * 100
-          : null;
-        const productivityTarget = totalDuty > 0 ? totalDuty * DAILY_LIVECHAT_TARGET : null;
-        const finalProductivityPct = productivityTarget !== null
-          ? (totalChat / productivityTarget) * 100
-          : null;
-        const incompleteCount = agentRows.filter((row) => row.status === "incomplete").length;
-        const hasCompleteData = incompleteCount === 0
-          && agentRows.length > 0
-          && finalQaPct !== null
-          && finalCsatPct !== null
-          && finalProductivityPct !== null;
-        const averageQaPoints = hasCompleteData
-          ? ((finalQaPct || 0) / 100) * 55
-          : null;
-        const averageCsatPoints = hasCompleteData
-          ? agentRows.reduce((sum, row) => sum + (row.csatPoints || 0), 0) / agentRows.length
-          : null;
-        const averageProductivityPoints = hasCompleteData
-          ? agentRows.reduce((sum, row) => sum + (row.productivityPoints || 0), 0) / agentRows.length
-          : null;
-        const finalScore = hasCompleteData
-          ? (averageQaPoints || 0) + (averageCsatPoints || 0) + (averageProductivityPoints || 0)
-          : null;
-
-        if (finalScore === null) {
-          return {
-            teamLeader,
-            agentCount: agentRows.length,
-            incompleteCount,
-            finalQaPct,
-            finalCsatPct,
-            finalProductivityPct,
-            averageQaPoints,
-            averageCsatPoints,
-            averageProductivityPoints,
-            finalScore,
-            tier: "-",
-            baseIncentive: null,
-            productivityBonus: 0,
-            bestLeaderBonus: 0,
-            totalIncentive: null,
-            grossSalary: TEAM_LEADER_GROSS_SALARY,
-            grossThp: null,
-            status: "incomplete",
-          };
-        }
-
-        const tier = getTeamLeaderTier(finalScore);
-        const isEligible = tier.label !== "-";
-
-        return {
-          teamLeader,
-          agentCount: agentRows.length,
-          incompleteCount,
-          finalQaPct,
-          finalCsatPct,
-          finalProductivityPct,
-          averageQaPoints,
-          averageCsatPoints,
-          averageProductivityPoints,
-          finalScore,
-          tier: tier.label,
-          baseIncentive: tier.incentive,
-          productivityBonus: 0,
-          bestLeaderBonus: 0,
-          totalIncentive: isEligible ? tier.incentive : 0,
-          grossSalary: TEAM_LEADER_GROSS_SALARY,
-          grossThp: TEAM_LEADER_GROSS_SALARY + (isEligible ? tier.incentive : 0),
-          status: isEligible ? "eligible" : "ineligible",
-        };
-      })
-      .sort((a, b) => (b.finalScore || -1) - (a.finalScore || -1));
-
-    // Bonus TL terbaik (Rp500.000) hanya untuk TL dengan skor akhir tertinggi,
-    // seperti di sheet klien. Tidak perlu eligible tier; data belum lengkap tidak bisa menang.
-    const bestBonus = bestLeaderBonuses(
-      leaderRows.map((row) => ({ teamLeader: row.teamLeader, score: row.finalScore })),
-    );
-
-    return leaderRows.map((row) => {
-      // TL dengan data belum lengkap (totalIncentive null) tidak bisa dihitung
-      // THP-nya, jadi bagiannya dibiarkan kosong.
-      const bestLeaderBonus = row.totalIncentive === null ? 0 : bestBonus.get(row.teamLeader) ?? 0;
-      const totalIncentive = row.totalIncentive === null
-        ? null
-        : (row.totalIncentive || 0) + bestLeaderBonus;
-      return {
-        ...row,
-        bestLeaderBonus,
-        totalIncentive,
-        grossThp: totalIncentive === null ? null : row.grossSalary + totalIncentive,
-      };
-    });
-  }, [filteredAgents, simulationRoster]);
+    const rows = useMemo(() => buildAgentRows(filteredAgents), [filteredAgents]);
+  const teamLeaderRows = useMemo(() => buildTeamLeaderRows(filteredAgents), [filteredAgents]);
 
   // One normalised shape for the tier list, whichever view is active.
-  const activeItems = useMemo<ListItem[]>(() => {
-    if (viewMode === "agent") {
-      return rows.map((row) => ({
-        id: row.csId,
-        name: row.name,
-        meta: row.csId,
-        qcPts: row.qaPoints ?? 0,
-        csatPts: row.csatPoints ?? 0,
-        prodPts: row.productivityPoints ?? 0,
-        qcPct: row.qaPct,
-        csatPct: row.csatPct,
-        prodPct: row.productivityPct,
-        score: row.totalScore,
-        tier: row.tier,
-        status: row.status,
-        total: row.totalIncentive,
-      }));
-    }
-    return teamLeaderRows.map((row) => ({
-      id: row.teamLeader,
-      name: row.teamLeader,
-      meta: `${row.agentCount} agent`,
-      qcPts: row.averageQaPoints ?? 0,
-      csatPts: row.averageCsatPoints ?? 0,
-      prodPts: row.averageProductivityPoints ?? 0,
-      qcPct: row.finalQaPct,
-      csatPct: row.finalCsatPct,
-      prodPct: row.finalProductivityPct,
-      score: row.finalScore,
-      tier: row.tier,
-      status: row.status,
-      total: row.totalIncentive,
-    }));
-  }, [viewMode, rows, teamLeaderRows]);
+  const activeItems = useMemo<ListItem[]>(
+    () => (viewMode === "agent" ? agentListItems(rows) : teamLeaderListItems(teamLeaderRows)),
+    [viewMode, rows, teamLeaderRows],
+  );
 
   const listScrollRef = useRef<HTMLDivElement>(null);
   const listVirtual = useVirtualRows({
@@ -518,60 +301,36 @@ export const IncentiveSimulation: React.FC<{
     ? teamLeaderRows.find((r) => r.teamLeader === selectedId)
     : undefined;
 
-  const eligibleRows = rows.filter((row) => row.status === "eligible");
-  const ineligibleRows = rows.filter((row) => row.status === "ineligible");
-  const incompleteRows = rows.filter((row) => row.status === "incomplete");
+  const agentSummary = summarizeAgentRows(rows);
+  const tlSummary = summarizeTeamLeaderRows(teamLeaderRows);
   const dataIssues: string[] = [];
-  if (incompleteRows.length > 0) {
+  if (agentSummary.incompleteCount > 0) {
     dataIssues.push(
-      `${incompleteRows.length} agent berstatus "Data belum lengkap" (QA / CSAT / produktivitas belum ada) — tidak dapat tier insentif.`,
+      `${agentSummary.incompleteCount} agent berstatus "Data belum lengkap" (QA / CSAT / produktivitas belum ada) — tidak dapat tier insentif.`,
     );
   }
-  const totalIncentive = eligibleRows.reduce(
-    (sum, row) => sum + (row.totalIncentive || 0),
-    0,
-  );
   const hasData = safeData.length > 0 || filteredAgents.length > 0;
-  // Roster resolved but the incentive period itself has no QA/CSAT/productivity
-  // rows (e.g. an un-populated month) — every agent is "Data belum lengkap".
-  const incentivePeriodEmpty = rows.length > 0 && rows.every((r) => r.status === "incomplete")
-    && filteredAgents.every((a) => a.manDays === 0 && a.qaScoreCount === 0 && a.productivityBase === 0);
-  const teamLeaderAgentCount = teamLeaderRows.reduce((sum, row) => sum + row.agentCount, 0);
-  const teamLeaderIneligibleCount = teamLeaderRows.reduce(
-    (sum, row) => sum + (row.status === "ineligible" ? 1 : 0),
-    0,
-  );
-  const teamLeaderTotalIncentive = teamLeaderRows.reduce((sum, row) => sum + (row.totalIncentive || 0), 0);
-  const teamLeaderTotalGrossThp = teamLeaderRows.reduce(
-    (sum, row) => sum + (row.grossThp || 0),
-    0,
-  );
+  // Roster resolved but the incentive period itself has no QA/CSAT/productivity rows (e.g. an un-populated month).
+  const incentivePeriodEmpty = isIncentivePeriodEmpty(rows, filteredAgents);
 
   const gridCols = "grid-cols-[minmax(0,1fr)_104px_112px_104px]";
 
   return (
-    <div className="flex flex-col gap-4 p-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-text-primary">
-          <Calculator className="h-5 w-5 text-primary" />
-          Simulasi Insentif
-        </h2>
-        <span className="text-[11px] tabular-nums text-text-muted">
-          Periode: {formatDateLabel(safePeriod.start)} &ndash; {formatDateLabel(safePeriod.end)}
-        </span>
-      </div>
-      <p className="-mt-2 text-[11px] text-text-muted">
-        QA % dihitung dari <span className="font-medium text-text-secondary">Tanggal Case</span>.
-      </p>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Team"
+        title="Simulasi Insentif"
+        subtitle={`Periode ${formatDateLabel(safePeriod.start)} – ${formatDateLabel(safePeriod.end)}. QA % dihitung dari Tanggal Case.`}
+      />
 
       {!hasData ? (
-        <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
+        <div className="ui-card text-center">
           <FileText className="mx-auto h-10 w-10 text-text-muted" />
           <p className="mt-3 text-sm font-semibold text-text-primary">Data simulasi belum tersedia</p>
           <p className="mt-1 text-xs text-text-muted">Sync data melalui File Center.</p>
         </div>
       ) : incentivePeriodEmpty ? (
-        <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
+        <div className="ui-card text-center">
           <FileText className="mx-auto h-10 w-10 text-text-muted" />
           <p className="mt-3 text-sm font-semibold text-text-primary">
             Data periode insentif ({formatDateLabel(safePeriod.start)} &ndash; {formatDateLabel(safePeriod.end)}) belum tersedia
@@ -586,32 +345,22 @@ export const IncentiveSimulation: React.FC<{
             title="Simulasi di bawah ini belum final — data tidak lengkap."
             issues={dataIssues}
           />
-          <div className="inline-flex w-max items-center gap-1 rounded-lg bg-surface-muted p-1">
-            <button
-              type="button"
-              onClick={() => { setSelectedId(null); setViewMode("agent"); }}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-2 text-[11px] font-semibold transition-colors",
-                viewMode === "agent" ? "bg-card text-text-primary shadow-sm" : "text-text-muted hover:text-text-primary",
-              )}
-            >
-              <User className="h-3.5 w-3.5" /> Agents
-            </button>
-            <button
-              type="button"
-              onClick={openTlView}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-2 text-[11px] font-semibold transition-colors",
-                viewMode === "tl" ? "bg-card text-text-primary shadow-sm" : "text-text-muted hover:text-text-primary",
-              )}
-            >
-              {isTlUnlocked ? <Users className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />} Team Leaders
-            </button>
-          </div>
+          <SegmentedControl
+            value={viewMode}
+            onChange={(next) => {
+              if (next === "agent") { setSelectedId(null); setViewMode("agent"); }
+              else openTlView();
+            }}
+            trackClassName="w-max"
+            options={[
+              { value: "agent", label: "Agents", icon: User },
+              { value: "tl", label: "Team Leaders", icon: isTlUnlocked ? Users : LockKeyhole },
+            ]}
+          />
 
           {isPinDialogOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-              <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl">
+              <div className="w-full max-w-sm rounded-[24px] border border-border bg-card p-6 shadow-xl">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="flex items-center gap-2 text-sm font-bold text-text-primary">
@@ -648,24 +397,21 @@ export const IncentiveSimulation: React.FC<{
             </div>
           )}
 
-          <div className={cn(
-            "grid grid-cols-2 gap-3",
-            viewMode === "tl" ? "xl:grid-cols-5" : "xl:grid-cols-4",
-          )}>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5">
             {viewMode === "agent" ? (
               <>
-                <SummaryCard label="Agent disimulasikan" value={rows.length} detail="Mengikuti filter global" />
-                <SummaryCard label="Eligible" value={eligibleRows.length} detail="Mendapat tier insentif" tone="success" />
-                <SummaryCard label="Tidak eligible" value={ineligibleRows.length} detail="Skor total di bawah 80" tone="warning" />
-                <SummaryCard label="Total estimasi" value={formatCurrency(totalIncentive)} detail="Tier + bonus produktivitas" tone="success" tint="tint-purple" />
+                <StatCard size="md" label="Agent disimulasikan" value={agentSummary.count} sub="Mengikuti filter global" />
+                <StatCard size="md" label="Eligible" value={agentSummary.eligibleCount} tone="good" sub="Mendapat tier insentif" />
+                <StatCard size="md" label="Tidak eligible" value={agentSummary.ineligibleCount} tone={agentSummary.ineligibleCount > 0 ? "warn" : "ink"} sub="Skor total di bawah 80" />
+                <StatCard size="sm" label="Total estimasi" value={formatCurrency(agentSummary.totalIncentive)} sub="Tier + bonus produktivitas" />
               </>
             ) : (
               <>
-                <SummaryCard label="TL disimulasikan" value={teamLeaderRows.length} detail="Mengikuti filter global" />
-                <SummaryCard label="Total agent" value={teamLeaderAgentCount} detail="Agent di bawah TL" tint="tint-teal" />
-                <SummaryCard label="Tidak eligible" value={teamLeaderIneligibleCount} detail="Skor total di bawah 80" tone="warning" />
-                <SummaryCard label="Total estimasi" value={formatCurrency(teamLeaderTotalIncentive)} detail="Tier TL + bonus TL terbaik" tone="success" tint="tint-purple" />
-                <SummaryCard label="Total THP gross" value={formatCurrency(teamLeaderTotalGrossThp)} detail="Gaji gross + insentif TL" tone="success" tint="tint-pink" />
+                <StatCard size="md" label="TL disimulasikan" value={tlSummary.count} sub="Mengikuti filter global" />
+                <StatCard size="md" label="Total agent" value={tlSummary.agentCount} sub="Agent di bawah TL" />
+                <StatCard size="md" label="Tidak eligible" value={tlSummary.ineligibleCount} tone={tlSummary.ineligibleCount > 0 ? "warn" : "ink"} sub="Skor total di bawah 80" />
+                <StatCard size="sm" label="Total estimasi" value={formatCurrency(tlSummary.totalIncentive)} sub="Tier TL + bonus TL terbaik" />
+                <StatCard size="sm" label="Total THP gross" value={formatCurrency(tlSummary.totalGrossThp)} sub="Gaji gross + insentif TL" />
               </>
             )}
           </div>
@@ -682,11 +428,11 @@ export const IncentiveSimulation: React.FC<{
               </p>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+            <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
               {/* tier list */}
               <div
                 ref={listScrollRef}
-                className="max-h-[calc(100vh-240px)] overflow-y-auto rounded-xl border border-border bg-card"
+                className="ui-card p-0! max-h-[calc(100vh-240px)] overflow-y-auto"
               >
                 <div className={cn("sticky top-0 z-10 grid gap-3 border-b border-border bg-surface px-4 py-2.5 text-[10px] font-medium uppercase tracking-wide text-text-muted", gridCols)}>
                   <span>{viewMode === "agent" ? "Agent" : "Team Leader"}</span>
@@ -761,7 +507,7 @@ export const IncentiveSimulation: React.FC<{
 
               {/* detail — inline on large screens */}
               <div className="hidden lg:block">
-                <div className="sticky top-4 max-h-[calc(100vh-240px)] overflow-y-auto rounded-xl border border-border bg-card p-4">
+                <div className="ui-card ui-card-sm sticky top-4 max-h-[calc(100vh-240px)] overflow-y-auto">
                   {selectedItem ? (
                     <IncentiveDetail
                       item={selectedItem}
@@ -806,8 +552,8 @@ export const IncentiveSimulation: React.FC<{
             )}
           </div>
 
-          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
-            <div className="rounded-lg border border-border bg-card p-4">
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_1fr_1fr]">
+            <div className="ui-card ui-card-sm">
               <h3 className="flex items-center gap-2 text-sm font-bold text-text-primary">
                 <CheckCircle2 className="h-4 w-4 text-success" />
                 Kurva Poin QC Livechat
@@ -836,7 +582,7 @@ export const IncentiveSimulation: React.FC<{
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-card p-4">
+            <div className="ui-card ui-card-sm">
               <h3 className="flex items-center gap-2 text-sm font-bold text-text-primary">
                 <Calculator className="h-4 w-4 text-primary" />
                 Tier Insentif
@@ -865,7 +611,7 @@ export const IncentiveSimulation: React.FC<{
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-card p-4">
+            <div className="ui-card ui-card-sm">
               <h3 className="flex items-center gap-2 text-sm font-bold text-text-primary">
                 <CircleAlert className="h-4 w-4 text-warning" />
                 Aturan Tambahan
