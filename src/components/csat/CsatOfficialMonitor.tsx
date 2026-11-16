@@ -1,10 +1,14 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { AgentKPI, getOfficialCsatAggregate } from '../../lib/dataProcessor';
+import { getOfficialCsatAggregate, type AgentKPI } from '../../lib/dataProcessor';
+import { CSAT_OFFICIAL_TARGET, buildOfficialHighlights, filterOfficialAgents, sortOfficialAgents, type SortConfig } from '../../lib/csatOfficialStats';
 import { formatNum, getKpiStatus, getMonthOffsetLabel, parseDateForSort, cn, indexByDate, uniqueCalendarDates, getByCalendarDate, formatCsId } from '../../lib/utils';
 import { KpiValue, KpiCue } from '../ui/KpiCue';
 import { Sparkline } from '../ui/Sparkline';
 import { DayStrip } from '../ui/DayStrip';
-import { Search, Star, Users, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { PageHeader } from '../ui/PageHeader';
+import { SearchField } from '../ui/SearchField';
+import { StatCard, type StatTone } from '../ui/StatCard';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store';
 import { SortableHeader } from '../ui/SortableHeader';
@@ -20,10 +24,8 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
   const isComparisonEnabled = useStore(state => state.isComparisonEnabled);
   const [search, setSearch] = useState('');
   const [filterTL] = useState<string | null>(null);
-  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-
-  const CSAT_OFFICIAL_TARGET = 3.75;
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -41,45 +43,10 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
       return next;
     });
 
-  const tableData = useMemo(() => {
-    let filtered = data.filter(a => {
-      const matchSearch = a.csId.toLowerCase().includes(search.toLowerCase()) || (a.name || '').toLowerCase().includes(search.toLowerCase());
-      const matchTL = filterTL ? a.teamLeader === filterTL : true;
-      const hasData = a.csatAsli !== null;
-      return matchSearch && matchTL && hasData;
-    });
-
-    if (sortConfig) {
-      filtered.sort((a, b) => {
-        let aVal: any = 0;
-        let bVal: any = 0;
-
-        switch (sortConfig.key) {
-          case 'name':
-            aVal = a.name || a.csId;
-            bVal = b.name || b.csId;
-            break;
-          case 'bpo':
-            aVal = a.bpo || '';
-            bVal = b.bpo || '';
-            break;
-          case 'teamLeader':
-            aVal = a.teamLeader || '';
-            bVal = b.teamLeader || '';
-            break;
-          case 'average':
-            aVal = a.csatAsli || 0;
-            bVal = b.csatAsli || 0;
-            break;
-        }
-
-        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return filtered;
-  }, [data, search, filterTL, sortConfig]);
+  const tableData = useMemo(
+    () => sortOfficialAgents(filterOfficialAgents(data, search, filterTL), sortConfig),
+    [data, search, filterTL, sortConfig],
+  );
 
   const uniqueDates = useMemo(() => {
     return uniqueCalendarDates(tableData.flatMap((a) => [
@@ -98,108 +65,34 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
   });
   const tableColSpan = 7;
 
-  const highlightStats = useMemo(() => {
-    const aggregate = getOfficialCsatAggregate(tableData);
-    const agentsByScore = [...tableData]
-      .filter(agent => agent.csatAsli !== null && agent.csatAsli !== undefined)
-      .sort((a, b) => (b.csatAsli || 0) - (a.csatAsli || 0));
-
-    const dailyMap = new Map<string, { sum: number; count: number }>();
-    tableData.forEach(agent => {
-      agent.dailyHistory?.csat?.forEach(entry => {
-        const count = entry.count || 1;
-        const current = dailyMap.get(entry.normDate || entry.date) || { sum: 0, count: 0 };
-        dailyMap.set(entry.normDate || entry.date, {
-          sum: current.sum + (entry.sum ?? entry.value * count),
-          count: current.count + count,
-        });
-      });
-    });
-
-    const daysByScore = Array.from(dailyMap.entries())
-      .map(([date, stats]) => ({ date, score: stats.count > 0 ? stats.sum / stats.count : 0, count: stats.count }))
-      .filter(d => d.count > 0)
-      .sort((a, b) => b.score - a.score);
-
-    const topAgents = agentsByScore.slice(0, 3);
-    const bottomAgents =
-      agentsByScore.length > 3
-        ? agentsByScore.slice(Math.max(3, agentsByScore.length - 3)).reverse()
-        : [];
-    const topDays = daysByScore.slice(0, 3);
-    const bottomDays =
-      daysByScore.length > 3
-        ? daysByScore.slice(Math.max(3, daysByScore.length - 3)).reverse()
-        : [];
-
-    return {
-      aggregate,
-      topAgents: topAgents.map(a => ({
-        label: a.name || a.csId,
-        subLabel: a.teamLeader || a.csId,
-        value: `${formatNum(a.csatAsli, 2)} / 5`,
-      })),
-      bottomAgents: bottomAgents.map(a => ({
-        label: a.name || a.csId,
-        subLabel: a.teamLeader || a.csId,
-        value: `${formatNum(a.csatAsli, 2)} / 5`,
-      })),
-      topDays: topDays.map(d => ({
-        label: d.date,
-        subLabel: `${formatNum(d.count, 0)} responden`,
-        value: `${formatNum(d.score, 2)} / 5`,
-      })),
-      bottomDays: bottomDays.map(d => ({
-        label: d.date,
-        subLabel: `${formatNum(d.count, 0)} responden`,
-        value: `${formatNum(d.score, 2)} / 5`,
-      })),
-    };
-  }, [tableData]);
+  const highlightStats = useMemo(() => buildOfficialHighlights(tableData), [tableData]);
+  const targetLabel = formatNum(CSAT_OFFICIAL_TARGET, 2);
+  const score = highlightStats.aggregate.score;
+  const scoreStatus = getKpiStatus(score, 'csatOfficial');
+  const scoreTone: StatTone = scoreStatus === 'miss' ? 'bad' : scoreStatus === 'watch' ? 'warn' : 'ink';
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-lg font-bold text-text-primary">CSAT Official Monitor</h1>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex gap-1.5 flex-col md:flex-row">
-             <div className="relative mt-2 md:mt-0">
-                <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
-                <input 
-                  type="text" 
-                  placeholder="Cari CS ID atau nama..."
-              aria-label="Cari CS ID atau nama..." 
-                  className="pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs focus:border-primary focus:outline-none w-full md:w-56"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-             </div>
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="CSAT"
+        title="CSAT Official"
+        subtitle={`Bintang resmi dari pelanggan, target ${targetLabel} dari 5: siapa yang di atas dan siapa yang perlu dibantu.`}
+        actions={<SearchField value={search} onChange={setSearch} />}
+      />
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="tint-card tint-purple rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium tracking-wide text-text-muted">Skor CSAT</span>
-            <Star className="h-4 w-4 text-warning" />
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-text-primary">
-            {highlightStats.aggregate.score !== null ? `${formatNum(highlightStats.aggregate.score, 2)} / 5` : '-'}
-          </div>
-          <p className="mt-1 text-[11px] text-text-muted">Target 3,75</p>
-        </div>
-        <div className="tint-card tint-blue rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium tracking-wide text-text-muted">Total Responden</span>
-            <Users className="h-4 w-4 text-primary" />
-          </div>
-          <div className="mt-2 text-2xl font-semibold text-text-primary">{formatNum(highlightStats.aggregate.respondents, 0)}</div>
-          <p className="mt-1 text-[11px] text-text-muted">Pada periode terpilih</p>
-        </div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
+        <StatCard
+          label="Skor CSAT"
+          value={score !== null ? formatNum(score, 2) : '-'}
+          unit={score !== null ? '/ 5' : undefined}
+          tone={scoreTone}
+          sub={`Target ${targetLabel}`}
+        />
+        <StatCard
+          label="Total responden"
+          value={formatNum(highlightStats.aggregate.respondents, 0)}
+          sub="Pada periode terpilih"
+        />
       </div>
 
       <KpiRankLists
@@ -225,7 +118,7 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11px] text-text-muted">Klik baris untuk skor harian &middot; target {CSAT_OFFICIAL_TARGET} / 5</span>
       </div>
-      <div ref={tableScrollRef} className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl flex-1 max-h-[calc(100vh-200px)]">
+      <div ref={tableScrollRef} className="ui-card p-0! relative w-full overflow-auto text-sm flex-1 max-h-[calc(100vh-200px)]">
         <table className="kpi-data-table rank-table w-full text-left border-collapse">
           <thead className="bg-surface text-text-secondary sticky top-0 z-30">
             <tr>
@@ -460,7 +353,7 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekL
   const trendData = trendMode === 'weekly' ? weeklyData : dailyData;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 mb-4 shadow-sm">
+    <div className="ui-card">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         
         {/* Weekly Trend Panel */}
