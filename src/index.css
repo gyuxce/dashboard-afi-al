@@ -352,39 +352,6 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea {
     white-space: nowrap;
     border-width: 0;
   }
-
-  @keyframes brand-walk {
-    0% { transform: translateX(-48px) translateY(0) rotate(-5deg); }
-    25% { transform: translateX(-16px) translateY(-4px) rotate(5deg); }
-    50% { transform: translateX(16px) translateY(0) rotate(-5deg); }
-    75% { transform: translateX(48px) translateY(-4px) rotate(5deg); }
-    100% { transform: translateX(-48px) translateY(0) rotate(-5deg); }
-  }
-
-  @keyframes brand-dot {
-    0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
-    40% { opacity: 1; transform: translateY(-2px); }
-  }
-
-  .brand-walk-logo {
-    animation: brand-walk 1.6s ease-in-out infinite;
-    transform-origin: center bottom;
-  }
-
-  .brand-dot {
-    animation: brand-dot 1s ease-in-out infinite;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .brand-walk-logo,
-    .brand-dot {
-      animation: none !important;
-    }
-
-    .brand-walk-logo {
-      transform: none;
-    }
-  }
 }
 
 /* Phone: rank-list tables (No · Nama · BPO·TL · Tren · nilai · vs target · chevron) keep the

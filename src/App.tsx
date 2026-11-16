@@ -161,7 +161,7 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
   }, [isOpen]);
 
   return (
-    <div className="relative w-[140px] shrink-0" ref={wrapperRef}>
+    <div className="relative w-[170px] shrink-0" ref={wrapperRef}>
       <button
         ref={buttonRef}
         type="button"
@@ -169,7 +169,7 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
         aria-expanded={isOpen}
         aria-controls={isOpen ? listId : undefined}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-8 w-full items-center justify-between rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold text-text-primary transition-colors hover:bg-surface-muted focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+        className="flex h-[38px] w-full items-center justify-between rounded-[13px] bg-black/[0.07] px-3.5 text-[14px] font-semibold text-text-primary transition-colors hover:bg-black/[0.1] focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
       >
         <span className="truncate">{selectedOption?.label || 'Pilih bulan'}</span>
         <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-text-muted" aria-hidden />
@@ -183,7 +183,7 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
             id={listId}
             role="listbox"
             aria-label="Pilih bulan"
-            className="fixed z-[200] overflow-hidden rounded-lg border border-border bg-card shadow-[0_8px_24px_rgba(0,0,0,0.18)]"
+            className="fixed z-[200] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_12px_32px_rgba(20,24,40,0.16)]"
             style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
           >
             <div className="max-h-64 overflow-y-auto p-1">
@@ -768,6 +768,18 @@ export default function App() {
     return `Perbandingan: ${missingHistoryMonths.length} dari ${expected} bulan riwayat tidak tersedia (${labels}).`;
   })();
 
+  const syncCard = (() => {
+    const hasSheets = Boolean(import.meta.env.VITE_SHEETS_API_KEY);
+    const clock = lastSyncTime
+      ? `${new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(lastSyncTime).replace(':', '.')} WIB`
+      : '—';
+    if (!hasSheets) return { title: 'Mode CSV', dot: 'bg-success', clock: 'berkas yang diunggah', note: 'Data dibaca dari berkas CSV yang kamu unggah.' };
+    if (isFetchingSheets) return { title: 'Menyinkronkan…', dot: 'bg-primary animate-pulse', clock, note: 'Membaca Google Sheets bulan aktif ditambah 3 bulan riwayat.' };
+    if (sheetsFetchError) return { title: 'Gagal sinkron', dot: 'bg-danger animate-pulse', clock, note: 'Data yang tampil adalah salinan terakhir. Coba Refresh.' };
+    if (syncIsStale) return { title: 'Data mungkin usang', dot: 'bg-warning', clock, note: 'Sinkron terakhir sudah lama. Tekan Refresh untuk memperbarui.' };
+    return { title: 'Data tersinkron', dot: 'bg-success', clock, note: 'Membaca Google Sheets bulan aktif ditambah 3 bulan riwayat.' };
+  })();
+
   return (
     <div className="app-canvas flex h-[100dvh] w-full bg-background font-sans text-text-primary overflow-hidden relative transition-colors duration-300">
       
@@ -800,8 +812,8 @@ export default function App() {
       {/* Sidebar */}
       <aside className={cn(
         "glass fixed md:relative top-0 left-0 h-full text-sidebar-text flex flex-col border-r border-sidebar-border z-[70] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform shrink-0 group/sidebar",
-        isSidebarOpen ? "translate-x-0 w-60" : "-translate-x-full md:translate-x-0",
-        isSidebarMinimized ? "md:w-[72px] w-60" : "w-60"
+        isSidebarOpen ? "translate-x-0 w-[262px]" : "-translate-x-full md:translate-x-0",
+        isSidebarMinimized ? "md:w-[76px] w-[262px]" : "w-[262px]"
       )}>
         {/* Toggle Button for Desktop */}
         <button
@@ -812,13 +824,16 @@ export default function App() {
           {isSidebarMinimized ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
         </button>
 
-        <div className={cn("px-4 pt-5 pb-4 overflow-hidden", isSidebarMinimized ? "md:px-4" : "")}>
+        <div className={cn("px-5 pt-6 pb-3 overflow-hidden", isSidebarMinimized ? "md:px-4" : "")}>
         <div className={cn("flex items-center gap-3 relative z-10 group cursor-default", isSidebarMinimized ? "md:justify-center" : "")}>
-          <div className="w-9 h-9 rounded-[11px] bg-gradient-to-b from-brand/85 to-brand shadow-[0_3px_10px_rgb(var(--brand)/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
-          <span className={cn("font-semibold tracking-tight text-sidebar-text-hover text-[15px] transition-all duration-300 whitespace-nowrap", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>Live Dashboard</span>
+          <div className="w-[42px] h-[42px] rounded-[13px] bg-gradient-to-b from-brand/85 to-brand shadow-[0_6px_16px_rgb(var(--brand)/0.32)] flex items-center justify-center text-white font-bold shrink-0 text-[15px]">LC</div>
+          <div className={cn("min-w-0 whitespace-nowrap transition-all duration-300", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>
+            <div className="text-[17px] font-bold tracking-tight text-sidebar-text-hover leading-tight">Live Dashboard</div>
+            <div className="text-[13px] text-text-secondary leading-tight mt-0.5">KPI Live Chat · AFI</div>
+          </div>
         </div>
       </div>
-        <nav className="flex-1 px-3 pb-2 space-y-0.5 overflow-y-auto no-scrollbar">
+        <nav className="flex-1 px-3 pb-2 space-y-0.5 overflow-y-auto overflow-x-hidden no-scrollbar">
           {navItems.map((item, idx) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -827,25 +842,25 @@ export default function App() {
             return (
               <React.Fragment key={item.id}>
                 {isFirstOfSection && !isSidebarMinimized && (
-                  <div className={cn("px-3 pb-1 text-[11px] font-semibold tracking-wide text-text-muted", idx > 0 ? "pt-4" : "pt-1")}>{item.section}</div>
+                  <div className={cn("px-3 pb-1.5 text-[12px] font-semibold tracking-wide text-text-muted", idx > 0 ? "pt-4" : "pt-1")}>{item.section}</div>
                 )}
                 {isFirstOfSection && isSidebarMinimized && idx > 0 && <div className="mx-3 my-2 h-px bg-sidebar-border" />}
                 <button
                   onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
                   className={cn(
-                    "group relative w-full flex items-center gap-3 px-3 py-2 rounded-[10px] text-[13px] font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden cursor-pointer",
+                    "group relative w-full flex items-center gap-3 px-3 py-2 rounded-[15px] text-[15px] font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer",
                     isActive
-                      ? "bg-card text-sidebar-text-active shadow-sm"
+                      ? "bg-card text-sidebar-text-active ring-[2.5px] ring-primary/30 shadow-[0_6px_18px_rgb(30_40_90/0.08)]"
                       : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-hover hover:translate-x-0.5",
                     isSidebarMinimized ? "md:justify-center md:px-0 md:hover:translate-x-0" : ""
                   )}
                   title={isSidebarMinimized ? item.label : undefined}
                 >
                   <span
-                    className="navico grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[8px] transition-transform duration-200 group-hover:scale-105"
+                    className="navico grid h-8 w-8 shrink-0 place-items-center rounded-[10px] transition-transform duration-200 group-hover:scale-105"
                     style={{ '--tint': SECTION_TINT[item.section] || '0 122 255' } as React.CSSProperties}
                   >
-                    <Icon className="h-[15px] w-[15px]" />
+                    <Icon className="h-[17px] w-[17px]" />
                   </span>
                   <span className={cn("relative z-10 transition-all duration-300 whitespace-nowrap", isActive && "font-semibold", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>{item.label}</span>
                 </button>
@@ -853,23 +868,24 @@ export default function App() {
             )
           })}
         </nav>
-        <div className={cn("py-3 text-[10px] text-text-muted border-t border-sidebar-border flex items-center transition-colors duration-300 overflow-hidden", isSidebarMinimized ? "md:flex-col md:px-2 md:gap-3 md:justify-center" : "justify-between px-4")}>
-          <span className={cn("flex items-center text-sidebar-text transition-all duration-300 whitespace-nowrap", isSidebarMinimized ? "md:opacity-0 md:w-0 md:hidden" : "opacity-100")}>
-            Status
-            <span className={cn("flex items-center font-medium ml-1.5", isFetchingSheets ? "text-primary" : sheetsFetchError ? "text-danger" : syncIsStale ? "text-warning" : "text-success")}>
-              <span className={cn("w-1.5 h-1.5 rounded-full mr-1.5", isFetchingSheets ? "bg-primary animate-pulse" : sheetsFetchError ? "bg-danger animate-pulse" : syncIsStale ? "bg-warning" : "bg-success")} />
-              {import.meta.env.VITE_SHEETS_API_KEY ? (isFetchingSheets ? 'Sync' : sheetsFetchError ? 'Error' : 'Live') : 'CSV'}
-            </span>
+        <div className={cn("m-3 mt-2 rounded-[20px] bg-card/85 p-3.5 shadow-sm", isSidebarMinimized && "md:p-2 md:flex md:justify-center")}>
+          <span className={cn("hidden", isSidebarMinimized && "md:flex")} title={syncCard.title}>
+            <span className={cn("h-2.5 w-2.5 rounded-full", syncCard.dot)} />
           </span>
-          <span className={cn("items-center justify-center hidden", isSidebarMinimized ? "md:flex" : "")}>
-             <span className={cn("w-1.5 h-1.5 rounded-full", isFetchingSheets ? "bg-primary animate-pulse" : sheetsFetchError ? "bg-danger animate-pulse" : syncIsStale ? "bg-warning" : "bg-success")} />
-          </span>
+          <div className={cn(isSidebarMinimized && "md:hidden")}>
+            <div className="flex items-center gap-2 text-[14px] font-semibold text-text-primary">
+              <span className={cn("h-2.5 w-2.5 rounded-full", syncCard.dot)} />
+              {syncCard.title}
+            </div>
+            <div className="mt-1 text-[13px] text-text-secondary tabular-nums">{syncCard.clock}</div>
+            <p className="mt-2 text-[12.5px] leading-snug text-text-muted">{syncCard.note}</p>
+          </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col p-3 pt-20 md:p-8 gap-7 overflow-y-auto overflow-x-hidden w-full relative">
-        <div className="bg-card/85 backdrop-blur-xl border border-border rounded-2xl shadow-sm px-4 py-2.5 flex flex-col relative z-50 overflow-visible">
+      <main className="flex-1 flex flex-col p-3 pt-20 md:px-11 md:py-9 gap-6 overflow-y-auto overflow-x-hidden w-full relative">
+        <div className="ui-card-flat rounded-[22px] px-5 py-3 flex flex-col relative z-50 overflow-visible">
           {/* Mobile Filter Toggle */}
           <div className="flex md:hidden items-center justify-between w-full mb-2">
             <span className="text-[11px] font-medium text-text-muted tracking-wide pl-1">Filter</span>
@@ -900,8 +916,8 @@ export default function App() {
             <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2 md:overflow-visible">
               {/* Scope */}
               <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 md:border-r md:border-border md:pr-2.5 shrink-0">
-                <span className="hidden lg:inline text-[10px] font-medium text-text-muted tracking-wide w-10 shrink-0">Scope</span>
-                <div className="w-[100px] shrink-0 [&_button]:h-8 [&_button]:rounded-lg [&_button]:text-xs [&_button]:px-2.5">
+                <span className="hidden lg:inline text-[13px] font-medium text-text-muted pr-1 shrink-0">Scope</span>
+                <div className="w-[124px] shrink-0 [&_button]:h-[38px] [&_button]:rounded-[13px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[14px] [&_button]:px-3.5">
                   <SearchableSelect 
                     options={['NSI', 'TCID', 'TCID X NSI']}
                     value={selectedBpo}
@@ -910,7 +926,7 @@ export default function App() {
                     placeholder="Cari BPO..."
                   />
                 </div>
-                <div className="w-[120px] shrink-0 [&_button]:h-8 [&_button]:rounded-lg [&_button]:text-xs [&_button]:px-2.5">
+                <div className="w-[142px] shrink-0 [&_button]:h-[38px] [&_button]:rounded-[13px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[14px] [&_button]:px-3.5">
                   <SearchableSelect 
                     options={tlList}
                     value={selectedTL}
@@ -919,7 +935,7 @@ export default function App() {
                     placeholder="Cari TL..."
                   />
                 </div>
-                <div className="w-[130px] shrink-0 [&_button]:h-8 [&_button]:rounded-lg [&_button]:text-xs [&_button]:px-2.5">
+                <div className="w-[156px] shrink-0 [&_button]:h-[38px] [&_button]:rounded-[13px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[14px] [&_button]:px-3.5">
                   <SearchableSelect
                     options={agentList}
                     value={selectedGlobalAgent}
@@ -932,7 +948,7 @@ export default function App() {
               
               {/* Period */}
               <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 md:border-r md:border-border md:pr-2.5 shrink-0">
-                <span className="hidden lg:inline text-[10px] font-medium text-text-muted tracking-wide w-10 shrink-0">Periode</span>
+                <span className="hidden lg:inline text-[13px] font-medium text-text-muted pr-1 shrink-0">Periode</span>
                 <MonthPicker
                   value={selectedMonthFilter || getCurrentMonthValue()}
                   options={monthOptions}
@@ -942,14 +958,14 @@ export default function App() {
                   type="button"
                   onClick={() => setShowAdvancedFilter(v => !v)}
                   className={cn(
-                    "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-medium transition-colors whitespace-nowrap",
+                    "flex h-[38px] items-center gap-2 rounded-[13px] px-3.5 text-[14px] font-medium transition-colors whitespace-nowrap",
                     showAdvancedFilter || hasCustomDateFilter
-                      ? "border-border-strong bg-surface-muted text-text-primary"
-                      : "border-border bg-surface text-text-secondary hover:bg-surface-muted"
+                      ? "bg-primary-soft text-primary-text"
+                      : "bg-black/[0.07] text-text-primary hover:bg-black/[0.1]"
                   )}
                   aria-expanded={showAdvancedFilter}
                 >
-                  <Calendar size={12} />
+                  <Calendar size={14} />
                   Rentang &amp; minggu
                   {hasCustomDateFilter && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
                   {showAdvancedFilter ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -959,23 +975,23 @@ export default function App() {
               {/* Compare — only on tabs that support comparison */}
               {comparisonTabs && (
               <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 shrink-0">
-                <span className="hidden lg:inline text-[10px] font-medium text-text-muted tracking-wide shrink-0">Cmp</span>
+                <span className="hidden lg:inline text-[13px] font-medium text-text-muted pr-1 shrink-0">Cmp</span>
                 <button
                   type="button"
                   role="switch"
                   aria-checked={isComparisonEnabled}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2 transition-colors hover:bg-surface-muted group cursor-pointer"
+                  className="flex h-[38px] items-center gap-2.5 rounded-[13px] bg-black/[0.07] pl-3 pr-3.5 transition-colors hover:bg-black/[0.1] group cursor-pointer"
                   onClick={() => setIsComparisonEnabled(!isComparisonEnabled)}
                 >
-                  <div className={cn("w-7 h-4 rounded-full relative transition-colors duration-200", isComparisonEnabled ? "bg-primary" : "bg-border")}>
-                    <div className={cn("absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform duration-200", isComparisonEnabled ? "translate-x-3" : "translate-x-0")} />
+                  <div className={cn("w-[42px] h-[26px] rounded-full relative transition-colors duration-200", isComparisonEnabled ? "bg-primary" : "bg-border-strong")}>
+                    <div className={cn("absolute top-[3px] left-[3px] w-5 h-5 rounded-full bg-white shadow-[0_2px_4px_rgb(0_0_0/0.25)] transition-transform duration-200", isComparisonEnabled ? "translate-x-4" : "translate-x-0")} />
                   </div>
-                  <span className="text-[10px] font-medium text-text-secondary group-hover:text-text-primary whitespace-nowrap">Bandingkan</span>
+                  <span className="text-[14px] font-medium text-text-primary whitespace-nowrap">Bandingkan</span>
                 </button>
 
                 <div className={cn(
-                  "flex h-8 items-center rounded-md border p-0.5 gap-0.5 transition-opacity",
-                  isComparisonEnabled ? "border-border-strong bg-surface-muted opacity-100" : "border-border bg-surface opacity-80"
+                  "flex h-[38px] items-center rounded-[13px] bg-black/[0.07] p-1 gap-0.5 transition-opacity",
+                  isComparisonEnabled ? "opacity-100" : "opacity-70"
                 )}>
                   <button
                     type="button"
@@ -984,7 +1000,7 @@ export default function App() {
                       setIsComparisonEnabled(true);
                     }}
                     className={cn(
-                      "text-[10px] px-2 py-1 rounded font-semibold transition-colors cursor-pointer",
+                      "text-[13px] px-3 py-1 rounded-[10px] font-semibold transition-colors cursor-pointer",
                       comparisonMode === 'wow' && isComparisonEnabled ? "bg-card text-text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
                     )}
                     title="WoW membandingkan dengan periode sebelumnya dengan durasi yang sama"
@@ -998,7 +1014,7 @@ export default function App() {
                       setIsComparisonEnabled(true);
                     }}
                     className={cn(
-                      "text-[10px] px-2 py-1 rounded font-semibold transition-colors cursor-pointer",
+                      "text-[13px] px-3 py-1 rounded-[10px] font-semibold transition-colors cursor-pointer",
                       comparisonMode === 'mom' && isComparisonEnabled ? "bg-card text-text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
                     )}
                     title="MoM membandingkan dengan bulan sebelumnya"
@@ -1010,7 +1026,7 @@ export default function App() {
               )}
 
               {selectedTL && selectedTL !== 'All TL' && selectedTL !== 'All Team Leaders' && (
-                <div className="inline-flex h-8 items-center px-2.5 rounded-md bg-primary-soft text-primary-text text-[10px] font-medium border border-primary-soft-hover shrink-0 whitespace-nowrap">
+                <div className="inline-flex h-[38px] items-center px-3.5 rounded-[13px] bg-primary-soft text-primary-text text-[13px] font-medium shrink-0 whitespace-nowrap">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
                   Tim {selectedTL}
                 </div>
@@ -1035,7 +1051,7 @@ export default function App() {
 
             {/* Status strip — selalu satu baris tipis di bawah */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-1.5">
-              <div className="flex min-w-0 flex-col gap-0.5 text-[10px] leading-tight">
+              <div className="flex min-w-0 flex-col gap-0.5 text-[12.5px] leading-tight">
                 {comparisonHint ? (
                   <span className="font-medium text-primary">
                     Bandingkan · {comparisonHint}
@@ -1132,7 +1148,7 @@ export default function App() {
 
         <div className="w-full pb-8">
           {showBootLoading ? (
-            <BootLoadingPanel />
+            <BootLoadingPanel steps={sheetsSyncProgress?.steps} subtitle={isHydrating ? 'Membaca data tersimpan' : undefined} />
           ) : (
             <div key={activeTab} className="tab-enter">
               <TabErrorBoundary label={activeNavLabel}>

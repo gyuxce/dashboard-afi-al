@@ -111,11 +111,14 @@ async function capture() {
       await save(id);
       for (const [extraId, parent, click] of EXTRA) {
         if (parent !== id) continue;
-        const target = page.getByText(click, { exact: true }).first();
+        // Hanya tab/tombol bernama persis itu; teks biasa bisa cocok dengan sel tabel dan membuka modal.
+        let target = page.getByRole('tab', { name: click, exact: true }).first();
+        if (!(await target.count())) target = page.getByRole('button', { name: click, exact: true }).first();
         if (!(await target.count())) { console.log(`  (lewati ${extraId}: "${click}" tidak ada)`); continue; }
         await target.click();
         await page.waitForTimeout(2500);
         await save(extraId);
+        await page.keyboard.press('Escape');
       }
     }
     if (errors.length) fs.writeFileSync(path.join(out, `${vp}-errors.txt`), errors.join('\n'));
