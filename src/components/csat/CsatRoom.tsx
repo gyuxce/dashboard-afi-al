@@ -837,7 +837,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                           {isComparisonEnabled && (
                             <td className="p-2 text-center font-bold text-[10px]">
                               {diff !== 0 ? (
-                                <span className={isUp ? 'text-red-500' : 'text-green-500'}>
+                                <span className="text-text-secondary" title={isUp ? 'Naik dari periode pembanding' : 'Turun dari periode pembanding'}>
                                   {isUp ? '▲' : '▼'} {Math.abs(diff)}
                                 </span>
                               ) : (

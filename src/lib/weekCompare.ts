@@ -30,6 +30,19 @@ export function weekLabel(week: CalendarWeek): string {
   return `W${week.index} ${month}`;
 }
 
+/**
+ * Column labels for a set of weeks: "W1", "W2" … while they all belong to one month, "W5 Okt", "W1 Nov" … as soon
+ * as the set crosses a month boundary (rolling comparison early in a month).
+ */
+export function weekColumnLabels(weeks: CalendarWeek[]): string[] {
+  const monthOf = (w: CalendarWeek) => {
+    const [y, m, d] = w.start.split('-').map(Number);
+    return new Date(y, m - 1, d + 3).getMonth();
+  };
+  const mixed = new Set(weeks.map(monthOf)).size > 1;
+  return weeks.map((w) => (mixed ? weekLabel(w) : `W${w.index}`));
+}
+
 /** Last four weeks that have data (newest first). Null when fewer than two — nothing to compare. */
 export function buildWeekCompare(weeks: CalendarWeek[], weekData: AgentKPI[][]): WeekCompare | null {
   if (weeks.length === 0 || weekData.length !== weeks.length) return null;

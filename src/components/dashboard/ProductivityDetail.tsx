@@ -430,7 +430,7 @@ export const ProductivityDetail: React.FC<{
                   </span>
                   <span className="text-xs font-semibold text-text-muted">chats</span>
                   {selectedIntervalInsight.change !== null && (
-                    <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${selectedIntervalInsight.change > 0 ? "bg-surface-muted text-text-secondary" : "bg-danger-soft text-danger-text"}`}>
+                    <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${selectedIntervalInsight.change >= 0 ? "bg-surface-muted text-text-secondary" : "bg-danger-soft text-danger-text"}`}>
                       {selectedIntervalInsight.change >= 0 ? "+" : ""}
                       {formatNum(selectedIntervalInsight.change, 0)} vs pembanding
                     </span>

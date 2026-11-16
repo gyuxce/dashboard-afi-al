@@ -48,7 +48,7 @@ function columnWidth(n: number) {
 }
 
 function drawWeekChip(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, week: SlideWeek, hot: boolean) {
-  ctx.fillStyle = hot ? '#E31E24' : '#F3F5F8';
+  ctx.fillStyle = hot ? COLORS.period : '#F3F5F8';
   roundRect(ctx, x, y, w, 64, 32);
   ctx.fill();
   ctx.textBaseline = 'middle';
@@ -289,7 +289,7 @@ export async function renderRespondentsSlide(model: RespondentsSlide): Promise<B
     const y = gridTop + Math.floor(i / 2) * (cardH + cardGap);
     const last = i === model.columns.length - 1;
 
-    ctx.fillStyle = last ? '#FDF1EF' : '#F6F8FA';
+    ctx.fillStyle = last ? COLORS.emphasis : '#F6F8FA';
     roundRect(ctx, x, y, cardW, cardH, 16);
     ctx.fill();
 
@@ -309,7 +309,7 @@ export async function renderRespondentsSlide(model: RespondentsSlide): Promise<B
     ctx.font = `700 22px ${FONT}`;
     if (col.deltaFromPrevious !== null && col.deltaFromPrevious !== 0) {
       const down = col.deltaFromPrevious < 0;
-      ctx.fillStyle = down ? COLORS.down : COLORS.up;
+      ctx.fillStyle = COLORS.muted; // a change in volume is neither good nor bad: direction only, no red/green
       ctx.fillText(`${down ? '▼' : '▲'} ${Math.abs(col.deltaFromPrevious)}`, x + 24, y + deltaY);
     }
     ctx.textAlign = 'right';
@@ -1010,9 +1010,10 @@ export async function renderTakeoutSimSlide(model: TakeoutSimSlide): Promise<Blo
         ctx.font = `800 31px ${FONT}`;
         ctx.fillText(`${c.v.toFixed(2)}%`, c.x, showDelta ? mid - 12 : mid);
         if (showDelta) {
-          ctx.fillStyle = COLORS.up;
+          const gain = c.v - (c.baseV as number);
+          ctx.fillStyle = gain >= 0 ? COLORS.up : COLORS.down;
           ctx.font = `700 19px ${FONT}`;
-          ctx.fillText(`▲ +${(c.v - (c.baseV as number)).toFixed(2)}`, c.x, mid + 22);
+          ctx.fillText(`${gain >= 0 ? '▲ +' : '▼ −'}${Math.abs(gain).toFixed(2)}`, c.x, mid + 22);
         }
       });
     });

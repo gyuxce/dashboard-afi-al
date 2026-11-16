@@ -3,7 +3,7 @@ import { Download, ClipboardCopy, Loader2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { EmptyState } from '../ui/EmptyState';
-import { weekHasData, type WeekCompare } from '../../lib/weekCompare';
+import { weekColumnLabels, weekHasData, type WeekCompare } from '../../lib/weekCompare';
 import type { AgentKPI } from '../../lib/dataProcessor';
 import type { CalendarWeek, MonthRange } from '../../lib/weeks';
 import { getKpiStatus } from '../../lib/utils';
@@ -185,7 +185,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
   const [opening, setOpening] = useState({
     title: '',
     subtitle: 'KPI Performance',
-    slides: ['Slide 3', 'Slide 4', 'Slide 5–10', 'Slide 11+', '–'],
+    slides: ['Slide 3', 'Slide 4', 'Slide 5–10', 'Slide 11+', 'Slide 18+'],
   });
   const [frameText, setFrameText] = useState<Record<string, { section?: string; title?: string }>>({});
   const [manual, setManual] = useState<Manual>(() => loadManual(selectedBpo));
@@ -275,6 +275,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       };
     });
 
+    const weekLabels = weekColumnLabels(weekRanges);
     // Overview: every week of the selected period that has data (as in the dashboard report), or the months.
     const overviewCols: ReportColumn[] =
       periodMode === 'monthly'
@@ -288,11 +289,12 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
             stats: calculatePeriodStats(c.rows),
           }))
         : weekRanges
-            .map((week, i) => ({ week, rows: weekData[i] }))
+            .map((week, i) => ({ week, rows: weekData[i], label: weekLabels[i] }))
             .filter((w) => w.rows && weekHasData(w.rows))
-            .map(({ week, rows }) => ({
-              key: `w${week.index}`,
-              label: `W${week.index}`,
+            .slice(-4)
+            .map(({ week, rows, label }) => ({
+              key: `w${week.start}`,
+              label,
               sublabel: formatWeekSpan(week.start, week.end),
               title: `${week.start} - ${week.end}`,
               start: week.start,
@@ -549,14 +551,15 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
       templateHasHighlight: false,
       section: 'DSAT',
       titleText: 'TOP 5 Agent Bottom CSAT',
-      caption: capMode,
+      // Management asked for this slide on After Takeout only, whatever the Full / After Takeout switch says.
+      caption: `${bpoLabel} · After Takeout · ${range}`,
       render: (inImage, bare) => {
-        const agentCols = cols.map((c) => topBadAgents(c.rows, mode, topAgentsLimit));
+        const agentCols = cols.map((c) => topBadAgents(c.rows, 'fair', topAgentsLimit));
         const lines = agentHighlights(cols.map((c, i) => ({ label: c.label, agents: agentCols[i] })));
         return done(renderAgentsSlide({
           bare,
           title: 'Agent Bottom Score 1–2',
-          subtitle,
+          subtitle: `After Takeout · ${range}`,
           headline: hdOn ? agentHeadline(cols.map((c, i) => ({ label: c.label, agents: agentCols[i] }))) ?? undefined : undefined,
           columns: cols.map((_, i) => ({
             ...weeks[i],
@@ -732,6 +735,7 @@ export const WeeklyExport: React.FC<Props> = ({ weekCompare, weekRanges, weekDat
             value={mode}
             onChange={setMode}
           />
+          <span className="text-[10px] text-text-muted">Slide 9 selalu After Takeout</span>
           <button type="button" onClick={downloadAll} disabled={busy} className={buttonClass}>
             <Download className="h-3.5 w-3.5" />
             Unduh semua

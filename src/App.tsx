@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from './store';
 import { getPreviousMonthPeriod, getPreviousPeriod } from './lib/dataProcessor';
-import { getCalendarWeeks, getMonthRanges } from './lib/weeks';
+import { getMonthRanges, getRollingWeeks } from './lib/weeks';
 import { buildWeekCompare } from './lib/weekCompare';
 import { isAdminMode } from './lib/adminMode';
 import { formatRelativeTime, isStaleSync, countDataRows, extractCsIds, getProductivityDuplicateCount } from './lib/dataQuality';
@@ -219,7 +219,7 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
   );
 }
 
-const NO_WEEKS: ReturnType<typeof getCalendarWeeks> = [];
+const NO_WEEKS: ReturnType<typeof getRollingWeeks> = [];
 const NO_MONTHS: ReturnType<typeof getMonthRanges> = [];
 
 export default function App() {
@@ -520,7 +520,10 @@ export default function App() {
   // use the last four. A single week still compares against the previous 7 days.
   const weekRanges = useMemo(() => {
     if (!(needsComparisonData && comparisonMode === 'wow') && activeTab !== 'weekly_export') return NO_WEEKS;
-    const weeks = getCalendarWeeks(startDate, endDate);
+    // Rolling: early in a month the last weeks of the previous month fill the comparison up to four weeks.
+    const now = new Date();
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const weeks = getRollingWeeks(startDate, endDate, todayIso);
     return weeks.length >= 2 ? weeks.slice(-6) : NO_WEEKS;
   }, [needsComparisonData, comparisonMode, activeTab, startDate, endDate]);
 
@@ -755,7 +758,7 @@ export default function App() {
     if (!isComparisonEnabled || !startDate) return null;
     const end = endDate || startDate;
     if (comparisonMode === 'wow' && weekRanges.length > 0) {
-      return `WoW: ${weekRanges.length} minggu kalender (Senin–Minggu) dalam ${formatFilterDate(startDate)} – ${formatFilterDate(end)}`;
+      return `WoW: maks. 4 minggu terakhir yang ada datanya (Senin–Minggu), sampai ${formatFilterDate(end)}`;
     }
     const getPrevRange = comparisonMode === 'mom' ? getPreviousMonthPeriod : getPreviousPeriod;
     const prev = getPrevRange(startDate, end);

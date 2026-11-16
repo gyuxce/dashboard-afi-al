@@ -51,6 +51,37 @@ export function getCalendarWeeks(startDate: string, endDate: string): CalendarWe
   return weeks;
 }
 
+/** The week's number inside the month that holds its Thursday (1–5): the first Thursday of a month is W1. */
+const thursdayWeekIndex = (mondayIso: string) => {
+  const monday = parseIso(mondayIso);
+  return Math.ceil(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 3).getDate() / 7);
+};
+
+/**
+ * Calendar weeks for week-on-week comparison. Normally the weeks of the selected range, but early in
+ * a month only a couple of them have happened (16 Nov: W1, W2), so earlier whole weeks are added in
+ * front until `minWeeks` have started — the comparison then keeps its four columns across the month
+ * boundary (W4 Okt, W5 Okt, W1 Nov, W2 Nov). Once the month has `minWeeks` elapsed weeks the result
+ * is exactly {@link getCalendarWeeks}. A single week (< 2) is returned as is: it compares to the previous 7 days.
+ * `todayIso` decides which weeks have started.
+ */
+export function getRollingWeeks(startDate: string, endDate: string, todayIso: string, minWeeks = 5): CalendarWeek[] {
+  const weeks = getCalendarWeeks(startDate, endDate);
+  if (weeks.length < 2) return weeks;
+  const elapsed = weeks.filter((w) => w.start <= todayIso).length;
+  if (elapsed >= minWeeks) return weeks;
+
+  const firstMonday = parseIso(weeks[0].start);
+  const earlier: CalendarWeek[] = [];
+  for (let i = elapsed < 1 ? minWeeks : minWeeks - elapsed; i >= 1; i--) {
+    const monday = new Date(firstMonday.getFullYear(), firstMonday.getMonth(), firstMonday.getDate() - 7 * i);
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    earlier.push({ index: 0, start: toIso(monday), end: toIso(sunday), daysInRange: 7 });
+  }
+  // Mixed months: number every week by its Thursday's month so "W5 Okt" really is the fifth week of October.
+  return [...earlier, ...weeks].map((w) => ({ ...w, index: thursdayWeekIndex(w.start) }));
+}
+
 export type MonthRange = { label: string; start: string; end: string };
 
 /** The `count` calendar months ending with the month of `endIso` (oldest first), e.g. Agustus, September, Oktober. */

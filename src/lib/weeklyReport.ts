@@ -144,8 +144,9 @@ export function buildReportSlideModel(args: {
     columns: columns.map((col, i) => ({ label: col.label, sublabel: col.sublabel, emphasis: i === deltaTo })),
     rows: REPORT_METRICS.map((metric) => {
       const delta = (columns[deltaTo]?.stats[metric.key] ?? 0) - (columns[deltaFrom]?.stats[metric.key] ?? 0);
-      const flat = Math.abs(delta) < 0.01;
       const digits = metric.kind === 'count' ? 0 : 2;
+      // Flat = it would print as zero ("▼ 0" in red for a 0.4 change in a whole-number KPI is misleading).
+      const flat = Math.abs(delta) < 0.5 * 10 ** -digits;
       return {
         label: metric.label,
         target: metric.target !== null ? (metric.kind === 'score' ? formatNum(metric.target) : `${metric.target}%`) : '-',

@@ -292,6 +292,7 @@ main h2 { letter-spacing: -0.012em; }
 .tint-blue { --tint: 0 122 255; } .tint-purple { --tint: 175 82 222; } .tint-orange { --tint: 255 149 0; }
 .tint-green { --tint: 52 199 89; } .tint-teal { --tint: 48 176 199; } .tint-pink { --tint: 255 45 85; }
 .tint-indigo { --tint: 88 86 214; } .tint-red { --tint: 255 59 48; }
+.tint-pill { background-color: rgb(var(--tint) / 0.14); color: rgb(var(--tint)); }
 .bg-card.border.tint-card, .tint-card {
   background-image: linear-gradient(150deg, rgb(var(--tint) / 0.15), rgb(var(--tint) / 0.035) 58%, transparent);
   border-color: rgb(var(--tint) / 0.24);

@@ -48,7 +48,9 @@ export const COLORS = {
   muted: '#52606D',
   line: '#D8E0E8',
   zebra: '#F6F8FA',
-  emphasis: '#FDECEA',
+  /** Latest week/month column: blue, never red/green — those colours are reserved for target status. */
+  emphasis: '#E8F0FE',
+  period: '#2456D6',
   accent: '#D93A2B',
   miss: '#C0261B',
   watch: '#B45309',

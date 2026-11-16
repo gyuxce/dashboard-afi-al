@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getCalendarWeeks, getMonthRanges } from '../weeks';
+import { getCalendarWeeks, getMonthRanges, getRollingWeeks } from '../weeks';
 
 describe('getCalendarWeeks', () => {
   it('gives October 2026 five whole weeks, the last one reaching 1 Nov', () => {
@@ -45,6 +45,41 @@ describe('getMonthRanges', () => {
       { label: 'Agustus', start: '2026-08-01', end: '2026-08-31' },
       { label: 'September', start: '2026-09-01', end: '2026-09-30' },
       { label: 'Oktober', start: '2026-10-01', end: '2026-10-31' },
+    ]);
+  });
+});
+
+describe('getRollingWeeks', () => {
+  it('keeps four comparable weeks early in a month by borrowing the end of the previous one', () => {
+    // 16 Nov: only W1 (2–8) and W2 (9–15) of November are over, W3 starts today.
+    const weeks = getRollingWeeks('2026-11-01', '2026-11-30', '2026-11-16');
+    expect(weeks.map((w) => [w.index, w.start])).toEqual([
+      [4, '2026-10-19'],
+      [5, '2026-10-26'],
+      [1, '2026-11-02'],
+      [2, '2026-11-09'],
+      [3, '2026-11-16'],
+      [4, '2026-11-23'],
+    ]);
+  });
+
+  it('is identical to getCalendarWeeks once the month has five weeks behind it', () => {
+    expect(getRollingWeeks('2026-10-01', '2026-10-31', '2026-11-16')).toEqual(getCalendarWeeks('2026-10-01', '2026-10-31'));
+    expect(getRollingWeeks('2026-11-01', '2026-11-30', '2026-11-30', 4)).toEqual(getCalendarWeeks('2026-11-01', '2026-11-30'));
+  });
+
+  it('does not touch a single week', () => {
+    expect(getRollingWeeks('2026-11-09', '2026-11-15', '2026-11-16')).toEqual(getCalendarWeeks('2026-11-09', '2026-11-15'));
+  });
+
+  it('still fills the comparison when the month has barely started', () => {
+    const weeks = getRollingWeeks('2026-11-01', '2026-11-30', '2026-11-03');
+    expect(weeks.filter((w) => w.start <= '2026-11-03').map((w) => [w.index, w.start])).toEqual([
+      [2, '2026-10-05'],
+      [3, '2026-10-12'],
+      [4, '2026-10-19'],
+      [5, '2026-10-26'],
+      [1, '2026-11-02'],
     ]);
   });
 });

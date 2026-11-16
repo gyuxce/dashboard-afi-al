@@ -9,7 +9,7 @@ import { DashboardCharts } from "./DashboardCharts";
 import { TeamLeaderSummary } from "./TeamLeaderSummary";
 import { EmptyState } from "../ui/EmptyState";
 import type { CalendarWeek } from "../../lib/weeks";
-import { weekHasData } from "../../lib/weekCompare";
+import { weekHasData, weekColumnLabels } from "../../lib/weekCompare";
 import { downloadBlob, renderTableSlide } from "../../lib/slideExport";
 import {
   REPORT_METRICS,
@@ -95,11 +95,12 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
     if (comparisonMode === 'wow' && weekRanges.length > 0) {
       if (weekData.length !== weekRanges.length) return null; // week data still being computed
       const columns: ReportColumn[] = [];
+      const weekLabels = weekColumnLabels(weekRanges);
       weekRanges.forEach((week, i) => {
         if (!weekHasData(weekData[i])) return;
         columns.push({
-          key: `w${week.index}`,
-          label: `W${week.index}`,
+          key: `w${week.start}`,
+          label: weekLabels[i],
           sublabel: formatWeekSpan(week.start, week.end),
           title: rangeTitle(week.start, week.end),
           start: week.start,
@@ -110,8 +111,9 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
       if (columns.length < 2) return null;
       const today = toLocalIso(new Date());
       const running = weekRanges
-        .filter((week) => week.end >= today && columns.some((c) => c.key === `w${week.index}`))
-        .map((week) => `W${week.index}`);
+        .map((week, i) => ({ week, label: weekLabels[i] }))
+        .filter(({ week }) => week.end >= today && columns.some((c) => c.key === `w${week.start}`))
+        .map(({ label }) => label);
       const note = [
         'Minggu kalender Senin–Minggu; minggu pertama dan terakhir bisa mencakup tanggal bulan sebelum/sesudahnya, jadi jumlah semua minggu tidak selalu sama dengan total bulan.',
         running.length > 0 ? `Minggu berjalan (belum selesai): ${running.join(', ')}.` : '',
@@ -1074,11 +1076,11 @@ const WeeklyReportPanel = ({
             <div
               key={col.key}
               className={`flex items-center gap-1.5 px-2 py-1 rounded-full whitespace-nowrap ${
-                i === deltaTo ? 'bg-primary/10 text-primary font-bold' : 'bg-surface-muted text-text-muted font-semibold'
+                i === deltaTo ? 'tint-blue tint-pill font-bold' : 'bg-surface-muted text-text-muted font-semibold'
               }`}
               title={col.title}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${i === deltaTo ? 'bg-primary' : 'bg-text-muted'}`}></span>
+              <span className={`w-1.5 h-1.5 rounded-full ${i === deltaTo ? 'bg-[rgb(var(--tint))]' : 'bg-text-muted'}`}></span>
               {col.label}
             </div>
           ))}
@@ -1131,7 +1133,7 @@ const WeeklyReportPanel = ({
             {REPORT_METRICS.map((metric, i) => {
               const delta = (columns[deltaTo]?.stats[metric.key] ?? 0) - (columns[deltaFrom]?.stats[metric.key] ?? 0);
               const isUp = delta > 0;
-              const isFlat = Math.abs(delta) < 0.01;
+              const isFlat = Math.abs(delta) < 0.5 * 10 ** -(metric.kind === 'count' ? 0 : 2);
 
               return (
                 <tr key={metric.key} className={`border-b border-border/50 transition-colors ${ i % 2 === 0 ? 'bg-surface/20' : '' }`}>
