@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from 're
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from './store';
-import { getPreviousMonthPeriod, getPreviousPeriod } from './lib/dataProcessor';
+import { getPreviousMonthPeriodToDate, getPreviousPeriod } from './lib/dataProcessor';
 import { getMonthRanges, getRollingWeeks } from './lib/weeks';
 import { buildWeekCompare } from './lib/weekCompare';
 import { isAdminMode } from './lib/adminMode';
@@ -501,19 +501,25 @@ export default function App() {
     if (activeTab === 'attendance') setActiveTab('schedule');
   }, [activeTab]);
 
+  // Last day the Productivity sheet has data for the active month: the running month is compared up to there.
+  const productivityLastDate = activeMonthLastDates?.productivityData ?? null;
+
   const comparisonRanges = useMemo(() => {
     if (passivePrevMonth && startDate && endDate) {
-      return { prev1: getPreviousMonthPeriod(startDate, endDate), prev2: null, prev3: null } as const;
+      return { prev1: getPreviousMonthPeriodToDate(startDate, endDate, productivityLastDate), prev2: null, prev3: null } as const;
     }
     if (!needsComparisonData || !startDate || !endDate) {
       return { prev1: null, prev2: null, prev3: null } as const;
     }
-    const getPrevRange = comparisonMode === 'mom' ? getPreviousMonthPeriod : getPreviousPeriod;
-    const prev1 = getPrevRange(startDate, endDate);
-    const prev2 = getPrevRange(prev1.start, prev1.end);
-    const prev3 = getPrevRange(prev2.start, prev2.end);
+    const prev1 = comparisonMode === 'mom'
+      ? getPreviousMonthPeriodToDate(startDate, endDate, productivityLastDate)
+      : getPreviousPeriod(startDate, endDate);
+    // Earlier periods are full copies of the (already cut) previous one, shifted back.
+    const shiftBack = comparisonMode === 'mom' ? getPreviousMonthPeriodToDate : (a: string, b: string) => getPreviousPeriod(a, b);
+    const prev2 = shiftBack(prev1.start, prev1.end, null);
+    const prev3 = shiftBack(prev2.start, prev2.end, null);
     return { prev1, prev2, prev3 } as const;
-  }, [needsComparisonData, passivePrevMonth, comparisonMode, startDate, endDate]);
+  }, [needsComparisonData, passivePrevMonth, comparisonMode, startDate, endDate, productivityLastDate]);
 
   // WoW over a range longer than one week compares the Monday–Sunday weeks of that range
   // (W1 Okt, W2 Okt, …) — Summary's report lays them side by side, the Productivity / CSAT tabs
@@ -760,8 +766,9 @@ export default function App() {
     if (comparisonMode === 'wow' && weekRanges.length > 0) {
       return `WoW: maks. 4 minggu terakhir yang ada datanya (Senin–Minggu), sampai ${formatFilterDate(end)}`;
     }
-    const getPrevRange = comparisonMode === 'mom' ? getPreviousMonthPeriod : getPreviousPeriod;
-    const prev = getPrevRange(startDate, end);
+    const prev = comparisonMode === 'mom'
+      ? getPreviousMonthPeriodToDate(startDate, end, productivityLastDate)
+      : getPreviousPeriod(startDate, end);
     if (!prev.start || !prev.end) return null;
     const currentLabel = `${formatFilterDate(startDate)} – ${formatFilterDate(end)}`;
     const prevLabel = `${formatFilterDate(prev.start)} – ${formatFilterDate(prev.end)}`;

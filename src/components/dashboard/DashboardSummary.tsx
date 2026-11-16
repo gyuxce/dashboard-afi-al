@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { AgentKPI, getOfficialCsatAggregate, getPreviousMonthPeriod, getPreviousPeriod, normalizeDateStr } from "../../lib/dataProcessor";
+import { AgentKPI, getOfficialCsatAggregate, getPreviousMonthPeriodToDate, getPreviousPeriod, normalizeDateStr } from "../../lib/dataProcessor";
 import { formatNum, getKpiStatus, KPI_TARGETS, parseDateForSort, type KpiType } from "../../lib/utils";
 import { Activity, AlertTriangle, Star, Clock, CheckCircle, TrendingUp, Users, Info, ChevronDown, ClipboardCheck, Download, ClipboardCopy } from "lucide-react";
 import { Sparkline } from "../ui/Sparkline";
@@ -39,10 +39,11 @@ interface Props {
 export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], previousData2 = [], previousData3 = [], weekRanges = [], weekData = [] }) => {
   const [search, setSearch] = useState("");
   const [isRulesOpen, setIsRulesOpen] = useState(false);
-  const { startDate, endDate, comparisonMode } = useStore(useShallow((s) => ({
+  const { startDate, endDate, comparisonMode, productivityLastDate } = useStore(useShallow((s) => ({
     startDate: s.startDate,
     endDate: s.endDate,
     comparisonMode: s.comparisonMode,
+    productivityLastDate: s.activeMonthLastDates?.productivityData ?? null,
   })));
 
   const tableData = useMemo(() => {
@@ -129,10 +130,13 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
     }
 
     if (!periodHasActivity(previousData)) return null;
-    const getPrevRange = comparisonMode === 'mom' ? getPreviousMonthPeriod : getPreviousPeriod;
-    const prevRange = getPrevRange(startDate, endDate);
-    const prev2Range = getPrevRange(prevRange.start, prevRange.end);
-    const prev3Range = getPrevRange(prev2Range.start, prev2Range.end);
+    // Same ranges the data was processed for (see App.tsx): MoM compares up to the last day with data.
+    const prevRange = comparisonMode === 'mom'
+      ? getPreviousMonthPeriodToDate(startDate, endDate, productivityLastDate)
+      : getPreviousPeriod(startDate, endDate);
+    const shiftBack = (a: string, b: string) => (comparisonMode === 'mom' ? getPreviousMonthPeriodToDate(a, b, null) : getPreviousPeriod(a, b));
+    const prev2Range = shiftBack(prevRange.start, prevRange.end);
+    const prev3Range = shiftBack(prev2Range.start, prev2Range.end);
     const labelOf = (end: string) => formatPeriodLabel(end, comparisonMode);
     const columns: ReportColumn[] = [
       { key: 'cur', label: labelOf(endDate), title: rangeTitle(startDate, endDate), start: startDate, end: endDate, stats: currentStats },
@@ -153,7 +157,7 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
     };
   }, [
     comparisonMode, weekRanges, weekData, previousData, previousData2, previousData3,
-    startDate, endDate, currentStats, previousStats, previousStats2, previousStats3,
+    startDate, endDate, productivityLastDate, currentStats, previousStats, previousStats2, previousStats3,
   ]);
 
   const generateDailyTrend = (dataset: AgentKPI[]) => {
@@ -980,7 +984,7 @@ const StatCard = ({
             className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${
               delta > 0 ? 'text-success bg-success/10' : 'text-danger bg-danger/10'
             }`}
-            title={isCompareMode ? undefined : 'Dibanding periode yang sama bulan lalu'}
+            title={isCompareMode ? undefined : 'Dibanding bulan lalu pada jumlah hari yang sama (bulan berjalan dipotong sampai tanggal data terakhir)'}
           >
             {delta > 0 ? '▲ +' : '▼ −'}{formatNum(Math.abs(delta), deltaDec ?? (Math.abs(delta) >= 100 ? 0 : 1))}
             {!isCompareMode && <span className="font-normal opacity-75 ml-0.5">vs bln lalu</span>}

@@ -365,6 +365,17 @@ export function getPreviousMonthPeriod(startDate: string, endDate: string) {
   };
 }
 
+/**
+ * Previous-month period for a "vs bulan lalu" comparison. A running month is selected as 1st..last day, but
+ * its data stops at `lastDataIso`; comparing that half month with the whole previous month makes every
+ * cumulative KPI (Total Productivity) look like a crash. So the end is cut to the last day with data and the
+ * previous month is read for the same number of days (1–15 Nov ⇒ 1–15 Okt). Closed months are untouched.
+ */
+export function getPreviousMonthPeriodToDate(startDate: string, endDate: string, lastDataIso: string | null) {
+  const effectiveEnd = lastDataIso && lastDataIso >= startDate && lastDataIso < endDate ? lastDataIso : endDate;
+  return getPreviousMonthPeriod(startDate, effectiveEnd);
+}
+
 // normalizeDateStr moved to lib/dates.ts — re-exported for backward compat.
 export { normalizeDateStr } from './dates';
 
