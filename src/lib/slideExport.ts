@@ -6,7 +6,8 @@
  * dashboard is in, so these deliberately do not follow the CSS theme tokens.
  */
 
-export type SlideTone = 'plain' | 'watch' | 'miss';
+/** up / down = change against the column on its left (period-on-period); plain = no comparison. */
+export type SlideTone = 'plain' | 'watch' | 'miss' | 'up' | 'down';
 
 /** One-line takeaway shown above a slide's content. */
 export type SlideHeadline = { text: string; tone: 'good' | 'bad' | 'warn' | 'neutral' };
@@ -216,13 +217,14 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
     ctx.font = `500 25px ${FONT}`;
     ctx.fillText(row.target, xTargetRight, mid);
 
-    // Period values stay neutral: a "▼" or red here read as "down vs last week" next to the Perubahan arrow,
-    // while it only meant "below target". Direction lives in the Perubahan column; target status in the
-    // Target column, the banner and the Highlight.
+    // Each period value is marked against the period on its left (▲/▼, green/red); the first column has
+    // nothing to compare with and stays neutral. Target status is NOT drawn here (it used to be a red ▼,
+    // which read as "down vs last week"): see the Target column, the banner and the Highlight.
     row.cells.forEach((cell, i) => {
-      ctx.fillStyle = COLORS.ink;
+      ctx.fillStyle = cell.tone === 'up' ? COLORS.up : cell.tone === 'down' ? COLORS.down : COLORS.ink;
       ctx.font = `700 32px ${FONT}`;
-      ctx.fillText(cell.text, valueRight(i), mid);
+      const text = cell.tone === 'up' ? `▲ ${cell.text}` : cell.tone === 'down' ? `▼ ${cell.text}` : cell.text;
+      ctx.fillText(text, valueRight(i), mid);
     });
 
     ctx.font = `700 27px ${FONT}`;

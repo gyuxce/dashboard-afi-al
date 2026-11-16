@@ -115,6 +115,14 @@ export const REPORT_METRICS: ReportMetric[] = [
   { label: 'Attendance', key: 'attendance', target: 95, kpiType: 'attendance', kind: 'percent' },
 ];
 
+/** Direction of a column against the one on its left, judged on what is printed (flat = prints the same). */
+export const columnTrend = (metric: ReportMetric, previous: number | undefined, current: number | undefined): 'up' | 'down' | 'flat' => {
+  const delta = (current ?? 0) - (previous ?? 0);
+  const digits = metric.kind === 'count' ? 0 : 2;
+  if (Math.abs(delta) < 0.5 * 10 ** -digits) return 'flat';
+  return delta > 0 ? 'up' : 'down';
+};
+
 export const formatMetricValue = (metric: ReportMetric, value: number) => {
   if (metric.kind === 'count') return formatNum(value, 0);
   if (metric.kind === 'score') return formatNum(value);
@@ -150,12 +158,12 @@ export function buildReportSlideModel(args: {
       return {
         label: metric.label,
         target: metric.target !== null ? (metric.kind === 'score' ? formatNum(metric.target) : `${metric.target}%`) : '-',
-        cells: columns.map((col) => {
+        cells: columns.map((col, ci) => {
           const raw = col.stats[metric.key] ?? 0;
-          const status = metric.kpiType ? getKpiStatus(raw, metric.kpiType) : 'ok';
+          const trend = ci === 0 ? 'flat' : columnTrend(metric, columns[ci - 1].stats[metric.key], raw);
           return {
             text: formatMetricValue(metric, raw),
-            tone: status === 'miss' ? ('miss' as const) : status === 'watch' ? ('watch' as const) : ('plain' as const),
+            tone: trend === 'up' ? ('up' as const) : trend === 'down' ? ('down' as const) : ('plain' as const),
           };
         }),
         delta: flat

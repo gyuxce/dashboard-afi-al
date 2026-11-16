@@ -16,6 +16,7 @@ import {
   buildReportSlideModel,
   calculatePeriodStats,
   formatMetricValue,
+  columnTrend,
   formatPeriodLabel,
   formatReportDate,
   formatWeekSpan,
@@ -1015,9 +1016,7 @@ const WeeklyReportPanel = ({
   deltaFrom: number;
   note?: string;
 }) => {
-  // Period values stay neutral (same as the exported slide): direction is shown in "Perubahan" only,
-  // so a below-target red never reads as "down vs the previous week".
-  const cellClass = (_rawVal: number, _kpiType: KpiType | null) => 'text-text-primary';
+
 
   const deltaTitle = `${columns[deltaTo]?.label ?? ''} vs ${columns[deltaFrom]?.label ?? ''}`;
 
@@ -1144,11 +1143,13 @@ const WeeklyReportPanel = ({
                   <td className="px-4 py-3 text-right text-[12px] font-medium text-text-muted">
                     {metric.target !== null ? metric.kind === 'score' ? formatNum(metric.target) : `${metric.target}%` : '-'}
                   </td>
-                  {columns.map((col) => {
+                  {columns.map((col, ci) => {
                     const raw = col.stats[metric.key] ?? 0;
+                    // Same as the exported slide: each period is marked against the one on its left.
+                    const trend = ci === 0 ? 'flat' : columnTrend(metric, columns[ci - 1].stats[metric.key], raw);
                     return (
-                      <td key={col.key} className={`px-4 py-3 text-right text-[14px] font-bold ${cellClass(raw, metric.kpiType)}`}>
-                        {formatMetricValue(metric, raw)}
+                      <td key={col.key} className={`px-4 py-3 text-right text-[14px] font-bold ${trend === 'up' ? 'text-success' : trend === 'down' ? 'text-danger' : 'text-text-primary'}`}>
+                        {trend === 'up' ? '▲ ' : trend === 'down' ? '▼ ' : ''}{formatMetricValue(metric, raw)}
                       </td>
                     );
                   })}
