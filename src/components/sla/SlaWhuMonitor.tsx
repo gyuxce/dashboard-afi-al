@@ -1,46 +1,34 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { AgentKPI } from '../../lib/dataProcessor';
+import type { AgentKPI } from '../../lib/dataProcessor';
+import { SLA_VIEWS, filterSlaAgents, sortSlaAgents, type SlaViewMode as ViewMode, type SortConfig } from '../../lib/slaStats';
 import {
   formatNum,
   getKpiStatus,
   uniqueCalendarDates,
   indexByDate,
   getByCalendarDate,
-  type KpiType,
   formatCsId,
 } from '../../lib/utils';
 import { KpiValue, KpiCue, KpiLegend } from '../ui/KpiCue';
 import { Sparkline } from '../ui/Sparkline';
 import { DayStrip } from '../ui/DayStrip';
-import { Search, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { PageHeader } from '../ui/PageHeader';
+import { SearchField } from '../ui/SearchField';
 import { SortableHeader } from '../ui/SortableHeader';
 import { EmptyState } from '../ui/EmptyState';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { VirtualizedTbody } from '../ui/VirtualizedTbody';
 import { useVirtualRows } from '../../hooks/useVirtualRows';
 
-type ViewMode = '1m' | '3m' | 'whu';
-
-const VIEW: Record<ViewMode, {
-  label: string;
-  type: KpiType;
-  target: number;
-  field: (a: AgentKPI) => number | null;
-  hist: (a: AgentKPI) => { date: string; normDate?: string | null; value: number }[] | undefined;
-}> = {
-  '1m': { label: 'SLA 1 menit', type: 'sla1m', target: 92, field: (a) => a.sla1m, hist: (a) => a.dailyHistory?.sla1m },
-  '3m': { label: 'SLA 3 menit', type: 'sla3m', target: 96, field: (a) => a.sla3m, hist: (a) => a.dailyHistory?.sla3m },
-  whu: { label: 'WHU', type: 'whu', target: 96, field: (a) => a.whu, hist: (a) => a.dailyHistory?.whu },
-};
-
 export const SlaWhuMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   const [search, setSearch] = useState('');
   const [filterTL] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('1m');
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
-  const cfg = VIEW[viewMode];
+  const cfg = SLA_VIEWS[viewMode];
 
   const handleSort = (key: string) => {
     setSortConfig((prev) =>
@@ -58,31 +46,10 @@ export const SlaWhuMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       return next;
     });
 
-  const tableData = useMemo(() => {
-    const filtered = data.filter((a) => {
-      const matchSearch =
-        a.csId.toLowerCase().includes(search.toLowerCase()) ||
-        (a.name || '').toLowerCase().includes(search.toLowerCase());
-      const matchTL = filterTL ? a.teamLeader === filterTL : true;
-      return matchSearch && matchTL && cfg.field(a) !== null;
-    });
-
-    if (sortConfig) {
-      filtered.sort((a, b) => {
-        let aVal: string | number = 0;
-        let bVal: string | number = 0;
-        switch (sortConfig.key) {
-          case 'name': aVal = a.name || a.csId; bVal = b.name || b.csId; break;
-          case 'teamLeader': aVal = a.teamLeader || ''; bVal = b.teamLeader || ''; break;
-          case 'average': aVal = cfg.field(a) ?? 0; bVal = cfg.field(b) ?? 0; break;
-        }
-        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return filtered;
-  }, [data, search, filterTL, cfg, sortConfig]);
+  const tableData = useMemo(
+    () => sortSlaAgents(filterSlaAgents(data, search, filterTL, cfg), sortConfig, cfg),
+    [data, search, filterTL, cfg, sortConfig],
+  );
 
   const uniqueDates = useMemo(
     () => uniqueCalendarDates(tableData.map((a) => cfg.hist(a))),
@@ -98,33 +65,27 @@ export const SlaWhuMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   const colSpan = 7;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold text-text-primary">SLA / WHU Monitor</h1>
-          <SegmentedControl
-            value={viewMode}
-            onChange={setViewMode}
-            trackClassName="w-max"
-            options={[
-              { value: '1m', label: 'SLA 1m' },
-              { value: '3m', label: 'SLA 3m' },
-              { value: 'whu', label: 'WHU' },
-            ]}
-          />
-        </div>
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input
-            type="text"
-            placeholder="Cari CS ID atau nama..."
-            aria-label="Cari CS ID atau nama..."
-            className="pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs focus:border-primary focus:outline-none w-full md:w-56"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Service"
+        title="SLA / WHU Monitor"
+        subtitle={`${cfg.label}, target ${cfg.target}%: siapa yang menjawab tepat waktu dan siapa yang tertinggal.`}
+        actions={
+          <>
+            <SegmentedControl
+              value={viewMode}
+              onChange={setViewMode}
+              trackClassName="w-max"
+              options={[
+                { value: '1m', label: 'SLA 1m' },
+                { value: '3m', label: 'SLA 3m' },
+                { value: 'whu', label: 'WHU' },
+              ]}
+            />
+            <SearchField value={search} onChange={setSearch} />
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11px] text-text-muted">Klik baris untuk rincian harian</span>
@@ -133,7 +94,7 @@ export const SlaWhuMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
 
       <div
         ref={tableScrollRef}
-        className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl flex-1 max-h-[calc(100vh-200px)]"
+        className="ui-card p-0! relative w-full overflow-auto text-sm flex-1 max-h-[calc(100vh-200px)]"
       >
         <table className="kpi-data-table rank-table w-full text-left border-collapse">
           <thead className="bg-surface text-text-secondary sticky top-0 z-30">
