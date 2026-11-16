@@ -126,14 +126,14 @@ export function buildWeeklySummary(input: SummaryInput): WeeklySummary {
   else if (below.length === 0) headline = { text: `Semua ${withTarget.length} KPI bertarget tercapai di ${label}`, tone: 'good' };
   else
     headline = {
-      text: `${achieved} dari ${withTarget.length} KPI tercapai di ${label}; ${worst.label} paling jauh dari target (${worst.gapText} poin)`,
+      text: `${achieved} dari ${withTarget.length} KPI tercapai di ${label}; ${worst.label} paling jauh dari target: ${worst.valueText} vs ${worst.targetText}`,
       tone: below.length <= 3 ? 'warn' : 'bad',
     };
 
   const lines: string[] = [];
   lines.push(
     `${achieved} dari ${withTarget.length} KPI bertarget tercapai di ${label}${prevLabel && prevAchieved !== null ? ` (${prevLabel}: ${prevAchieved})` : ''}.` +
-      (below.length > 0 ? ` Di bawah target: ${below.slice(0, 3).map((b) => `${b.label} ${b.valueText} (${b.gapText})`).join(', ')}${below.length > 3 ? `, +${below.length - 3} lainnya` : ''}.` : ''),
+      (below.length > 0 ? ` Di bawah target: ${below.slice(0, 3).map((b) => `${b.label} ${b.valueText} (target ${b.targetText})`).join(', ')}${below.length > 3 ? `, +${below.length - 3} lainnya` : ''}.` : ''),
   );
   if (prevLabel && (up[0] || down[0])) {
     const parts = [

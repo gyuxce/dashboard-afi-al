@@ -93,12 +93,25 @@ export async function renderSummarySlide(model: SummarySlide): Promise<Blob> {
   ctx.fillText(`di ${s.label}`, x1 + 46, y1 + 224);
   if (s.prevLabel && s.kpi.prevAchieved !== null) ctx.fillText(`${s.prevLabel}: ${s.kpi.prevAchieved} dari ${s.kpi.total}`, x1 + 46, y1 + 252);
 
-  const listX = x1 + 46 + 250;
-  const listW = cardW - 250 - 46 - 24;
+  // Columns: KPI | Nilai | Target | Selisih (nilai − target). The target is printed so the gap can be checked at a glance.
+  const listX = x1 + 46 + 215;
+  const listW = cardW - 215 - 46 - 24;
+  const gapR = listX + listW;
+  const targetR = gapR - 110;
+  const valueR = targetR - 96;
+  const labelW = valueR - 100 - listX;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = `700 19px ${FONT}`;
-  ctx.fillText(s.kpi.below.length ? 'DI BAWAH TARGET' : 'STATUS', listX, y1 + 92);
+  ctx.font = `700 18px ${FONT}`;
+  ctx.textAlign = 'left';
+  ctx.fillText(s.kpi.below.length ? 'KPI DI BAWAH TARGET' : 'STATUS', listX, y1 + 92);
+  if (s.kpi.below.length > 0) {
+    ctx.textAlign = 'right';
+    ctx.fillText('NILAI', valueR, y1 + 92);
+    ctx.fillText('TARGET', targetR, y1 + 92);
+    ctx.fillText('SELISIH', gapR, y1 + 92);
+  }
   if (s.kpi.below.length === 0) {
+    ctx.textAlign = 'left';
     ctx.fillStyle = COLORS.ink;
     ctx.font = `600 24px ${FONT}`;
     ctx.fillText('Semua KPI bertarget tercapai', listX, y1 + 130);
@@ -106,27 +119,23 @@ export async function renderSummarySlide(model: SummarySlide): Promise<Blob> {
   s.kpi.below.slice(0, 4).forEach((b, i) => {
     const ly = y1 + 140 + i * 56;
     ctx.fillStyle = COLORS.ink;
-    ctx.font = `700 26px ${FONT}`;
+    ctx.font = `700 24px ${FONT}`;
     ctx.textAlign = 'left';
-    ctx.fillText(fitText(ctx, b.label, listW - 240), listX, ly);
+    ctx.fillText(fitText(ctx, b.label, labelW), listX, ly);
     ctx.textAlign = 'right';
-    ctx.font = `700 26px ${FONT}`;
-    ctx.fillText(b.valueText, listX + listW - 120, ly);
+    ctx.fillText(b.valueText, valueR, ly);
     ctx.fillStyle = COLORS.muted;
     ctx.font = `600 22px ${FONT}`;
-    ctx.fillText(`${b.gapText}`, listX + listW, ly);
+    ctx.fillText(b.targetText, targetR, ly);
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = `700 22px ${FONT}`;
+    ctx.fillText(b.gapText, gapR, ly);
   });
   if (s.kpi.below.length > 4) {
     ctx.textAlign = 'left';
     ctx.fillStyle = COLORS.muted;
     ctx.font = `500 20px ${FONT}`;
     ctx.fillText(`+${s.kpi.below.length - 4} KPI lainnya`, listX, y1 + 140 + 4 * 56);
-  }
-  if (s.kpi.below.length > 0) {
-    ctx.textAlign = 'right';
-    ctx.fillStyle = COLORS.muted;
-    ctx.font = `500 17px ${FONT}`;
-    ctx.fillText('selisih ke target', listX + listW, y1 + 92);
   }
 
   /* ---- 2 · change vs previous period ---- */
