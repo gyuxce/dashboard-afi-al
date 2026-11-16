@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from './store';
 import { getPreviousMonthPeriodToDate, getPreviousPeriod } from './lib/dataProcessor';
-import { getMonthRanges, getRollingWeeks } from './lib/weeks';
+import { planComparison, planTabOf } from './lib/comparisonPlan';
 import { buildWeekCompare } from './lib/weekCompare';
 import { isAdminMode } from './lib/adminMode';
 import { formatRelativeTime, isStaleSync, countDataRows, extractCsIds, getProductivityDuplicateCount } from './lib/dataQuality';
@@ -217,8 +217,6 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
   );
 }
 
-const NO_WEEKS: ReturnType<typeof getRollingWeeks> = [];
-const NO_MONTHS: ReturnType<typeof getMonthRanges> = [];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('summary');
@@ -459,15 +457,17 @@ export default function App() {
     syncIsStale,
   ]);
 
-  const comparisonTabs = activeTab === 'summary'
-    || activeTab === 'productivity'
-    || activeTab === 'csat_official'
-    || activeTab === 'csat';
-  const needsComparisonData = isComparisonEnabled && comparisonTabs;
-  // Summary always shows a passive "vs bulan lalu" delta on its KPI cards, even with the
-  // Bandingkan toggle off. Costs one extra worker pass (previous month, same day range);
-  // the raw history sheets are fetched on every sync anyway.
-  const passivePrevMonth = !isComparisonEnabled && activeTab === 'summary';
+  // What to compute for this tab (previous periods, rolling weeks, export months): see lib/comparisonPlan.ts.
+  // Keyed on the tab *kind*, not the tab id, so switching between two comparison tabs keeps the same period objects
+  // (and so does not trigger another worker pass).
+  const planTab = planTabOf(activeTab);
+  const productivityLastDate = activeMonthLastDates?.productivityData ?? null;
+  const plan = useMemo(() => {
+    const now = new Date();
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return planComparison({ tab: planTab, isComparisonEnabled, comparisonMode, startDate, endDate, productivityLastDate, todayIso });
+  }, [planTab, isComparisonEnabled, comparisonMode, startDate, endDate, productivityLastDate]);
+  const { comparisonTabs, needsComparisonData, passivePrevMonth, weekRanges, monthRanges } = plan;
 
   // Auto-disable comparison when switching to a tab that doesn't support it.
   useEffect(() => {
@@ -484,44 +484,6 @@ export default function App() {
     // Attendance Monitor was merged into "Jadwal & Kehadiran".
     if (activeTab === 'attendance') setActiveTab('schedule');
   }, [activeTab]);
-
-  // Last day the Productivity sheet has data for the active month: the running month is compared up to there.
-  const productivityLastDate = activeMonthLastDates?.productivityData ?? null;
-
-  const comparisonRanges = useMemo(() => {
-    if (passivePrevMonth && startDate && endDate) {
-      return { prev1: getPreviousMonthPeriodToDate(startDate, endDate, productivityLastDate), prev2: null, prev3: null } as const;
-    }
-    if (!needsComparisonData || !startDate || !endDate) {
-      return { prev1: null, prev2: null, prev3: null } as const;
-    }
-    const prev1 = comparisonMode === 'mom'
-      ? getPreviousMonthPeriodToDate(startDate, endDate, productivityLastDate)
-      : getPreviousPeriod(startDate, endDate);
-    // Earlier periods are full copies of the (already cut) previous one, shifted back.
-    const shiftBack = comparisonMode === 'mom' ? getPreviousMonthPeriodToDate : (a: string, b: string) => getPreviousPeriod(a, b);
-    const prev2 = shiftBack(prev1.start, prev1.end, null);
-    const prev3 = shiftBack(prev2.start, prev2.end, null);
-    return { prev1, prev2, prev3 } as const;
-  }, [needsComparisonData, passivePrevMonth, comparisonMode, startDate, endDate, productivityLastDate]);
-
-  // WoW over a range longer than one week compares the Monday–Sunday weeks of that range
-  // (W1 Okt, W2 Okt, …) — Summary's report lays them side by side, the Productivity / CSAT tabs
-  // use the last four. A single week still compares against the previous 7 days.
-  const weekRanges = useMemo(() => {
-    if (!(needsComparisonData && comparisonMode === 'wow') && activeTab !== 'weekly_export') return NO_WEEKS;
-    // Rolling: early in a month the last weeks of the previous month fill the comparison up to four weeks.
-    const now = new Date();
-    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const weeks = getRollingWeeks(startDate, endDate, todayIso);
-    return weeks.length >= 2 ? weeks.slice(-6) : NO_WEEKS;
-  }, [needsComparisonData, comparisonMode, activeTab, startDate, endDate]);
-
-  // Ekspor Weekly also shows the selected month and the two before it (takeout simulation).
-  const monthRanges = useMemo(
-    () => (activeTab === 'weekly_export' && endDate ? getMonthRanges(endDate, 4) : NO_MONTHS),
-    [activeTab, endDate],
-  );
 
   const hasSourceData =
     productivityData.length > 0
@@ -549,9 +511,9 @@ export default function App() {
     agentDictionary,
     agentDictionaryByMonth,
     needsComparisonData: needsComparisonData || passivePrevMonth,
-    prev1: comparisonRanges.prev1,
-    prev2: comparisonRanges.prev2,
-    prev3: comparisonRanges.prev3,
+    prev1: plan.prev1,
+    prev2: plan.prev2,
+    prev3: plan.prev3,
     // Simulasi Insentif runs on the live active period.
     incentivePeriod: incentivePeriodRange,
     weekPeriods: weekRanges,
