@@ -1,4 +1,4 @@
-/** Theme color refs for Recharts/SVG — resolve via CSS vars (light/dark aware). */
+/** Theme color refs for Recharts/SVG — resolve via CSS vars . */
 export const chart = {
   primary: 'var(--color-primary)',
   primarySoft: 'var(--color-primary-soft)',

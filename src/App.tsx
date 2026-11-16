@@ -24,8 +24,6 @@ import {
   X,
   RefreshCw,
   Calendar,
-  Sun,
-  Moon,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -247,20 +245,6 @@ export default function App() {
   // the panel never flashes off in the gap between "hydrate done" and "sync started".
   const [initialSyncSettled, setInitialSyncSettled] = useState(!import.meta.env.VITE_SHEETS_API_KEY);
   
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const stored = localStorage.getItem('theme');
-    return stored === 'light' || stored === 'dark' ? stored : 'light';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('theme', theme);
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
   const {
     csidData, productivityData, csatScData, slaData, scheduleData, qaData,
     startDate, endDate, selectedBpo, selectedTL, selectedGlobalAgent, agentDictionary, agentDictionaryByMonth, selectedSheetMonth,
@@ -790,7 +774,7 @@ export default function App() {
       {/* Mobile Top Bar */}
       <div className="md:hidden glass flex items-center justify-between p-4 text-sidebar-text border-b border-sidebar-border absolute top-0 left-0 w-full z-40 transition-colors duration-300">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-[10px] bg-gradient-to-b from-primary/85 to-primary shadow-[0_2px_6px_rgb(var(--primary)/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
+          <div className="w-8 h-8 rounded-[10px] bg-gradient-to-b from-brand/85 to-brand shadow-[0_2px_6px_rgb(var(--brand)/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
           <span className="font-semibold text-sidebar-text-hover tracking-tight text-sm">Live Dashboard</span>
         </div>
         <button 
@@ -830,7 +814,7 @@ export default function App() {
 
         <div className={cn("px-4 pt-5 pb-4 overflow-hidden", isSidebarMinimized ? "md:px-4" : "")}>
         <div className={cn("flex items-center gap-3 relative z-10 group cursor-default", isSidebarMinimized ? "md:justify-center" : "")}>
-          <div className="w-9 h-9 rounded-[11px] bg-gradient-to-b from-primary/85 to-primary shadow-[0_3px_10px_rgb(var(--primary)/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
+          <div className="w-9 h-9 rounded-[11px] bg-gradient-to-b from-brand/85 to-brand shadow-[0_3px_10px_rgb(var(--brand)/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
           <span className={cn("font-semibold tracking-tight text-sidebar-text-hover text-[15px] transition-all duration-300 whitespace-nowrap", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>Live Dashboard</span>
         </div>
       </div>
@@ -880,15 +864,6 @@ export default function App() {
           <span className={cn("items-center justify-center hidden", isSidebarMinimized ? "md:flex" : "")}>
              <span className={cn("w-1.5 h-1.5 rounded-full", isFetchingSheets ? "bg-primary animate-pulse" : sheetsFetchError ? "bg-danger animate-pulse" : syncIsStale ? "bg-warning" : "bg-success")} />
           </span>
-          <div className={cn("flex items-center", isSidebarMinimized ? "md:flex-col md:gap-3" : "gap-2")}>
-            <button
-               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-               className="p-1.5 rounded-md hover:bg-sidebar-bg-hover text-sidebar-text transition-colors cursor-pointer shrink-0"
-               aria-label="Toggle Theme"
-             >
-               {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-             </button>
-          </div>
         </div>
       </aside>
 

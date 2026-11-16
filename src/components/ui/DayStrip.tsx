@@ -25,7 +25,7 @@ const monthOf = (date: string) => {
  * Chronological per-day chip strip used in every expand row. Each chip shows the
  * day-of-month above the value so a low day is identifiable without counting.
  * Colour discipline: only `watch` / `miss` days are tinted, and they use a thin
- * border + ~6% wash (reads cleanly in dark, unlike a solid `/15` block).
+ * border + ~6% wash (quieter than a solid `/15` block).
  */
 export const DayStrip: React.FC<{
   items: DayStripItem[];

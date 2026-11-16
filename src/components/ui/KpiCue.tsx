@@ -4,7 +4,7 @@ import { getKpiColor, getKpiStatus, type KpiStatus, type KpiType } from '../../l
 /**
  * Shape cue that rides alongside the coloured KPI value — a filled ▼ for a
  * miss, a dot for watch, nothing when on target. Carries the meaning for
- * colour-blind viewers and on dark screens where red/amber sit close.
+ * colour-blind viewers, where red and amber sit close.
  */
 export function KpiCue({ status, className = '' }: { status: KpiStatus; className?: string }) {
   if (status === 'miss') {

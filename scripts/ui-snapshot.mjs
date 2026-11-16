@@ -72,11 +72,10 @@ async function capture() {
   fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch({ executablePath: process.env.EXE || undefined });
   for (const vp of vps) {
-    const ctx = await browser.newContext({ viewport: VIEWPORTS[vp], colorScheme: 'light', deviceScaleFactor: 1, isMobile: vp === 'phone', hasTouch: vp === 'phone' });
+    const ctx = await browser.newContext({ viewport: VIEWPORTS[vp], deviceScaleFactor: 1, isMobile: vp === 'phone', hasTouch: vp === 'phone' });
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)));
-    await page.addInitScript(() => { try { localStorage.setItem('theme', 'light'); } catch { /* abaikan */ } });
     await page.goto(url);
     await page.waitForTimeout(6000);
     const filter = page.getByRole('button', { name: 'Tampilkan filter' });
@@ -92,8 +91,13 @@ async function capture() {
     await page.waitForTimeout(5000);
 
     const open = async (label) => {
-      if (vp === 'phone') { await page.getByRole('button', { name: 'Toggle menu' }).click().catch(() => {}); await page.waitForTimeout(400); }
-      await page.getByRole('button', { name: label, exact: true }).first().click();
+      const item = page.getByRole('button', { name: label, exact: true }).first();
+      if (vp === 'phone') {
+        // Drawer menu: open it only when the item is not on screen (it closes itself after a selection).
+        const onScreen = async () => { const b = await item.boundingBox(); return !!b && b.x >= 0 && b.x < VIEWPORTS.phone.width; };
+        if (!(await onScreen())) { await page.getByRole('button', { name: 'Toggle menu' }).click(); await page.waitForTimeout(600); }
+      }
+      await item.click();
     };
     const save = async (id) => {
       const text = await page.locator('main').innerText();

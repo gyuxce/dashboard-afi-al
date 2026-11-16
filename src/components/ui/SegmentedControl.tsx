@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 
 export function segmentTabClass(active: boolean, className?: string) {
   return cn(
-    'px-3.5 py-1.5 rounded-[9px] text-[13px] transition-colors duration-200 flex items-center gap-2 whitespace-nowrap',
+    'px-4 py-2 rounded-[11px] text-[14px] transition-colors duration-200 flex items-center gap-2 whitespace-nowrap',
     'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background',
     active
       ? 'bg-card text-text-primary font-semibold shadow-sm ring-1 ring-black/5'
@@ -15,7 +15,7 @@ export function segmentTabClass(active: boolean, className?: string) {
 
 export function segmentTrackClass(className?: string) {
   return cn(
-    'flex overflow-x-auto no-scrollbar bg-surface-muted p-[3px] rounded-[12px] w-full md:w-max gap-0.5',
+    'flex overflow-x-auto no-scrollbar bg-black/[0.06] p-1 rounded-[14px] w-full md:w-max gap-0.5',
     className,
   );
 }
@@ -89,7 +89,7 @@ export function SegmentedControl<T extends string>({
         <span
           aria-hidden
           className={cn(
-            'pointer-events-none absolute top-[3px] bottom-[3px] rounded-[9px] bg-card shadow-sm ring-1 ring-black/5',
+            'pointer-events-none absolute top-1 bottom-1 rounded-[11px] bg-card shadow-[0_1px_3px_rgb(0_0_0/0.14)] ring-1 ring-black/[0.04]',
             thumb.ready && 'transition-[left,width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
           )}
           style={{ left: thumb.left, width: thumb.width }}
@@ -113,7 +113,7 @@ export function SegmentedControl<T extends string>({
               }
             }}
             className={cn(
-              'relative z-10 px-3.5 py-1.5 rounded-[9px] text-[13px] transition-colors duration-200 flex items-center gap-2 whitespace-nowrap',
+              'relative z-10 px-4 py-2 rounded-[11px] text-[14px] transition-colors duration-200 flex items-center gap-2 whitespace-nowrap',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
               active ? 'text-text-primary font-semibold' : 'text-text-secondary font-medium hover:text-text-primary',
             )}

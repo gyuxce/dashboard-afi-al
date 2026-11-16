@@ -205,7 +205,7 @@ export type KpiStatus = 'on' | 'watch' | 'miss' | 'none';
  * Colour discipline: a value that meets its target reads plainly (neutral) —
  * only "watch" (within 5% below) and "miss" (further below) get colour, so the
  * misses actually stand out. `getKpiStatus` gives the same call sites a shape
- * cue (▼ / dot) for colour-blind viewers and dark screens.
+ * cue (▼ / dot) for colour-blind viewers.
  */
 export function getKpiStatus(val: number | null | undefined, type: KpiType): KpiStatus {
   if (val === null || val === undefined || isNaN(val)) return 'none';

@@ -68,7 +68,7 @@ Sheet date columns are messy human strings (`13-Agu-2026`, `13/8/2026`, ISO, wit
 
 ## Theming & colour discipline
 
-Tailwind v4. Colour tokens are `rgb(var(--token))` triples defined in `src/index.css`: `:root` (light) → `.dark` overrides → `@theme` block mapping to `--color-*`. Use semantic classes only (`text-text-primary`, `bg-card`, `bg-surface-muted`, `border-border`, `text-danger`, `text-warning`, `text-success`), never raw hex.
+Tailwind v4. Colour tokens are `rgb(var(--token))` triples defined in `src/index.css`: `:root` → `@theme` block mapping to `--color-*`. There is one light theme only (the dark theme was removed to keep the code small). Use semantic classes only (`text-text-primary`, `bg-card`, `bg-surface-muted`, `border-border`, `text-danger`, `text-warning`, `text-success`), never raw hex.
 
 `getKpiStatus` / `getKpiColor` (`src/lib/utils.ts`) colour a value **only when it misses target**: `miss` → red + a `▼` cue (`<KpiCue>` / `<KpiValue>` in `src/components/ui/KpiCue.tsx`), `watch` (within ~5% below) → amber, on-target → neutral text. `KPI_TARGETS` in `utils.ts` is the single source of target values.
 

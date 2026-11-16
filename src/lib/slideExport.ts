@@ -1,6 +1,6 @@
 /**
  * Renders a KPI comparison table as a presentation-ready PNG (white background, large type) so it
- * can be pasted straight into a slide instead of screenshotting the dark dashboard.
+ * can be pasted straight into a slide instead of screenshotting the dashboard.
  *
  * Drawn on a canvas with fixed export colours: the image must look the same whatever theme the
  * dashboard is in, so these deliberately do not follow the CSS theme tokens.
