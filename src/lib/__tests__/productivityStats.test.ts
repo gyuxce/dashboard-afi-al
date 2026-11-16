@@ -1,0 +1,65 @@
+import { describe, expect, it } from 'vitest';
+import type { AgentKPI } from '../dataProcessor';
+import { agentAverage, agentGap, bottomThreeAgentIds, sortProductivityAgents, summarizeProductivity } from '../productivityStats';
+
+const agent = (csId: string, total: number, manDays: number, base = total): AgentKPI =>
+  ({ csId, name: csId, bpo: 'NSI', teamLeader: 'X', productivityTotal: total, manDays, productivityBase: base }) as unknown as AgentKPI;
+
+describe('summarizeProductivity', () => {
+  const data = [agent('a', 1300, 10), agent('b', 900, 10), agent('c', 0, 0, 0)];
+
+  it('adds up the team over agents that have productivity', () => {
+    const s = summarizeProductivity(data);
+    expect(s).toMatchObject({ totalChat: 2200, totalManDays: 20, activeAgents: 2, totalQuota: 2000, totalGap: 200, underTarget: 1 });
+    expect(s.totalAvg).toBe(110);
+    expect(s.quotaAchievement).toBeCloseTo(110, 5);
+  });
+
+  it('is all zeros for an empty team (no division by zero)', () => {
+    expect(summarizeProductivity([])).toMatchObject({ totalChat: 0, totalAvg: 0, quotaAchievement: 0, totalGap: 0, activeAgents: 0 });
+  });
+
+  it('matches the October numbers on the dashboard: 63.121 chat / 515 man-day', () => {
+    const s = summarizeProductivity([agent('team', 63121, 515)]);
+    expect(s.totalAvg).toBeCloseTo(122.565, 2);
+    expect(s.totalQuota).toBe(51500);
+    expect(s.totalGap).toBe(11621);
+    expect(s.quotaAchievement).toBeCloseTo(122.565, 2);
+  });
+});
+
+describe('agent helpers', () => {
+  it('average and gap per agent', () => {
+    expect(agentAverage(agent('a', 1300, 10))).toBe(130);
+    expect(agentAverage(agent('a', 0, 0))).toBe(0);
+    expect(agentGap(agent('a', 1300, 10))).toBe(300);
+    expect(agentGap(agent('a', 900, 10))).toBe(-100);
+  });
+});
+
+describe('sortProductivityAgents', () => {
+  const list = [agent('b', 900, 10), agent('a', 1300, 10), agent('c', 1000, 5)];
+
+  it('ranks by average per man-day, best first, when no column is chosen', () => {
+    expect(sortProductivityAgents(list, null).map((a) => a.csId)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('sorts by the chosen column and direction', () => {
+    expect(sortProductivityAgents(list, { key: 'total', direction: 'asc' }).map((a) => a.csId)).toEqual(['b', 'c', 'a']);
+    expect(sortProductivityAgents(list, { key: 'name', direction: 'desc' }).map((a) => a.csId)).toEqual(['c', 'b', 'a']);
+    expect(sortProductivityAgents(list, { key: 'gap', direction: 'desc' }).map((a) => a.csId)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('does not mutate the input', () => {
+    const copy = [...list];
+    sortProductivityAgents(list, null);
+    expect(list).toEqual(copy);
+  });
+});
+
+describe('bottomThreeAgentIds', () => {
+  it('lists the three lowest averages, ignoring agents without man-days', () => {
+    const list = [agent('a', 1300, 10), agent('b', 900, 10), agent('c', 800, 10), agent('d', 700, 10), agent('e', 100, 0)];
+    expect(bottomThreeAgentIds(list)).toEqual(['d', 'c', 'b']);
+  });
+});

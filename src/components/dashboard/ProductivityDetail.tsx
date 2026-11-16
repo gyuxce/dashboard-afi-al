@@ -15,7 +15,11 @@ import { DayStrip } from "../ui/DayStrip";
 import { chart } from "../../lib/themeColors";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../../store";
-import { Search, Activity, AlertCircle, ChevronDown } from "lucide-react";
+import { Activity, AlertCircle, ChevronDown } from "lucide-react";
+import { PageHeader } from "../ui/PageHeader";
+import { SearchField } from "../ui/SearchField";
+import { StatCard, type StatTone } from "../ui/StatCard";
+import { PROD_TARGET, agentAverage, bottomThreeAgentIds, sortProductivityAgents, summarizeProductivity } from "../../lib/productivityStats";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LineChart, Line, Legend } from "recharts";
 import { SortableHeader } from "../ui/SortableHeader";
 import { EmptyState } from "../ui/EmptyState";
@@ -23,42 +27,9 @@ import { VirtualizedTbody } from "../ui/VirtualizedTbody";
 import { useVirtualRows } from "../../hooks/useVirtualRows";
 import type { WeekCompare } from "../../lib/weekCompare";
 
-const PROD_TARGET = 100;
 
-/** One hero tile — value goes neutral unless it misses target (colour discipline). */
-const HeroTile = ({
-  label,
-  value,
-  sub,
-  status = "none",
-  progress,
-  tint = "tint-blue",
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  status?: ReturnType<typeof getKpiStatus>;
-  progress?: number;
-  tint?: string;
-}) => {
-  const valueClass =
-    status === "miss" ? "text-danger" : status === "watch" ? "text-warning" : "text-text-primary";
-  return (
-    <div className={`tint-card ${tint} rounded-2xl border border-border bg-card p-4`}>
-      <div className="text-[11px] font-medium text-text-secondary">{label}</div>
-      <div className={`mt-2 text-2xl font-bold tabular-nums ${valueClass}`}>{value}</div>
-      {typeof progress === "number" ? (
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-muted">
-          <div
-            className="tint-bar h-full rounded-full"
-            style={{ width: `${Math.max(0, Math.min(progress, 100))}%` }}
-          />
-        </div>
-      ) : null}
-      {sub ? <div className="mt-1.5 text-[11px] tabular-nums text-text-muted">{sub}</div> : null}
-    </div>
-  );
-};
+/** Number colour follows status only: neutral unless it misses (or nearly misses) its target. */
+const statTone = (status: ReturnType<typeof getKpiStatus>): StatTone => (status === "miss" ? "bad" : status === "watch" ? "warn" : "ink");
 
 export const ProductivityDetail: React.FC<{
   data: AgentKPI[];
@@ -125,42 +96,8 @@ export const ProductivityDetail: React.FC<{
   // Sparkline reads left→right as oldest→newest; uniqueDates is newest-first.
   const chronoDates = useMemo(() => [...uniqueDates].reverse(), [uniqueDates]);
 
-  const localAverage = (agent: AgentKPI) =>
-    agent.manDays > 0 ? agent.productivityTotal / agent.manDays : 0;
-  const localGap = (agent: AgentKPI) => agent.productivityTotal - agent.manDays * PROD_TARGET;
-
-  const tableData = useMemo(() => {
-    const sorted = [...filteredData];
-    if (sortConfig) {
-      sorted.sort((a, b) => {
-        let aVal: string | number = 0;
-        let bVal: string | number = 0;
-        switch (sortConfig.key) {
-          case "name": aVal = a.name || a.csId; bVal = b.name || b.csId; break;
-          case "bpo": aVal = a.bpo || ""; bVal = b.bpo || ""; break;
-          case "teamLeader": aVal = a.teamLeader || ""; bVal = b.teamLeader || ""; break;
-          case "total": aVal = a.productivityTotal; bVal = b.productivityTotal; break;
-          case "average": aVal = localAverage(a); bVal = localAverage(b); break;
-          case "gap": aVal = localGap(a); bVal = localGap(b); break;
-        }
-        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    } else {
-      // Default: a ranking by output per man-day.
-      sorted.sort((a, b) => localAverage(b) - localAverage(a));
-    }
-    return sorted;
-  }, [filteredData, sortConfig]);
-
-  const bottomThreeIds = useMemo(() => {
-    return [...filteredData]
-      .filter((a) => a.manDays > 0)
-      .sort((a, b) => localAverage(a) - localAverage(b))
-      .slice(0, 3)
-      .map((a) => a.csId);
-  }, [filteredData]);
+  const tableData = useMemo(() => sortProductivityAgents(filteredData, sortConfig), [filteredData, sortConfig]);
+  const bottomThreeIds = useMemo(() => bottomThreeAgentIds(filteredData), [filteredData]);
 
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const tableVirtual = useVirtualRows({
@@ -180,35 +117,7 @@ export const ProductivityDetail: React.FC<{
     totalQuota,
     quotaAchievement,
     totalGap,
-  } = useMemo(() => {
-    const forWidgets = data.filter((a) => a.productivityBase > 0);
-    let sumChat = 0;
-    let sumManDays = 0;
-    let sumQuota = 0;
-    let sumGap = 0;
-    let under = 0;
-
-    forWidgets.forEach((agent) => {
-      sumChat += agent.productivityTotal;
-      sumManDays += agent.manDays;
-      const quota = agent.manDays * PROD_TARGET;
-      sumQuota += quota;
-      sumGap += agent.productivityTotal - quota;
-      const avg = agent.manDays > 0 ? agent.productivityTotal / agent.manDays : 0;
-      if (avg > 0 && avg < PROD_TARGET) under++;
-    });
-
-    return {
-      totalChat: sumChat,
-      totalAvg: sumManDays > 0 ? sumChat / sumManDays : 0,
-      totalManDays: sumManDays,
-      activeAgents: forWidgets.length,
-      underTarget: under,
-      totalQuota: sumQuota,
-      quotaAchievement: sumQuota > 0 ? (sumChat / sumQuota) * 100 : 0,
-      totalGap: sumGap,
-    };
-  }, [data]);
+  } = useMemo(() => summarizeProductivity(data), [data]);
 
   const hourlyDataWow = useMemo(() => {
     const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -284,58 +193,47 @@ export const ProductivityDetail: React.FC<{
   const avgStatus = getKpiStatus(totalAvg, "productivity" as KpiType);
 
   return (
-    <div className="flex flex-col gap-6 p-2">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-bold text-text-primary">Productivity Detail</h1>
-          <p className="mt-0.5 text-[11px] text-text-muted">target {PROD_TARGET} chat / man-day</p>
-        </div>
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Cari CS ID atau nama..."
-            aria-label="Cari CS ID atau nama..."
-            className="pl-8 pr-3 py-1.5 border border-border bg-card text-text-primary rounded-xl text-xs focus:border-primary focus:outline-none w-full md:w-56"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <Search className="w-4 h-4 text-text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
-        </div>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="KPI"
+        title="Productivity Detail"
+        subtitle={`Target ${PROD_TARGET} chat per man-day: siapa yang di atas kuota dan siapa yang perlu dibantu.`}
+        actions={<SearchField value={search} onChange={setSearch} />}
+      />
 
       {/* HERO STRIP */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <HeroTile
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
+        <StatCard
           label="Total chat"
-          tint="tint-blue"
           value={formatNum(totalChat, 0)}
           sub={`${activeAgents} agent aktif · ${formatNum(totalManDays, 0)} man-day`}
         />
-        <HeroTile
+        <StatCard
           label="Avg / man-day"
-          tint="tint-indigo"
           value={formatNum(totalAvg, 1)}
-          status={avgStatus}
+          tone={statTone(avgStatus)}
           sub={`${totalAvg >= PROD_TARGET ? "+" : ""}${formatNum(totalAvg - PROD_TARGET, 1)} vs ${PROD_TARGET}`}
         />
-        <HeroTile
+        <StatCard
           label="Pencapaian kuota"
-          tint="tint-green"
           value={`${formatNum(quotaAchievement, 0)}%`}
-          progress={quotaAchievement}
           sub={`kuota ${formatNum(totalQuota, 0)}`}
+          footer={
+            <div className="h-2 overflow-hidden rounded-full bg-black/[0.07]">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(0, Math.min(quotaAchievement, 100))}%` }} />
+            </div>
+          }
         />
-        <HeroTile
+        <StatCard
           label="Gap vs target"
-          tint="tint-teal"
           value={`${totalGap >= 0 ? "+" : ""}${formatNum(totalGap, 0)}`}
-          status={totalGap < 0 ? "miss" : "none"}
+          tone={totalGap < 0 ? "bad" : "ink"}
           sub={`${underTarget} agent di bawah kuota`}
         />
       </div>
 
       {/* HOURLY CHART */}
-      <div className="bg-card border border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl p-4 flex flex-col gap-4">
+      <div className="ui-card flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">
             <Activity className="w-4 h-4 text-primary" />
@@ -498,7 +396,7 @@ export const ProductivityDetail: React.FC<{
       </div>
       <div
         ref={tableScrollRef}
-        className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl max-h-[calc(100vh-200px)]"
+        className="ui-card p-0! relative w-full overflow-auto text-sm max-h-[calc(100vh-200px)]"
       >
         <table className="kpi-data-table rank-table rank-m-hide-5 w-full text-left border-collapse">
           <thead className="bg-surface text-text-secondary sticky top-0 z-30">
