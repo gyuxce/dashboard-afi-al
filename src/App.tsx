@@ -161,7 +161,7 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
   }, [isOpen]);
 
   return (
-    <div className="relative w-[170px] shrink-0" ref={wrapperRef}>
+    <div className="relative w-[156px] shrink-0" ref={wrapperRef}>
       <button
         ref={buttonRef}
         type="button"
@@ -169,7 +169,7 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
         aria-expanded={isOpen}
         aria-controls={isOpen ? listId : undefined}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-[38px] w-full items-center justify-between rounded-[13px] bg-black/[0.07] px-3.5 text-[14px] font-semibold text-text-primary transition-colors hover:bg-black/[0.1] focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+        className="flex h-9 w-full items-center justify-between rounded-[12px] bg-black/[0.07] px-3 text-[13.5px] font-semibold text-text-primary transition-colors hover:bg-black/[0.1] focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
       >
         <span className="truncate">{selectedOption?.label || 'Pilih bulan'}</span>
         <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-text-muted" aria-hidden />
@@ -879,8 +879,7 @@ export default function App() {
             <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2 md:overflow-visible">
               {/* Scope */}
               <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 md:border-r md:border-border md:pr-2.5 shrink-0">
-                <span className="hidden lg:inline text-[13px] font-medium text-text-muted pr-1 shrink-0">Scope</span>
-                <div className="w-[124px] shrink-0 [&_button]:h-[38px] [&_button]:rounded-[13px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[14px] [&_button]:px-3.5">
+                                <div className="w-[112px] shrink-0 [&_button]:h-9 [&_button]:rounded-[12px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[13.5px] [&_button]:px-3">
                   <SearchableSelect 
                     options={['NSI', 'TCID', 'TCID X NSI']}
                     value={selectedBpo}
@@ -889,7 +888,7 @@ export default function App() {
                     placeholder="Cari BPO..."
                   />
                 </div>
-                <div className="w-[142px] shrink-0 [&_button]:h-[38px] [&_button]:rounded-[13px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[14px] [&_button]:px-3.5">
+                <div className="w-[128px] shrink-0 [&_button]:h-9 [&_button]:rounded-[12px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[13.5px] [&_button]:px-3">
                   <SearchableSelect 
                     options={tlList}
                     value={selectedTL}
@@ -898,7 +897,7 @@ export default function App() {
                     placeholder="Cari TL..."
                   />
                 </div>
-                <div className="w-[156px] shrink-0 [&_button]:h-[38px] [&_button]:rounded-[13px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[14px] [&_button]:px-3.5">
+                <div className="w-[146px] shrink-0 [&_button]:h-9 [&_button]:rounded-[12px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[13.5px] [&_button]:px-3">
                   <SearchableSelect
                     options={agentList}
                     value={selectedGlobalAgent}
@@ -911,8 +910,7 @@ export default function App() {
               
               {/* Period */}
               <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 md:border-r md:border-border md:pr-2.5 shrink-0">
-                <span className="hidden lg:inline text-[13px] font-medium text-text-muted pr-1 shrink-0">Periode</span>
-                <MonthPicker
+                                <MonthPicker
                   value={selectedMonthFilter || getCurrentMonthValue()}
                   options={monthOptions}
                   onChange={applyMonthFilter}
@@ -921,7 +919,7 @@ export default function App() {
                   type="button"
                   onClick={() => setShowAdvancedFilter(v => !v)}
                   className={cn(
-                    "flex h-[38px] items-center gap-2 rounded-[13px] px-3.5 text-[14px] font-medium transition-colors whitespace-nowrap",
+                    "flex h-9 items-center gap-2 rounded-[12px] px-3 text-[13.5px] font-medium transition-colors whitespace-nowrap",
                     showAdvancedFilter || hasCustomDateFilter
                       ? "bg-primary-soft text-primary-text"
                       : "bg-black/[0.07] text-text-primary hover:bg-black/[0.1]"
@@ -938,22 +936,21 @@ export default function App() {
               {/* Compare — only on tabs that support comparison */}
               {comparisonTabs && (
               <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 shrink-0">
-                <span className="hidden lg:inline text-[13px] font-medium text-text-muted pr-1 shrink-0">Cmp</span>
-                <button
+                                <button
                   type="button"
                   role="switch"
                   aria-checked={isComparisonEnabled}
-                  className="flex h-[38px] items-center gap-2.5 rounded-[13px] bg-black/[0.07] pl-3 pr-3.5 transition-colors hover:bg-black/[0.1] group cursor-pointer"
+                  className="flex h-9 items-center gap-2 rounded-[12px] bg-black/[0.07] pl-2.5 pr-3 transition-colors hover:bg-black/[0.1] group cursor-pointer"
                   onClick={() => setIsComparisonEnabled(!isComparisonEnabled)}
                 >
                   <div className={cn("w-[42px] h-[26px] rounded-full relative transition-colors duration-200", isComparisonEnabled ? "bg-primary" : "bg-border-strong")}>
                     <div className={cn("absolute top-[3px] left-[3px] w-5 h-5 rounded-full bg-white shadow-[0_2px_4px_rgb(0_0_0/0.25)] transition-transform duration-200", isComparisonEnabled ? "translate-x-4" : "translate-x-0")} />
                   </div>
-                  <span className="text-[14px] font-medium text-text-primary whitespace-nowrap">Bandingkan</span>
+                  <span className="text-[13.5px] font-medium text-text-primary whitespace-nowrap">Bandingkan</span>
                 </button>
 
                 <div className={cn(
-                  "flex h-[38px] items-center rounded-[13px] bg-black/[0.07] p-1 gap-0.5 transition-opacity",
+                  "flex h-9 items-center rounded-[12px] bg-black/[0.07] p-1 gap-0.5 transition-opacity",
                   isComparisonEnabled ? "opacity-100" : "opacity-70"
                 )}>
                   <button
@@ -963,7 +960,7 @@ export default function App() {
                       setIsComparisonEnabled(true);
                     }}
                     className={cn(
-                      "text-[13px] px-3 py-1 rounded-[10px] font-semibold transition-colors cursor-pointer",
+                      "text-[12.5px] px-2.5 py-1 rounded-[9px] font-semibold transition-colors cursor-pointer",
                       comparisonMode === 'wow' && isComparisonEnabled ? "bg-card text-text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
                     )}
                     title="WoW membandingkan dengan periode sebelumnya dengan durasi yang sama"
@@ -977,7 +974,7 @@ export default function App() {
                       setIsComparisonEnabled(true);
                     }}
                     className={cn(
-                      "text-[13px] px-3 py-1 rounded-[10px] font-semibold transition-colors cursor-pointer",
+                      "text-[12.5px] px-2.5 py-1 rounded-[9px] font-semibold transition-colors cursor-pointer",
                       comparisonMode === 'mom' && isComparisonEnabled ? "bg-card text-text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
                     )}
                     title="MoM membandingkan dengan bulan sebelumnya"
@@ -989,7 +986,7 @@ export default function App() {
               )}
 
               {selectedTL && selectedTL !== 'All TL' && selectedTL !== 'All Team Leaders' && (
-                <div className="inline-flex h-[38px] items-center px-3.5 rounded-[13px] bg-primary-soft text-primary-text text-[13px] font-medium shrink-0 whitespace-nowrap">
+                <div className="inline-flex h-9 items-center px-3 rounded-[12px] bg-primary-soft text-primary-text text-[13px] font-medium shrink-0 whitespace-nowrap">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
                   Tim {selectedTL}
                 </div>

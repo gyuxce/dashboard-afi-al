@@ -140,7 +140,7 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
               <>
                 <AttentionStrip stats={currentStats as unknown as Record<string, number | null | undefined>} data={data} />
                 {/* Hero KPI strip — the five people lead with */}
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-5">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-5">
                   <StatCard
                     title="Total Productivity"
                     value={formatNum(currentStats.productivity, 0)}
@@ -193,7 +193,7 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                 </div>
 
                 {/* Secondary KPI tiles */}
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-5">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-5">
                   <StatCard
                     title="CSAT SC Full"
                     value={formatNum(currentStats.csatScFull) + "%"}
