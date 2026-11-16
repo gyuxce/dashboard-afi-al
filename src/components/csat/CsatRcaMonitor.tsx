@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { AgentKPI } from '../../lib/dataProcessor';
+import type { AgentKPI } from '../../lib/dataProcessor';
+import { buildRcaStats, filterRcaAgents, hasRcaData as detectRcaData, type IssueCategoryRow } from '../../lib/csatRcaStats';
+import { PageHeader } from '../ui/PageHeader';
+import { SearchField } from '../ui/SearchField';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store';
 import {
@@ -19,12 +22,6 @@ const COLORS = {
   akulaku: chart.disabled,
 };
 
-type IssueCategoryRow = {
-  issue: string;
-  count: number;
-  categories: { name: string; count: number }[];
-};
-
 export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   const { selectedBpo, selectedTL } = useStore(useShallow((s) => ({
     selectedBpo: s.selectedBpo,
@@ -33,13 +30,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   const [agentSearch, setAgentSearch] = useState('');
   const [showIssueDetail, setShowIssueDetail] = useState(false);
 
-  const hasRcaData = useMemo(() => {
-    return data.some(a =>
-      Object.keys(a.rcaAgentAreaCounts).length > 0 ||
-      Object.keys(a.rcaCustomerAreaCounts).length > 0 ||
-      Object.keys(a.rcaAkulakuProcessCounts).length > 0
-    );
-  }, [data]);
+  const hasRcaData = useMemo(() => detectRcaData(data), [data]);
 
   const {
     agentDetailBar,
@@ -52,100 +43,9 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
     totalAgent,
     totalCustomer,
     totalAkulaku,
-  } = useMemo(() => {
-    const agentTotal: Record<string, number> = {};
-    const customerTotal: Record<string, number> = {};
-    const akulakuTotal: Record<string, number> = {};
-    const agentCategoryMap: Record<string, Record<string, number>> = {};
-    const customerCategoryMap: Record<string, Record<string, number>> = {};
-    const akulakuCategoryMap: Record<string, Record<string, number>> = {};
-    const agentCaseSummary: Record<string, { agentCases: number; customerCases: number; akulakuCases: number; name: string; tl: string }> = {};
+  } = useMemo(() => buildRcaStats(data), [data]);
 
-    const addIssueCategory = (
-      target: Record<string, Record<string, number>>,
-      issue: string | undefined,
-      category: string | undefined,
-    ) => {
-      const cleanIssue = String(issue || '').trim();
-      if (!cleanIssue) return;
-      const cleanCategory = String(category || 'Unknown Case').trim() || 'Unknown Case';
-      if (!target[cleanIssue]) target[cleanIssue] = {};
-      target[cleanIssue][cleanCategory] = (target[cleanIssue][cleanCategory] || 0) + 1;
-    };
-
-    data.forEach(a => {
-      const name = a.name || a.csId;
-      if (!agentCaseSummary[a.csId]) {
-        agentCaseSummary[a.csId] = { agentCases: 0, customerCases: 0, akulakuCases: 0, name, tl: a.teamLeader };
-      }
-      Object.entries(a.rcaAgentAreaCounts as Record<string, number>).forEach(([k, v]) => {
-        agentTotal[k] = (agentTotal[k] || 0) + v;
-        agentCaseSummary[a.csId].agentCases += v;
-      });
-      Object.entries(a.rcaCustomerAreaCounts as Record<string, number>).forEach(([k, v]) => {
-        customerTotal[k] = (customerTotal[k] || 0) + v;
-        agentCaseSummary[a.csId].customerCases += v;
-      });
-      Object.entries(a.rcaAkulakuProcessCounts as Record<string, number>).forEach(([k, v]) => {
-        akulakuTotal[k] = (akulakuTotal[k] || 0) + v;
-        agentCaseSummary[a.csId].akulakuCases += v;
-      });
-
-      a.csatHistory?.forEach(entry => {
-        addIssueCategory(agentCategoryMap, entry.rcaAgent, entry.category);
-        addIssueCategory(customerCategoryMap, entry.rcaCustomer, entry.category);
-        addIssueCategory(akulakuCategoryMap, entry.rcaAkulaku, entry.category);
-      });
-    });
-
-    const tA = Object.values(agentTotal).reduce((a, b) => a + b, 0);
-    const tC = Object.values(customerTotal).reduce((a, b) => a + b, 0);
-    const tAk = Object.values(akulakuTotal).reduce((a, b) => a + b, 0);
-
-    const toBar = (rec: Record<string, number>, color: string) =>
-      Object.entries(rec).sort((a, b) => b[1] - a[1]).slice(0, 8)
-        .map(([name, count]) => ({ name, count, fill: color }));
-
-    const toIssueCategoryRows = (
-      issueTotals: Record<string, number>,
-      categoryMap: Record<string, Record<string, number>>,
-    ): IssueCategoryRow[] =>
-      Object.entries(issueTotals)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([issue, count]) => ({
-          issue,
-          count,
-          categories: Object.entries(categoryMap[issue] || {})
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-            .map(([name, categoryCount]) => ({ name, count: categoryCount })),
-        }));
-
-    const agentRanking = Object.values(agentCaseSummary)
-      .map(a => ({ ...a, total: a.agentCases + a.customerCases + a.akulakuCases }))
-      .filter(a => a.total > 0)
-      .sort((a, b) => b.total - a.total);
-
-    return {
-      agentDetailBar: toBar(agentTotal, COLORS.agent),
-      customerDetailBar: toBar(customerTotal, COLORS.customer),
-      akulakuDetailBar: toBar(akulakuTotal, COLORS.akulaku),
-      agentIssueCategories: toIssueCategoryRows(agentTotal, agentCategoryMap),
-      customerIssueCategories: toIssueCategoryRows(customerTotal, customerCategoryMap),
-      akulakuIssueCategories: toIssueCategoryRows(akulakuTotal, akulakuCategoryMap),
-      agentRanking,
-      totalAgent: tA,
-      totalCustomer: tC,
-      totalAkulaku: tAk,
-    };
-  }, [data]);
-
-  const filteredAgentRanking = useMemo(() => {
-    if (!agentSearch.trim()) return agentRanking;
-    const q = agentSearch.toLowerCase();
-    return agentRanking.filter(a => a.name.toLowerCase().includes(q) || a.tl.toLowerCase().includes(q));
-  }, [agentRanking, agentSearch]);
+  const filteredAgentRanking = useMemo(() => filterRcaAgents(agentRanking, agentSearch), [agentRanking, agentSearch]);
 
   const activeFilterText = [
     selectedBpo && selectedBpo !== 'All BPO' ? `BPO: ${selectedBpo}` : '',
@@ -170,7 +70,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
     const topIssues = issues.slice(0, 4);
     const maxIssue = topIssues[0]?.count || 1;
     return (
-      <div className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <div className="ui-card ui-card-sm flex flex-col">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{label}</span>
           <span className="text-[11px] tabular-nums text-text-muted">{share.toFixed(1)}%</span>
@@ -217,7 +117,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   }) => {
     const dynamicHeight = Math.max(100, barData.length * 36);
     return (
-      <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col">
+      <div className="ui-card ui-card-sm flex flex-col">
         <h4 className="text-[11px] font-bold text-text-secondary mb-4 tracking-wide">{title}</h4>
         {barData.length === 0 ? (
           <EmptyState
@@ -290,14 +190,13 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-5">
       {/* Header */}
-      <div>
-        <h2 className="text-lg font-bold text-text-primary">Analisa akar masalah CSAT</h2>
-        <p className="text-xs text-text-muted mt-0.5">
-          Berdasarkan kasus after-takeout | {activeFilterText || 'Semua data'}
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="CSAT"
+        title="CSAT Root Cause"
+        subtitle={`Analisa akar masalah CSAT berdasarkan kasus after-takeout | ${activeFilterText || 'Semua data'}`}
+      />
 
       {/* Warning if no RCA data */}
       {!hasRcaData && (
@@ -318,7 +217,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       {/* Breakdown cards — one per RCA area */}
       {grandTotal > 0 ? (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             {areas.map((area) => (
               <AreaCard key={area.key} label={area.label} count={area.count} issues={area.issues} />
             ))}
@@ -328,7 +227,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           </p>
         </>
       ) : (
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="ui-card">
           <EmptyState
             title="Belum ada data RCA"
             description="Pastikan data CSAT SC memiliki kolom RCA dan kasus bad CSAT."
@@ -340,7 +239,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       )}
 
       {/* Detail isu per area — collapsed by default */}
-      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      <div className="ui-card p-0! overflow-hidden">
         <button
           type="button"
           onClick={() => setShowIssueDetail((v) => !v)}
@@ -357,7 +256,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           </span>
         </button>
         {showIssueDetail ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-border p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 border-t border-border p-5">
             <DetailBarChart data={agentDetailBar} color={COLORS.agent} title="Top isu — Agent Area" issueCategories={agentIssueCategories} />
             <DetailBarChart data={customerDetailBar} color={COLORS.customer} title="Top isu — Customer Area" issueCategories={customerIssueCategories} />
             <DetailBarChart data={akulakuDetailBar} color={COLORS.akulaku} title="Top isu — Akulaku Process" issueCategories={akulakuIssueCategories} />
@@ -366,20 +265,13 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       </div>
 
       {/* Agent RCA ranking */}
-      <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+      <div className="ui-card">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-sm font-bold text-text-primary">Profil RCA per agent</h3>
             <p className="text-[10px] text-text-muted mt-0.5">Ranking berdasarkan total kasus</p>
           </div>
-          <input
-            type="text"
-            placeholder="Cari nama / TL..."
-              aria-label="Cari nama / TL..."
-            value={agentSearch}
-            onChange={e => setAgentSearch(e.target.value)}
-            className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary w-48 transition-colors"
-          />
+          <SearchField value={agentSearch} onChange={setAgentSearch} placeholder="Cari nama / TL..." />
         </div>
         {filteredAgentRanking.length === 0 ? (
           <EmptyState
@@ -392,7 +284,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
         ) : (
           <>
           <MobileScrollHint label="Geser → untuk lihat semua kolom" />
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="overflow-x-auto rounded-[18px] border border-border">
             <table className="kpi-data-table w-full text-left text-[11px]">
               <thead className="bg-surface/80 text-text-secondary border-b border-border">
                 <tr>
