@@ -1145,11 +1145,14 @@ const WeeklyReportPanel = ({
                   </td>
                   {columns.map((col, ci) => {
                     const raw = col.stats[metric.key] ?? 0;
-                    // Same as the exported slide: each period is marked against the one on its left.
-                    const trend = ci === 0 ? 'flat' : columnTrend(metric, columns[ci - 1].stats[metric.key], raw);
+                    // Same as the exported slide: numbers stay neutral, the latest period gets a coloured arrow vs the one before.
+                    const trend = ci === deltaTo && deltaFrom >= 0 ? columnTrend(metric, columns[deltaFrom].stats[metric.key], raw) : 'flat';
                     return (
-                      <td key={col.key} className={`px-4 py-3 text-right text-[14px] font-bold ${trend === 'up' ? 'text-success' : trend === 'down' ? 'text-danger' : 'text-text-primary'}`}>
-                        {trend === 'up' ? '▲ ' : trend === 'down' ? '▼ ' : ''}{formatMetricValue(metric, raw)}
+                      <td key={col.key} className="px-4 py-3 text-right text-[14px] font-bold text-text-primary">
+                        {trend !== 'flat' && (
+                          <span aria-hidden className={`mr-1.5 text-[12px] ${trend === 'up' ? 'text-success' : 'text-danger'}`}>{trend === 'up' ? '▲' : '▼'}</span>
+                        )}
+                        {formatMetricValue(metric, raw)}
                       </td>
                     );
                   })}

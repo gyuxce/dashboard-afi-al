@@ -160,7 +160,8 @@ export function buildReportSlideModel(args: {
         target: metric.target !== null ? (metric.kind === 'score' ? formatNum(metric.target) : `${metric.target}%`) : '-',
         cells: columns.map((col, ci) => {
           const raw = col.stats[metric.key] ?? 0;
-          const trend = ci === 0 ? 'flat' : columnTrend(metric, columns[ci - 1].stats[metric.key], raw);
+          // Only the latest period is marked, against the one before it — the other columns are context.
+          const trend = ci === deltaTo && deltaFrom >= 0 ? columnTrend(metric, columns[deltaFrom].stats[metric.key], raw) : 'flat';
           return {
             text: formatMetricValue(metric, raw),
             tone: trend === 'up' ? ('up' as const) : trend === 'down' ? ('down' as const) : ('plain' as const),
