@@ -216,11 +216,13 @@ export async function renderTableSlide(model: SlideModel): Promise<Blob> {
     ctx.font = `500 25px ${FONT}`;
     ctx.fillText(row.target, xTargetRight, mid);
 
+    // Period values stay neutral: a "▼" or red here read as "down vs last week" next to the Perubahan arrow,
+    // while it only meant "below target". Direction lives in the Perubahan column; target status in the
+    // Target column, the banner and the Highlight.
     row.cells.forEach((cell, i) => {
-      ctx.fillStyle = cell.tone === 'miss' ? COLORS.miss : cell.tone === 'watch' ? COLORS.watch : COLORS.ink;
+      ctx.fillStyle = COLORS.ink;
       ctx.font = `700 32px ${FONT}`;
-      const text = cell.tone === 'miss' ? `▼ ${cell.text}` : cell.text;
-      ctx.fillText(text, valueRight(i), mid);
+      ctx.fillText(cell.text, valueRight(i), mid);
     });
 
     ctx.font = `700 27px ${FONT}`;

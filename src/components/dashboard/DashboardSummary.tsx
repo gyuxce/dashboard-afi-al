@@ -1015,11 +1015,9 @@ const WeeklyReportPanel = ({
   deltaFrom: number;
   note?: string;
 }) => {
-  const cellClass = (rawVal: number, kpiType: KpiType | null) => {
-    if (kpiType === null) return 'text-text-primary';
-    const st = getKpiStatus(rawVal, kpiType);
-    return st === 'miss' ? 'text-danger' : st === 'watch' ? 'text-warning' : 'text-text-primary';
-  };
+  // Period values stay neutral (same as the exported slide): direction is shown in "Perubahan" only,
+  // so a below-target red never reads as "down vs the previous week".
+  const cellClass = (_rawVal: number, _kpiType: KpiType | null) => 'text-text-primary';
 
   const deltaTitle = `${columns[deltaTo]?.label ?? ''} vs ${columns[deltaFrom]?.label ?? ''}`;
 
