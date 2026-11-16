@@ -1,5 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import { AgentKPI, CSATEntry, isCsatTakeoutCategory, isValidCsatScScore, normalizeDateStr } from '../../lib/dataProcessor';
+import {
+  agentRoomPct,
+  aggregateCategories,
+  buildAgentRankings,
+  buildRoomHighlights,
+  buildScoreDistribution,
+  buildScoreTopAgents,
+  buildScoreTopCases,
+  filterRoomAgents,
+  roomKpiType,
+  roomTarget,
+  scoreCaseLabel,
+  sortRoomAgents,
+  sortRoomDefectAgents,
+  surveyResponseRate as computeSurveyResponse,
+  topCategoryList,
+  type SortConfig,
+} from '../../lib/csatRoomStats';
 import { formatNum, getKpiStatus, getMonthOffsetLabel, parseDateForSort, cn, indexByDate, uniqueCalendarDates, getByCalendarDate, formatCsId } from '../../lib/utils';
 import { KpiValue, KpiCue } from '../ui/KpiCue';
 import { Sparkline } from '../ui/Sparkline';
@@ -13,6 +31,8 @@ import { EmptyState } from '../ui/EmptyState';
 import { MobileScrollHint } from '../ui/ChartScrollArea';
 import { KpiRankLists } from '../ui/KpiRankLists';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { PageHeader } from '../ui/PageHeader';
+import { SearchField } from '../ui/SearchField';
 import { CsatDetailModal } from "./CsatDetailModal";
 import { chart } from '../../lib/themeColors';
 import { isSmallBpoName } from '../../lib/bpoNames';
@@ -90,8 +110,8 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
     }
   };
   
-  const [agentSortConfig, setAgentSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
-  const [defectSortConfig, setDefectSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  const [agentSortConfig, setAgentSortConfig] = useState<SortConfig>(null);
+  const [defectSortConfig, setDefectSortConfig] = useState<SortConfig>(null);
 
   const handleAgentSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -109,14 +129,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
     setDefectSortConfig({ key, direction });
   };
 
-  const tableData = useMemo(() => {
-    return data.filter(a => {
-      const matchSearch = a.csId.toLowerCase().includes(search.toLowerCase()) || (a.name || '').toLowerCase().includes(search.toLowerCase());
-      const matchTL = filterTL ? a.teamLeader === filterTL : true;
-      const count = viewMode === 'full' ? a.csatScFullCount : a.csatScFairCount;
-      return matchSearch && matchTL && count > 0;
-    });
-  }, [data, search, filterTL, viewMode]);
+  const tableData = useMemo(() => filterRoomAgents(data, search, filterTL, viewMode), [data, search, filterTL, viewMode]);
 
   const uniqueDates = useMemo(() => {
     return uniqueCalendarDates(tableData.flatMap((a) => [
@@ -128,183 +141,21 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
   // Sparkline + day-strip read oldest→newest; uniqueDates is newest-first.
   const chronoDates = useMemo(() => [...uniqueDates].reverse(), [uniqueDates]);
 
-  const csatTarget = viewMode === 'full' ? 75 : 92;
-  const csatKpiType = viewMode === 'full' ? 'csatFull' as const : 'csatFair' as const;
-  const agentCsatPct = (a: AgentKPI): number | null => {
-    if (viewMode === 'full') {
-      return a.csatScTotalValid > 0 ? (a.csatScGoodCount / a.csatScTotalValid) * 100 : null;
-    }
-    return a.csatScFairTotalValid > 0 ? (a.csatScFairGoodCount / a.csatScFairTotalValid) * 100 : null;
-  };
+  const csatTarget = roomTarget(viewMode);
+  const csatKpiType = roomKpiType(viewMode);
+  const agentCsatPct = (a: AgentKPI): number | null => agentRoomPct(a, viewMode);
 
-  const topCategories = useMemo(() => {
-    const agg: Record<string, number> = {};
-    tableData.forEach(a => {
-       const cats = viewMode === 'full' ? (a.csatScCategoriesFull || {}) : (a.csatScCategoriesFair || {});
-       for (const cat in cats) {
-          if (!agg[cat]) agg[cat] = 0;
-          agg[cat] += cats[cat];
-       }
-    });
-    return Object.entries(agg)
-      .sort((a,b) => b[1] - a[1])
-      .slice(0, 10)
-      .map((entry, idx) => ({ rank: idx+1, name: entry[0], count: entry[1] }));
-  }, [tableData, viewMode]);
+  const topCategories = useMemo(() => topCategoryList(tableData, viewMode), [tableData, viewMode]);
+  const highlightRanks = useMemo(() => buildRoomHighlights(tableData, viewMode), [tableData, viewMode]);
 
-  const highlightRanks = useMemo(() => {
-    const categoryAgg: Record<string, number> = {};
-    tableData.forEach(a => {
-      const cats = viewMode === 'full' ? (a.csatScCategoriesFull || {}) : (a.csatScCategoriesFair || {});
-      for (const cat in cats) {
-        categoryAgg[cat] = (categoryAgg[cat] || 0) + cats[cat];
-      }
-    });
+  const prevTopCategories = useMemo(
+    () => aggregateCategories(filterRoomAgents(previousData, search, filterTL, viewMode), viewMode),
+    [previousData, search, filterTL, viewMode],
+  );
 
-    const categories = Object.entries(categoryAgg)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const agentRows = tableData
-      .map(a => {
-        const pct =
-          viewMode === 'full'
-            ? a.csatScTotalValid > 0
-              ? (a.csatScGoodCount / a.csatScTotalValid) * 100
-              : null
-            : a.csatScFairTotalValid > 0
-              ? (a.csatScFairGoodCount / a.csatScFairTotalValid) * 100
-              : null;
-        const count = viewMode === 'full' ? a.csatScFullCount : a.csatScFairCount;
-        return { agent: a, pct, count };
-      })
-      .filter((a): a is { agent: AgentKPI; pct: number; count: number } => a.pct !== null)
-      .sort((a, b) => b.pct - a.pct);
-
-    const dailyMap = new Map<string, { good: number; total: number }>();
-    tableData.forEach(a => {
-      const dailyArr = viewMode === 'full' ? a.dailyHistory?.csatScFull : a.dailyHistory?.csatScFair;
-      dailyArr?.forEach(h => {
-        const key = h.normDate || h.date;
-        if (!key || !h.count) return;
-        const current = dailyMap.get(key) || { good: 0, total: 0 };
-        dailyMap.set(key, {
-          good: current.good + h.score,
-          total: current.total + h.count,
-        });
-      });
-    });
-
-    const daysByScore = Array.from(dailyMap.entries())
-      .map(([date, stats]) => ({
-        date,
-        pct: stats.total > 0 ? (stats.good / stats.total) * 100 : 0,
-        count: stats.total,
-      }))
-      .filter(d => d.count > 0)
-      .sort((a, b) => a.pct - b.pct);
-
-    return {
-      topCategories: categories.slice(0, 3).map(c => ({
-        label: c.name,
-        value: formatNum(c.count, 0),
-      })),
-      bottomDays: daysByScore.slice(0, 3).map(d => ({
-        label: d.date,
-        subLabel: `${formatNum(d.count, 0)} rating`,
-        value: `${formatNum(d.pct, 1)}%`,
-      })),
-      topAgents: agentRows.slice(0, 3).map(a => ({
-        label: a.agent.name || a.agent.csId,
-        subLabel: a.agent.teamLeader || a.agent.csId,
-        value: `${formatNum(a.pct, 1)}%`,
-      })),
-      bottomAgents:
-        agentRows.length > 3
-          ? agentRows.slice(Math.max(3, agentRows.length - 3)).reverse().map(a => ({
-              label: a.agent.name || a.agent.csId,
-              subLabel: a.agent.teamLeader || a.agent.csId,
-              value: `${formatNum(a.pct, 1)}%`,
-            }))
-          : [],
-    };
-  }, [tableData, viewMode]);
-
-  const prevTopCategories = useMemo(() => {
-    const prevTableData = previousData.filter(a => {
-      const matchSearch = a.csId.toLowerCase().includes(search.toLowerCase()) || (a.name || '').toLowerCase().includes(search.toLowerCase());
-      const matchTL = filterTL ? a.teamLeader === filterTL : true;
-      const count = viewMode === 'full' ? a.csatScFullCount : a.csatScFairCount;
-      return matchSearch && matchTL && count > 0;
-    });
-
-    const agg: Record<string, number> = {};
-    prevTableData.forEach(a => {
-       const cats = viewMode === 'full' ? (a.csatScCategoriesFull || {}) : (a.csatScCategoriesFair || {});
-       for (const cat in cats) {
-          if (!agg[cat]) agg[cat] = 0;
-          agg[cat] += cats[cat];
-       }
-    });
-    return agg;
-  }, [previousData, search, filterTL, viewMode]);
-
-  const agentRankings = useMemo(() => {
-    const agents = tableData.map(a => {
-       const count = viewMode === 'full' ? (a.csatScBadScoreFullCount || 0) : (a.csatScBadScoreFairCount || 0);
-       return { name: a.name || a.csId, csId: a.csId, bpo: a.bpo, tl: a.teamLeader, badScoreCount: count };
-    });
-    
-    const critical = [...agents].sort((a, b) => b.badScoreCount - a.badScoreCount).filter(a => a.badScoreCount > 0).slice(0, 10);
-    const stable = [...agents].sort((a, b) => {
-       if (a.badScoreCount === b.badScoreCount) return a.name.localeCompare(b.name);
-       return a.badScoreCount - b.badScoreCount;
-    }).slice(0, 10);
-    
-    return { critical, stable };
-  }, [tableData, viewMode]);
-
-  const scoreDistribution = useMemo(() => {
-    const dist = {
-      'All': 0, 'No Survey': 0, '1': 0, '2': 0, '3': 0, '4': 0, '5': 0,
-      'Bad': 0, 'Good': 0,
-    };
-    tableData.forEach(a => {
-      if (a.csatScScoreDistribution) {
-        ['No Survey', '1', '2', '3', '4', '5'].forEach(scoreKey => {
-           if (a.csatScScoreDistribution[scoreKey]) {
-              const cases = a.csatScScoreDistribution[scoreKey];
-              for (const c in cases) {
-                 if (viewMode === 'fair' && isCsatTakeoutCategory(c)) continue;
-                 const n = cases[c] || 0;
-                 dist[scoreKey as keyof typeof dist] += n;
-                 dist['All'] += n;
-                 if (scoreKey === '1' || scoreKey === '2') dist['Bad'] += n;
-                 if (scoreKey === '4' || scoreKey === '5') dist['Good'] += n;
-              }
-           }
-        });
-      }
-    });
-    return dist;
-  }, [tableData, viewMode]);
-
-  const getScoresForSelectedCase = (selected: string): string[] => {
-    if (selected === 'All') return ['No Survey', '1', '2', '3', '4', '5'];
-    if (selected === 'Bad') return ['1', '2'];
-    if (selected === 'Good') return ['4', '5'];
-    return [selected];
-  };
-
-  const scoreAnalysisLabel = useMemo(() => {
-    switch (selectedScoreCase) {
-      case 'No Survey': return 'No Survey';
-      case 'All': return 'All Surveys';
-      case 'Bad': return 'Bad Survey (Score 1 + 2)';
-      case 'Good': return 'Good Survey (Score 4 + 5)';
-      default: return `Score ${selectedScoreCase}`;
-    }
-  }, [selectedScoreCase]);
+  const agentRankings = useMemo(() => buildAgentRankings(tableData, viewMode), [tableData, viewMode]);
+  const scoreDistribution = useMemo(() => buildScoreDistribution(tableData, viewMode), [tableData, viewMode]);
+  const scoreAnalysisLabel = scoreCaseLabel(selectedScoreCase);
 
   const isAccumulatedScoreCase = selectedScoreCase === 'Bad' || selectedScoreCase === 'Good';
   const accumulatedScoreKeys = selectedScoreCase === 'Bad'
@@ -313,250 +164,52 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
       ? (['4', '5'] as const)
       : null;
 
-  const totalScoreRows = useMemo(() => {
-    return scoreDistribution['All'];
-  }, [scoreDistribution]);
+  const { total: totalScoreRows, answered: answeredScoreRows, rate: surveyResponseRate } = useMemo(
+    () => computeSurveyResponse(scoreDistribution),
+    [scoreDistribution],
+  );
 
-  const answeredScoreRows = useMemo(() => {
-    return scoreDistribution['1'] + scoreDistribution['2'] + scoreDistribution['3'] + scoreDistribution['4'] + scoreDistribution['5'];
-  }, [scoreDistribution]);
-
-  const surveyResponseRate = useMemo(() => {
-    if (totalScoreRows === 0) return 0;
-    return (answeredScoreRows / totalScoreRows) * 100;
-  }, [answeredScoreRows, totalScoreRows]);
-
-  const sortedAgentData = useMemo(() => {
-    let sortable = [...tableData];
-    if (agentSortConfig) {
-      sortable.sort((a, b) => {
-        let aVal: any = 0;
-        let bVal: any = 0;
-        
-        switch (agentSortConfig.key) {
-          case 'name':
-            aVal = a.name || a.csId;
-            bVal = b.name || b.csId;
-            break;
-          case 'bpo':
-            aVal = a.bpo || '';
-            bVal = b.bpo || '';
-            break;
-          case 'teamLeader':
-            aVal = a.teamLeader || '';
-            bVal = b.teamLeader || '';
-            break;
-          case 'average':
-          default:
-            aVal = viewMode === 'full' ? (a.csatScFull ?? -1) : (a.csatScFair ?? -1);
-            bVal = viewMode === 'full' ? (b.csatScFull ?? -1) : (b.csatScFair ?? -1);
-            break;
-        }
-
-        if (aVal < bVal) return agentSortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return agentSortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return sortable;
-  }, [tableData, agentSortConfig, viewMode]);
-
-  const sortedDefectData = useMemo(() => {
-    let sortable = tableData.filter(agent => {
-      const count = viewMode === 'full' ? agent.csatScBadScoreFullCount : agent.csatScBadScoreFairCount;
-      return count > 0;
-    });
-
-    if (defectSortConfig) {
-      sortable.sort((a, b) => {
-        let aVal: any = 0;
-        let bVal: any = 0;
-
-        const getScoreCount = (agent: AgentKPI, score: number) => {
-          return agent.csatHistory.filter(h => h.score === score && (viewMode === 'full' || !h.isTakeout)).length;
-        };
-
-        const getTopCat = (agent: AgentKPI) => {
-          const cats = viewMode === 'full' ? agent.csatScCategoriesFull : agent.csatScCategoriesFair;
-          if (Object.keys(cats).length > 0) {
-            return Object.entries(cats).sort((x, y) => y[1] - x[1])[0][0];
-          }
-          return '';
-        };
-        
-        switch (defectSortConfig.key) {
-          case 'name':
-            aVal = a.name || a.csId;
-            bVal = b.name || b.csId;
-            break;
-          case 'bpo':
-            aVal = a.bpo || '';
-            bVal = b.bpo || '';
-            break;
-          case 'teamLeader':
-            aVal = a.teamLeader || '';
-            bVal = b.teamLeader || '';
-            break;
-          case 'score1':
-            aVal = getScoreCount(a, 1);
-            bVal = getScoreCount(b, 1);
-            break;
-          case 'score2':
-            aVal = getScoreCount(a, 2);
-            bVal = getScoreCount(b, 2);
-            break;
-          case 'score3':
-            aVal = getScoreCount(a, 3);
-            bVal = getScoreCount(b, 3);
-            break;
-          case 'score4':
-            aVal = getScoreCount(a, 4);
-            bVal = getScoreCount(b, 4);
-            break;
-          case 'score5':
-            aVal = getScoreCount(a, 5);
-            bVal = getScoreCount(b, 5);
-            break;
-          case 'category':
-            aVal = getTopCat(a);
-            bVal = getTopCat(b);
-            break;
-          default:
-            aVal = viewMode === 'full' ? a.csatScBadScoreFullCount : a.csatScBadScoreFairCount;
-            bVal = viewMode === 'full' ? b.csatScBadScoreFullCount : b.csatScBadScoreFairCount;
-            break;
-        }
-
-        if (aVal < bVal) return defectSortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return defectSortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    } else {
-      // Default sort
-      sortable.sort((a,b) => {
-         const acount = viewMode === 'full' ? a.csatScBadScoreFullCount : a.csatScBadScoreFairCount;
-         const bcount = viewMode === 'full' ? b.csatScBadScoreFullCount : b.csatScBadScoreFairCount;
-         return bcount - acount;
-      });
-    }
-    return sortable;
-  }, [tableData, defectSortConfig, viewMode]);
-
-  const scoreAnalysisTopCases = useMemo(() => {
-    const caseDist: Record<string, number> = {};
-    const caseByScore: Record<string, Record<string, number>> = {};
-    const scoresToProcess = getScoresForSelectedCase(selectedScoreCase);
-
-    tableData.forEach(a => {
-       if (a.csatScScoreDistribution) {
-          scoresToProcess.forEach(scoreKey => {
-            if (a.csatScScoreDistribution[scoreKey]) {
-                const cases = a.csatScScoreDistribution[scoreKey];
-                for (const c in cases) {
-                   if (viewMode === 'fair' && isCsatTakeoutCategory(c)) continue;
-                   const n = cases[c] || 0;
-                   if (!caseDist[c]) caseDist[c] = 0;
-                   caseDist[c] += n;
-                   if (!caseByScore[c]) caseByScore[c] = {};
-                   caseByScore[c][scoreKey] = (caseByScore[c][scoreKey] || 0) + n;
-                }
-            }
-          });
-       }
-    });
-    return Object.entries(caseDist)
-      .sort((a,b) => b[1] - a[1])
-      .map((e, idx) => ({
-        rank: idx+1,
-        name: e[0],
-        count: e[1],
-        byScore: caseByScore[e[0]] || {},
-      }));
-  }, [tableData, selectedScoreCase, viewMode]);
-
-  const scoreAnalysisTopAgents = useMemo(() => {
-    const agentDist: Record<string, number> = {};
-    const agentByScore: Record<string, Record<string, number>> = {};
-    const scoresToProcess = getScoresForSelectedCase(selectedScoreCase);
-
-    tableData.forEach(a => {
-       if (a.csatScScoreDistribution) {
-          const displayName = a.name || a.csId;
-          scoresToProcess.forEach(scoreKey => {
-            if (a.csatScScoreDistribution[scoreKey]) {
-                const cases = a.csatScScoreDistribution[scoreKey];
-                let totalForScore = 0;
-                for (const c in cases) {
-                    if (viewMode === 'fair' && isCsatTakeoutCategory(c)) continue;
-                    totalForScore += cases[c] || 0;
-                }
-                if (totalForScore > 0) {
-                    if (!agentDist[displayName]) agentDist[displayName] = 0;
-                    agentDist[displayName] += totalForScore;
-                    if (!agentByScore[displayName]) agentByScore[displayName] = {};
-                    agentByScore[displayName][scoreKey] = (agentByScore[displayName][scoreKey] || 0) + totalForScore;
-                }
-            }
-          });
-       }
-    });
-    return Object.entries(agentDist)
-      .sort((a,b) => b[1] - a[1])
-      .map((e, idx) => ({
-        rank: idx+1,
-        name: e[0],
-        count: e[1],
-        byScore: agentByScore[e[0]] || {},
-      }));
-  }, [tableData, selectedScoreCase, viewMode]);
+  const sortedAgentData = useMemo(() => sortRoomAgents(tableData, agentSortConfig, viewMode), [tableData, agentSortConfig, viewMode]);
+  const sortedDefectData = useMemo(() => sortRoomDefectAgents(tableData, defectSortConfig, viewMode), [tableData, defectSortConfig, viewMode]);
+  const scoreAnalysisTopCases = useMemo(() => buildScoreTopCases(tableData, selectedScoreCase, viewMode), [tableData, selectedScoreCase, viewMode]);
+  const scoreAnalysisTopAgents = useMemo(() => buildScoreTopAgents(tableData, selectedScoreCase, viewMode), [tableData, selectedScoreCase, viewMode]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between xl:gap-8 gap-4 mb-4">
-        <div className="flex flex-col xl:flex-row xl:items-center gap-4 w-full overflow-hidden">
-          <h1 className="text-lg font-bold text-text-primary whitespace-nowrap shrink-0">CSAT Room (Survey)</h1>
-          <div className="flex flex-col md:flex-row gap-2 xl:gap-4 w-full overflow-hidden">
-             <SegmentedControl
-               value={viewMode}
-               onChange={setViewMode}
-               options={[
-                 { value: 'full', label: 'Full Score', icon: CheckCircle },
-                 { value: 'fair', label: 'After Takeout', icon: Filter },
-               ]}
-             />
-             <SegmentedControl
-               value={analysisMode}
-               onChange={(mode) => {
-                 setAnalysisMode(mode);
-                 if (mode === 'score') {
-                   setSelectedScoreCase('All');
-                   setScoreCasePage(1);
-                 }
-               }}
-               options={[
-                 { value: 'agent', label: 'Agent', icon: BarChart2 },
-                 { value: 'defect', label: 'Defect', icon: AlertCircle },
-                 { value: 'category', label: 'Kategori', icon: Layers },
-                 { value: 'score', label: 'Skor', icon: TrendingUp },
-               ]}
-             />
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
-            <input 
-              type="text" 
-              placeholder="Cari CS ID..."
-              aria-label="Cari CS ID..." 
-              className="pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs focus:border-primary focus:outline-none w-full md:w-56"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="CSAT"
+        title="CSAT Room (Survey)"
+        subtitle={`Survei pelanggan CSAT SC, target ${csatTarget}% (${viewMode === 'full' ? 'Full Score' : 'After Takeout'}): skor, kategori, dan agent yang perlu dibantu.`}
+        actions={
+          <>
+            <SegmentedControl
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { value: 'full', label: 'Full Score', icon: CheckCircle },
+                { value: 'fair', label: 'After Takeout', icon: Filter },
+              ]}
             />
-          </div>
-        </div>
-      </div>
+            <SegmentedControl
+              value={analysisMode}
+              onChange={(mode) => {
+                setAnalysisMode(mode);
+                if (mode === 'score') {
+                  setSelectedScoreCase('All');
+                  setScoreCasePage(1);
+                }
+              }}
+              options={[
+                { value: 'agent', label: 'Agent', icon: BarChart2 },
+                { value: 'defect', label: 'Defect', icon: AlertCircle },
+                { value: 'category', label: 'Kategori', icon: Layers },
+                { value: 'score', label: 'Skor', icon: TrendingUp },
+              ]}
+            />
+            <SearchField value={search} onChange={setSearch} placeholder="Cari CS ID..." />
+          </>
+        }
+      />
 
       <KpiRankLists
         summaryLabel="Highlight KPI"
@@ -576,7 +229,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
       )}
 
       {analysisMode === 'score' ? (
-        <div className="bg-card border border-border rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col overflow-hidden">
+        <div className="ui-card p-0! flex flex-col overflow-hidden">
           <div className="p-4 border-b border-border bg-surface-muted flex flex-col md:flex-row md:items-center justify-between gap-4">
              <div>
                <h2 className="text-sm font-bold text-text-primary">Distribusi skor global</h2>
@@ -674,7 +327,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                </p>
              </div>
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
-                 <div className="overflow-x-auto border border-border rounded-xl bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                 <div className="overflow-x-auto border border-border rounded-[18px] bg-card">
                    <div className="p-3 bg-surface-muted border-b border-border font-bold text-xs text-text-secondary">Top kasus</div>
                    <MobileScrollHint className="px-3 pt-2" />
                     <table className="kpi-data-table w-full text-left">
@@ -714,7 +367,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                    </table>
                  </div>
 
-                 <div className="overflow-x-auto border border-border rounded-xl bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                 <div className="overflow-x-auto border border-border rounded-[18px] bg-card">
                    <div className="p-3 bg-surface-muted border-b border-border font-bold text-xs text-text-secondary">Top agent</div>
                    <MobileScrollHint className="px-3 pt-2" />
                    <table className="kpi-data-table w-full text-left">
@@ -782,7 +435,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
       ) : analysisMode === 'category' ? (
         <div className="flex flex-col gap-6">
           {/* Categories Panel */}
-          <div className="bg-card border border-border rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col overflow-hidden">
+          <div className="ui-card p-0! flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b border-border bg-surface-muted flex flex-col md:flex-row md:items-center justify-between gap-3">
                <div>
                  <h2 className="text-base font-bold text-text-primary">Top Categories (Score 1 & 2)</h2>
@@ -805,7 +458,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                   onAgentClick={handleAgentClick}
                 />
               ) : (
-                <div className="overflow-x-auto border border-border rounded-xl bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <div className="overflow-x-auto border border-border rounded-[18px] bg-card">
                  <div className="p-3 bg-surface-muted border-b border-border font-bold text-xs text-text-secondary">Top 10 kategori</div>
                  <MobileScrollHint className="px-3 pt-2" />
                 <table className="kpi-data-table w-full text-left">
@@ -863,7 +516,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
           </div>
 
           {/* Agents Panel */}
-          <div className="bg-card border border-border rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col overflow-hidden">
+          <div className="ui-card p-0! flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b border-border bg-surface-muted flex flex-col md:flex-row md:items-center justify-between gap-3">
                <div>
                  <h2 className="text-base font-bold text-text-primary">Agent Bottom Score 1-2</h2>
@@ -886,7 +539,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                   onAgentClick={handleAgentClick}
                 />
               ) : (
-                <div className="overflow-x-auto border border-border rounded-xl bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <div className="overflow-x-auto border border-border rounded-[18px] bg-card">
                <div className="p-3 bg-surface-muted border-b border-border font-bold text-xs text-text-secondary">Agent kritis</div>
                <MobileScrollHint className="px-3 pt-2" />
                <table className="kpi-data-table w-full text-left">
@@ -926,7 +579,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
             Klik baris untuk rincian harian · {viewMode === 'full' ? 'skor penuh' : 'setelah takeout'}, target {csatTarget}%
           </span>
         </div>
-        <div className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl flex-1 max-h-[calc(100vh-200px)]">
+        <div className="ui-card p-0! relative w-full overflow-auto text-sm flex-1 max-h-[calc(100vh-200px)]">
           <table className="kpi-data-table w-full text-left border-collapse">
             <thead className="bg-surface text-text-secondary sticky top-0 z-30">
               <tr>
@@ -1050,7 +703,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
       ) : analysisMode === 'defect' ? (
         <>
         <MobileScrollHint label="Geser → untuk lihat semua kolom" />
-        <div className="relative w-full overflow-auto bg-card border text-sm border-border shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-xl transition-all flex-1 max-h-[calc(100vh-200px)]">
+        <div className="ui-card p-0! relative w-full overflow-auto text-sm flex-1 max-h-[calc(100vh-200px)]">
             <table className="kpi-data-table w-full text-left whitespace-nowrap border-collapse">
             <thead className="bg-surface text-text-secondary sticky top-0 z-30">
               <tr>
@@ -1402,7 +1055,7 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekL
   const trendData = trendMode === 'weekly' ? weeklyData : dailyData;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 mb-4 shadow-sm">
+    <div className="ui-card">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         
         {/* Period comparison — bars */}
@@ -1570,7 +1223,7 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, we
           </div>
           
           {(type === 'all' || type === 'category') && (
-            <div className="overflow-hidden border border-border rounded-xl bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col">
+            <div className="overflow-hidden border border-border rounded-[18px] bg-card flex flex-col">
               <div className="p-2 bg-surface-muted border-b border-border font-bold text-[10px] text-text-secondary text-center uppercase">
                 Top {topCatsLimit} Categories
               </div>
@@ -1612,7 +1265,7 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, we
           )}
 
           {(type === 'all' || type === 'agent') && (
-            <div className="overflow-hidden border border-border rounded-xl bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col">
+            <div className="overflow-hidden border border-border rounded-[18px] bg-card flex flex-col">
               <div className="p-2 bg-surface-muted border-b border-border font-bold text-[10px] text-text-secondary text-center uppercase">
                 Top {topAgentsLimit} Agents
               </div>
@@ -1886,7 +1539,7 @@ const RespondentChartPanel = ({ data, previousData, previousData2, previousData3
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 mb-4 shadow-sm">
+    <div className="ui-card">
       <div className="flex items-center justify-center mb-4">
         <h3 className="text-sm font-bold text-text-primary text-center">
           Respondent Volume Trend ({viewMode === 'full' ? 'Data penuh' : 'After Takeout'})
