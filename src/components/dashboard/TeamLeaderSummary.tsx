@@ -70,7 +70,7 @@ export const TeamLeaderSummary: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   }, [data]);
 
   return (
-    <div className="rounded-xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+    <div className="ui-card p-0!">
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div>
           <h3 className="text-sm font-bold text-text-primary">Ringkasan per Team Leader</h3>

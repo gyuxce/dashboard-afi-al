@@ -1,25 +1,29 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { AgentKPI, getOfficialCsatAggregate, getPreviousMonthPeriodToDate, getPreviousPeriod, normalizeDateStr } from "../../lib/dataProcessor";
-import { formatNum, getKpiStatus, KPI_TARGETS, parseDateForSort, type KpiType } from "../../lib/utils";
-import { Activity, AlertTriangle, Star, Clock, CheckCircle, TrendingUp, Users, Info, ChevronDown, ClipboardCheck, Download, ClipboardCopy } from "lucide-react";
+import { AgentKPI } from "../../lib/dataProcessor";
+import { formatNum, getKpiStatus, KPI_TARGETS, type KpiType } from "../../lib/utils";
+import { AlertTriangle, CheckCircle, TrendingUp, Users, Info, ChevronDown, Download, ClipboardCopy } from "lucide-react";
 import { Sparkline } from "../ui/Sparkline";
+import { Card } from "../ui/Card";
+import { PageHeader } from "../ui/PageHeader";
+import { Pill } from "../ui/Pill";
+import { SearchField } from "../ui/SearchField";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../../store";
 import { DashboardCharts } from "./DashboardCharts";
 import { TeamLeaderSummary } from "./TeamLeaderSummary";
 import { EmptyState } from "../ui/EmptyState";
 import type { CalendarWeek } from "../../lib/weeks";
-import { weekHasData, weekColumnLabels } from "../../lib/weekCompare";
 import { downloadBlob, renderTableSlide } from "../../lib/slideExport";
+import { buildDailyTrend, withPreviousProductivity } from "../../lib/dailyTrend";
+import { buildReportPanel, periodHasActivity } from "../../lib/reportPanel";
+import { buildAttentionItems, lowestCsatScAgent } from "../../lib/attention";
+import type { Period } from "../../lib/comparisonPlan";
 import {
   REPORT_METRICS,
   buildReportSlideModel,
   calculatePeriodStats,
   formatMetricValue,
   columnTrend,
-  formatPeriodLabel,
-  formatReportDate,
-  formatWeekSpan,
   toLocalIso,
   type PeriodStats,
   type ReportColumn,
@@ -34,16 +38,19 @@ interface Props {
   /** Monday–Sunday weeks of the selected range (WoW over a longer range) and their KPI rows, same order. */
   weekRanges?: CalendarWeek[];
   weekData?: AgentKPI[][];
+  /** The previous periods the app computed (lib/comparisonPlan); the report shows exactly these. */
+  previousPeriods?: { prev1: Period | null; prev2: Period | null; prev3: Period | null };
 }
 
-export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], previousData2 = [], previousData3 = [], weekRanges = [], weekData = [] }) => {
+const NO_PERIODS = { prev1: null, prev2: null, prev3: null } as const;
+
+export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], previousData2 = [], previousData3 = [], weekRanges = [], weekData = [], previousPeriods = NO_PERIODS }) => {
   const [search, setSearch] = useState("");
   const [isRulesOpen, setIsRulesOpen] = useState(false);
-  const { startDate, endDate, comparisonMode, productivityLastDate } = useStore(useShallow((s) => ({
+  const { startDate, endDate, comparisonMode } = useStore(useShallow((s) => ({
     startDate: s.startDate,
     endDate: s.endDate,
     comparisonMode: s.comparisonMode,
-    productivityLastDate: s.activeMonthLastDates?.productivityData ?? null,
   })));
 
   const tableData = useMemo(() => {
@@ -76,323 +83,40 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
     return curr - prev;
   };
 
-  // A comparison period with rows but no activity (e.g. an un-populated month:
-  // CSID roster loaded, activity sheets empty) must not render as columns of 0.
-  const periodHasActivity = (d: AgentKPI[]) =>
-    d.some((a) =>
-      a.productivityBase > 0 ||
-      a.qaScoreCount > 0 ||
-      a.csatScTotalValid > 0 ||
-      a.manDays > 0 ||
-      (a.csat4Count || 0) + (a.csat5Count || 0) > 0 ||
-      a.sla1m !== null ||
-      a.whu !== null,
-    );
+  const reportPanel = useMemo(
+    () =>
+      buildReportPanel({
+        comparisonMode, startDate, endDate, weekRanges, weekData,
+        periods: previousPeriods,
+        data: { previous: previousData, previous2: previousData2, previous3: previousData3 },
+        stats: { current: currentStats, previous: previousStats, previous2: previousStats2, previous3: previousStats3 },
+        todayIso: toLocalIso(new Date()),
+      }),
+    [
+      comparisonMode, weekRanges, weekData, previousPeriods, previousData, previousData2, previousData3,
+      startDate, endDate, currentStats, previousStats, previousStats2, previousStats3,
+    ],
+  );
 
-  const reportPanel = useMemo(() => {
-    const dateLabel = (value: string) => formatReportDate(value);
-    const rangeTitle = (start: string, end: string) => `${dateLabel(start)} - ${dateLabel(end)}`;
+  const todayLabel = useMemo(
+    () => new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date()),
+    [],
+  );
 
-    // WoW over a multi-week range: the Monday–Sunday weeks of the range side by side (W1, W2, …).
-    if (comparisonMode === 'wow' && weekRanges.length > 0) {
-      if (weekData.length !== weekRanges.length) return null; // week data still being computed
-      const columns: ReportColumn[] = [];
-      const weekLabels = weekColumnLabels(weekRanges);
-      weekRanges.forEach((week, i) => {
-        if (!weekHasData(weekData[i])) return;
-        columns.push({
-          key: `w${week.start}`,
-          label: weekLabels[i],
-          sublabel: formatWeekSpan(week.start, week.end),
-          title: rangeTitle(week.start, week.end),
-          start: week.start,
-          end: week.end,
-          stats: calculatePeriodStats(weekData[i]),
-        });
-      });
-      if (columns.length < 2) return null;
-      const today = toLocalIso(new Date());
-      const running = weekRanges
-        .map((week, i) => ({ week, label: weekLabels[i] }))
-        .filter(({ week }) => week.end >= today && columns.some((c) => c.key === `w${week.start}`))
-        .map(({ label }) => label);
-      const note = [
-        'Minggu kalender Senin–Minggu; minggu pertama dan terakhir bisa mencakup tanggal bulan sebelum/sesudahnya, jadi jumlah semua minggu tidak selalu sama dengan total bulan.',
-        running.length > 0 ? `Minggu berjalan (belum selesai): ${running.join(', ')}.` : '',
-      ].filter(Boolean).join(' ');
-      return {
-        title: 'Weekly Performance Report',
-        columns,
-        deltaTo: columns.length - 1,
-        deltaFrom: columns.length - 2,
-        note,
-      };
-    }
-
-    if (!periodHasActivity(previousData)) return null;
-    // Same ranges the data was processed for (see App.tsx): MoM compares up to the last day with data.
-    const prevRange = comparisonMode === 'mom'
-      ? getPreviousMonthPeriodToDate(startDate, endDate, productivityLastDate)
-      : getPreviousPeriod(startDate, endDate);
-    const shiftBack = (a: string, b: string) => (comparisonMode === 'mom' ? getPreviousMonthPeriodToDate(a, b, null) : getPreviousPeriod(a, b));
-    const prev2Range = shiftBack(prevRange.start, prevRange.end);
-    const prev3Range = shiftBack(prev2Range.start, prev2Range.end);
-    const labelOf = (end: string) => formatPeriodLabel(end, comparisonMode);
-    const columns: ReportColumn[] = [
-      { key: 'cur', label: labelOf(endDate), title: rangeTitle(startDate, endDate), start: startDate, end: endDate, stats: currentStats },
-      { key: 'p1', label: labelOf(prevRange.end), title: rangeTitle(prevRange.start, prevRange.end), start: prevRange.start, end: prevRange.end, stats: previousStats },
-    ];
-    if (periodHasActivity(previousData2)) {
-      columns.push({ key: 'p2', label: labelOf(prev2Range.end), title: rangeTitle(prev2Range.start, prev2Range.end), start: prev2Range.start, end: prev2Range.end, stats: previousStats2 });
-    }
-    if (comparisonMode !== 'mom' && periodHasActivity(previousData3)) {
-      columns.push({ key: 'p3', label: labelOf(prev3Range.end), title: rangeTitle(prev3Range.start, prev3Range.end), start: prev3Range.start, end: prev3Range.end, stats: previousStats3 });
-    }
-    return {
-      title: comparisonMode === 'mom' ? 'Monthly Performance Report' : 'Weekly Performance Report',
-      columns,
-      deltaTo: 0,
-      deltaFrom: 1,
-      note: undefined,
-    };
-  }, [
-    comparisonMode, weekRanges, weekData, previousData, previousData2, previousData3,
-    startDate, endDate, productivityLastDate, currentStats, previousStats, previousStats2, previousStats3,
-  ]);
-
-  const generateDailyTrend = (dataset: AgentKPI[]) => {
-    type DayAcc = {
-      totalProd: number;
-      sumCsat: number;
-      countCsat: number;
-      sumCsatFull: number;
-      countCsatFull: number;
-      sumCsatFair: number;
-      countCsatFair: number;
-      sumSla1m: number;
-      countSla1m: number;
-      sumSla3m: number;
-      countSla3m: number;
-      sumWhu: number;
-      countWhu: number;
-      sumQa: number;
-      countQa: number;
-      totalAttendancePresence: number;
-      totalAttendanceDuty: number;
-      hasProductivity: boolean;
-    };
-
-    const byDate = new Map<string, DayAcc>();
-    const toKey = (raw?: string | null, norm?: string | null) => {
-      if (norm) return norm;
-      if (!raw) return '';
-      return normalizeDateStr(raw) || raw;
-    };
-    const ensure = (date: string): DayAcc => {
-      let acc = byDate.get(date);
-      if (!acc) {
-        acc = {
-          totalProd: 0,
-          sumCsat: 0,
-          countCsat: 0,
-          sumCsatFull: 0,
-          countCsatFull: 0,
-          sumCsatFair: 0,
-          countCsatFair: 0,
-          sumSla1m: 0,
-          countSla1m: 0,
-          sumSla3m: 0,
-          countSla3m: 0,
-          sumWhu: 0,
-          countWhu: 0,
-          sumQa: 0,
-          countQa: 0,
-          totalAttendancePresence: 0,
-          totalAttendanceDuty: 0,
-          hasProductivity: false,
-        };
-        byDate.set(date, acc);
-      }
-      return acc;
-    };
-
-    // Normalize all series to ISO keys so label dates and schedule normDates merge.
-    dataset.forEach((a) => {
-      const hist = a.dailyHistory;
-      if (!hist) return;
-
-      hist.productivity?.forEach((h) => {
-        const key = toKey(h.date, h.normDate);
-        if (!key || !h.value) return;
-        const acc = ensure(key);
-        acc.totalProd += h.value;
-        acc.hasProductivity = true;
-      });
-
-      hist.csat?.forEach((h) => {
-        const key = toKey(h.date, h.normDate);
-        if (!key || !h.value) return;
-        const acc = ensure(key);
-        const respondentCount = h.count || 1;
-        acc.sumCsat += h.sum ?? h.value * respondentCount;
-        acc.countCsat += respondentCount;
-      });
-
-      hist.sla1m?.forEach((h) => {
-        const key = toKey(h.date, h.normDate);
-        if (!key || !h.value) return;
-        const acc = ensure(key);
-        acc.sumSla1m += h.value;
-        acc.countSla1m += 1;
-      });
-
-      hist.sla3m?.forEach((h) => {
-        const key = toKey(h.date, h.normDate);
-        if (!key || !h.value) return;
-        const acc = ensure(key);
-        acc.sumSla3m += h.value;
-        acc.countSla3m += 1;
-      });
-
-      hist.whu?.forEach((h) => {
-        const key = toKey(h.date, h.normDate);
-        if (!key || !h.value) return;
-        const acc = ensure(key);
-        acc.sumWhu += h.value;
-        acc.countWhu += 1;
-      });
-
-      hist.csatScFull?.forEach((h) => {
-        const key = toKey(h.date, h.normDate);
-        if (!key || !(h.count > 0)) return;
-        const acc = ensure(key);
-        acc.sumCsatFull += h.score;
-        acc.countCsatFull += h.count;
-      });
-
-      hist.csatScFair?.forEach((h) => {
-        const key = toKey(h.date, h.normDate);
-        if (!key || !(h.count > 0)) return;
-        const acc = ensure(key);
-        acc.sumCsatFair += h.score;
-        acc.countCsatFair += h.count;
-      });
-
-      // Schedule/QA only enrich days that already have productivity — avoids zero-only days.
-      hist.schedule?.forEach((s) => {
-        const key = toKey(s.date, s.normDate);
-        if (!key || !byDate.has(key)) return;
-        const acc = byDate.get(key)!;
-        // Mirror the processor's duty/presence rules exactly so the daily
-        // Attendance line matches the headline Attendance KPI card.
-        if (s.isManDay || s.status === "PULLOUT") acc.totalAttendanceDuty += 1;
-        if (s.status === "PULLOUT" || (s.isManDay && s.status !== "S")) {
-          acc.totalAttendancePresence += 1;
-        }
-      });
-
-      a.qaHistory?.forEach((q) => {
-        const key = toKey(q.date, q.normDate);
-        if (!key || q.score === undefined || !byDate.has(key)) return;
-        const acc = byDate.get(key)!;
-        acc.sumQa += q.score;
-        acc.countQa += 1;
-      });
-    });
-
-    const sortedDates = Array.from(byDate.keys())
-      .filter((date) => byDate.get(date)?.hasProductivity)
-      .sort((a, b) => parseDateForSort(a) - parseDateForSort(b));
-
-    return sortedDates.map((date) => {
-      const acc = byDate.get(date)!;
-      let dateLabel = date;
-      const parts = date.split("-");
-      if (parts.length === 3 && parts[0].length === 4) {
-        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        if (!isNaN(d.getTime())) {
-          dateLabel = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" }).format(d);
-        }
-      }
-
-      return {
-        date,
-        dateLabel,
-        productivity: acc.totalProd,
-        csat: acc.countCsat > 0 ? Number((acc.sumCsat / acc.countCsat).toFixed(2)) : null,
-        csatScFull: acc.countCsatFull > 0 ? Number(((acc.sumCsatFull / acc.countCsatFull) * 100).toFixed(2)) : null,
-        csatScFair: acc.countCsatFair > 0 ? Number(((acc.sumCsatFair / acc.countCsatFair) * 100).toFixed(2)) : null,
-        sla1m: acc.countSla1m > 0 ? Number((acc.sumSla1m / acc.countSla1m).toFixed(2)) : null,
-        sla3m: acc.countSla3m > 0 ? Number((acc.sumSla3m / acc.countSla3m).toFixed(2)) : null,
-        whu: acc.countWhu > 0 ? Number((acc.sumWhu / acc.countWhu).toFixed(2)) : null,
-        qa: acc.countQa > 0 ? Number((acc.sumQa / acc.countQa).toFixed(2)) : null,
-        attendance: acc.totalAttendanceDuty > 0 ? Number(((acc.totalAttendancePresence / acc.totalAttendanceDuty) * 100).toFixed(2)) : null,
-        avgProductivity: acc.totalAttendanceDuty > 0 ? Number((acc.totalProd / acc.totalAttendanceDuty).toFixed(2)) : null,
-      };
-    });
-  };
-
-  const dailyTrend = useMemo(() => {
-    const current = generateDailyTrend(data);
-    const previous = isComparisonEnabled ? generateDailyTrend(previousData) : [];
-    const originCurrent = current[0]?.date || '';
-    const originPrevious = previous[0]?.date || '';
-    const dayOffset = (iso: string, origin: string) => {
-      if (!iso || !origin) return Number.NaN;
-      return Math.round((parseDateForSort(iso) - parseDateForSort(origin)) / 86400000);
-    };
-    const prevByOffset = new Map(
-      previous.map((item) => [dayOffset(item.date, originPrevious), item]),
-    );
-
-    return current.map((item) => {
-      const prevItem = prevByOffset.get(dayOffset(item.date, originCurrent));
-      return {
-        ...item,
-        prevProductivity: prevItem ? prevItem.productivity : null,
-        prevDateLabel: prevItem ? prevItem.dateLabel : null,
-      };
-    });
-  }, [data, previousData, isComparisonEnabled]);
+  const dailyTrend = useMemo(
+    () => withPreviousProductivity(buildDailyTrend(data), isComparisonEnabled ? buildDailyTrend(previousData) : []),
+    [data, previousData, isComparisonEnabled],
+  );
 
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-4 gap-4">
-        <h1 className="text-lg font-bold text-text-primary shrink-0">
-          Dashboard Summary{" "}
-          <span className="block sm:inline text-text-muted font-normal text-sm sm:ml-2">
-            Periode aktif: Live
-          </span>
-        </h1>
-
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Cari CS ID atau nama..."
-              aria-label="Cari CS ID atau nama..."
-              className="pl-8 pr-3 py-1.5 border border-border bg-card text-text-primary rounded-xl text-xs focus:border-primary focus:outline-none w-full md:w-56"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <svg
-              className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-              />
-            </svg>
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow={todayLabel}
+        title="Dashboard Summary"
+        subtitle="Pulse KPI live chat: apa yang sudah tercapai, apa yang meleset, dan apa yang perlu perhatian."
+        actions={<SearchField value={search} onChange={setSearch} />}
+      />
 
       {!data.length && (
         <EmptyState
@@ -416,18 +140,15 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
               <>
                 <AttentionStrip stats={currentStats as unknown as Record<string, number | null | undefined>} data={data} />
                 {/* Hero KPI strip — the five people lead with */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-5">
                   <StatCard
-                    variant="hero"
                     title="Total Productivity"
                     value={formatNum(currentStats.productivity, 0)}
                     sparkValues={trend("productivity")}
                     delta={getDelta(currentStats.productivity, previousStats.productivity)}
                     previousValue={prev(formatNum(previousStats.productivity, 0))}
-                    kpiTheme="productivity"
                   />
                   <StatCard
-                    variant="hero"
                     title="Avg Productivity"
                     value={formatNum(currentStats.avgProductivity, 0)}
                     rawValue={currentStats.avgProductivity}
@@ -436,10 +157,8 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     sparkValues={trend("avgProductivity")}
                     delta={getDelta(currentStats.avgProductivity, previousStats.avgProductivity)}
                     previousValue={prev(formatNum(previousStats.avgProductivity, 0))}
-                    kpiTheme="productivity-avg"
                   />
                   <StatCard
-                    variant="hero"
                     title="CSAT Official"
                     value={formatNum(currentStats.csat)}
                     unit="/ 5"
@@ -450,10 +169,8 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     delta={getDelta(currentStats.csat, previousStats.csat)}
                     deltaDec={2}
                     previousValue={prev(formatNum(previousStats.csat) + " / 5")}
-                    kpiTheme="csat"
                   />
                   <StatCard
-                    variant="hero"
                     title="QA Score"
                     value={formatNum(currentStats.qa) + "%"}
                     rawValue={currentStats.qa}
@@ -462,10 +179,8 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     sparkValues={trend("qa")}
                     delta={getDelta(currentStats.qa, previousStats.qa)}
                     previousValue={prev(formatNum(previousStats.qa) + "%")}
-                    kpiTheme="qa"
                   />
                   <StatCard
-                    variant="hero"
                     title="Attendance"
                     value={formatNum(currentStats.attendance) + "%"}
                     rawValue={currentStats.attendance}
@@ -474,12 +189,11 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     sparkValues={trend("attendance")}
                     delta={getDelta(currentStats.attendance, previousStats.attendance)}
                     previousValue={prev(formatNum(previousStats.attendance) + "%")}
-                    kpiTheme="attendance"
                   />
                 </div>
 
                 {/* Secondary KPI tiles */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-5">
                   <StatCard
                     title="CSAT SC Full"
                     value={formatNum(currentStats.csatScFull) + "%"}
@@ -487,9 +201,9 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     targetType="csatFull"
                     targetLabel="75%"
                     subValue={currentStats.csatScFull > 0 ? formatNum((currentStats.csatScFull / 100) * 5, 2) + " poin" : undefined}
+                    sparkValues={trend("csatScFull")}
                     delta={getDelta(currentStats.csatScFull, previousStats.csatScFull)}
                     previousValue={prev(formatNum(previousStats.csatScFull) + "%")}
-                    kpiTheme="csat"
                   />
                   <StatCard
                     title="CSAT SC After Takeout"
@@ -498,9 +212,9 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     targetType="csatFair"
                     targetLabel="92%"
                     subValue={currentStats.csatScFair > 0 ? formatNum((currentStats.csatScFair / 100) * 5, 2) + " poin" : undefined}
+                    sparkValues={trend("csatScFair")}
                     delta={getDelta(currentStats.csatScFair, previousStats.csatScFair)}
                     previousValue={prev(formatNum(previousStats.csatScFair) + "%")}
-                    kpiTheme="csat"
                   />
                   <StatCard
                     title="SLA 1 Menit"
@@ -508,9 +222,9 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.sla1m}
                     targetType="sla1m"
                     targetLabel="92%"
+                    sparkValues={trend("sla1m")}
                     delta={getDelta(currentStats.sla1m, previousStats.sla1m)}
                     previousValue={prev(formatNum(previousStats.sla1m) + "%")}
-                    kpiTheme="sla"
                   />
                   <StatCard
                     title="SLA 3 Menit"
@@ -518,9 +232,9 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.sla3m}
                     targetType="sla3m"
                     targetLabel="96%"
+                    sparkValues={trend("sla3m")}
                     delta={getDelta(currentStats.sla3m, previousStats.sla3m)}
                     previousValue={prev(formatNum(previousStats.sla3m) + "%")}
-                    kpiTheme="sla"
                   />
                   <StatCard
                     title="WHU (%)"
@@ -528,9 +242,9 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.whu}
                     targetType="whu"
                     targetLabel="96%"
+                    sparkValues={trend("whu")}
                     delta={getDelta(currentStats.whu, previousStats.whu)}
                     previousValue={prev(formatNum(previousStats.whu) + "%")}
-                    kpiTheme="whu"
                   />
                 </div>
               </>
@@ -690,7 +404,7 @@ const KpiRulesPanel = ({
   const rules = Object.entries(KPI_FORMULAS);
 
   return (
-    <section className="rounded-xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+    <section className="ui-card p-0! overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
@@ -817,81 +531,43 @@ const CountUpValue = ({ value }: { value: string }) => {
 
 
 // --- "Perlu perhatian": KPIs under target (worst first) + the lowest CSAT SC agent ---
-type AttentionItem = { key: string; title: string; value: string; target: string; gap: string; level: 'miss' | 'watch'; rel: number };
-
 const AttentionStrip = ({ stats, data }: { stats: Record<string, number | null | undefined>; data: AgentKPI[] }) => {
-  const defs: { key: string; title: string; type: KpiType; stat: string; unit: string; dec: number }[] = [
-    { key: 'csatFair', title: 'CSAT SC After Takeout', type: 'csatFair', stat: 'csatScFair', unit: '%', dec: 1 },
-    { key: 'csatFull', title: 'CSAT SC Full', type: 'csatFull', stat: 'csatScFull', unit: '%', dec: 1 },
-    { key: 'csatOfficial', title: 'CSAT Official', type: 'csatOfficial', stat: 'csat', unit: '', dec: 2 },
-    { key: 'qa', title: 'QA Score', type: 'qa', stat: 'qa', unit: '%', dec: 1 },
-    { key: 'attendance', title: 'Attendance', type: 'attendance', stat: 'attendance', unit: '%', dec: 1 },
-    { key: 'sla1m', title: 'SLA 1 Menit', type: 'sla1m', stat: 'sla1m', unit: '%', dec: 1 },
-    { key: 'sla3m', title: 'SLA 3 Menit', type: 'sla3m', stat: 'sla3m', unit: '%', dec: 1 },
-    { key: 'whu', title: 'WHU', type: 'whu', stat: 'whu', unit: '%', dec: 1 },
-    { key: 'productivity', title: 'Avg Productivity', type: 'productivity', stat: 'avgProductivity', unit: '', dec: 0 },
-  ];
-  const items: AttentionItem[] = [];
-  defs.forEach((d) => {
-    const val = stats[d.stat];
-    if (val === null || val === undefined || Number.isNaN(val)) return;
-    const status = getKpiStatus(val, d.type);
-    if (status !== 'miss' && status !== 'watch') return;
-    const target = KPI_TARGETS[d.type];
-    items.push({
-      key: d.key, title: d.title, level: status, rel: (val - target) / target,
-      value: `${formatNum(val, d.dec)}${d.unit}`, target: `${formatNum(target, d.type === 'csatOfficial' ? 2 : 0)}${d.unit}`,
-      gap: `−${formatNum(Math.abs(val - target), d.dec)}`,
-    });
-  });
-  items.sort((a, b) => a.rel - b.rel);
-
-  const lowAgent = useMemo(() => {
-    let best: { name: string; pct: number; n: number } | null = null;
-    data.forEach((a) => {
-      const n = a.csatScTotalValid || 0;
-      if (n < 30) return;
-      const pct = ((a.csatScGoodCount || 0) / n) * 100;
-      if (!best || pct < best.pct) best = { name: a.name || a.csId, pct, n };
-    });
-    return best as { name: string; pct: number; n: number } | null;
-  }, [data]);
-
+  const items = useMemo(() => buildAttentionItems(stats), [stats]);
+  const lowAgent = useMemo(() => lowestCsatScAgent(data), [data]);
   const shown = items.slice(0, 4);
   const allGood = shown.length === 0;
   return (
-    <section className="rounded-2xl border border-border bg-card px-4 py-3" aria-label="Perlu perhatian">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2 pr-2">
-          {allGood ? <CheckCircle size={16} className="text-success" /> : <AlertTriangle size={16} className="text-warning" />}
-          <h2 className="text-sm font-bold text-text-primary">{allGood ? 'Semua KPI utama sesuai target' : 'Perlu perhatian'}</h2>
+    <Card size="sm" flat aria-label="Perlu perhatian">
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
+        <div className="flex items-center gap-2 pr-1">
+          {allGood ? <CheckCircle size={18} className="text-success" /> : <AlertTriangle size={18} className="text-warning" />}
+          <h2 className="text-[15px] font-bold text-text-primary">{allGood ? 'Semua KPI utama sesuai target' : 'Perlu perhatian'}</h2>
         </div>
         {shown.map((it) => (
-          <div key={it.key} className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full sm:w-auto rounded-xl px-3 py-1.5 text-xs ${it.level === 'miss' ? 'bg-danger-soft text-danger-text' : 'bg-warning-soft text-warning-text'}`}>
+          <Pill key={it.key} tone={it.level === 'miss' ? 'bad' : 'warn'} className="w-full flex-wrap !whitespace-normal sm:w-auto">
             <span aria-hidden>{it.level === 'miss' ? '▼' : '▽'}</span>
-            <span className="font-semibold">{it.title}</span>
-            <span className="tabular-nums">{it.value}</span>
-            <span className="tabular-nums opacity-80 w-full sm:w-auto pl-5 sm:pl-0"><span className="hidden sm:inline">· </span>target {it.target} · {it.gap}</span>
-          </div>
+            <span>{it.title}</span>
+            <b className="tabular-nums">{it.value}</b>
+            <span className="font-normal tabular-nums opacity-80">· target {it.target} · {it.gap}</span>
+          </Pill>
         ))}
         {lowAgent && lowAgent.pct < KPI_TARGETS.csatFull && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full sm:w-auto rounded-xl bg-surface-muted px-3 py-1.5 text-xs text-text-secondary">
-            <Users size={13} aria-hidden />
-            <span>CSAT SC agent terendah:</span>
-            <span className="font-semibold text-text-primary">{lowAgent.name}</span>
-            <span className="tabular-nums w-full sm:w-auto pl-5 sm:pl-0">{formatNum(lowAgent.pct, 1)}% · {formatNum(lowAgent.n, 0)} respons</span>
-          </div>
+          <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-text-secondary sm:ml-auto sm:w-auto">
+            <Users size={14} aria-hidden />
+            CSAT SC agent terendah: <b className="font-semibold text-text-primary">{lowAgent.name}</b>
+            <span className="tabular-nums">{formatNum(lowAgent.pct, 1)}% · {formatNum(lowAgent.n, 0)} respons</span>
+          </span>
         )}
       </div>
-    </section>
+    </Card>
   );
 };
 
 const STATUS_TEXT_CLASS: Record<string, string> = {
   on: 'text-text-primary',
   none: 'text-text-primary',
-  watch: 'text-warning',
-  miss: 'text-danger',
+  watch: 'text-warning-text',
+  miss: 'text-danger-text',
 };
 
 const StatCard = ({
@@ -903,11 +579,9 @@ const StatCard = ({
   targetLabel,
   sparkValues,
   subValue,
-  kpiTheme,
   delta,
   deltaDec,
   previousValue,
-  variant = 'mini',
 }: {
   title: string;
   value: string;
@@ -917,91 +591,61 @@ const StatCard = ({
   targetLabel?: string;
   sparkValues?: Array<number | null | undefined>;
   subValue?: string;
-  kpiTheme: string;
   delta?: number;
   /** Fixed decimals for the delta chip (e.g. 2 for CSAT stars); default: 0 for ≥100, else 1. */
   deltaDec?: number;
   previousValue?: string;
-  variant?: 'hero' | 'mini';
 }) => {
-  let Icon = Users;
-  if (kpiTheme.includes('productivity')) Icon = TrendingUp;
-  else if (kpiTheme === 'csat') Icon = Star;
-  else if (kpiTheme === 'sla') Icon = Clock;
-  else if (kpiTheme === 'whu') Icon = Activity;
-  else if (kpiTheme === 'qa') Icon = ClipboardCheck;
-  else if (kpiTheme === 'attendance') Icon = CheckCircle;
-
   const status = targetType ? getKpiStatus(rawValue, targetType) : 'none';
   const numberColor = STATUS_TEXT_CLASS[status] ?? 'text-text-primary';
-  const sparkColor =
-    status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'tint-spark';
+  const sparkColor = status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'text-primary';
   const isCompareMode = previousValue !== undefined;
-  const isHero = variant === 'hero';
-  const TINT: Record<string, string> = {
-    productivity: 'tint-blue', 'productivity-avg': 'tint-indigo', csat: 'tint-purple', qa: 'tint-teal',
-    attendance: 'tint-indigo', sla: 'tint-teal', whu: 'tint-blue',
-  };
-  const tint = TINT[kpiTheme] || 'tint-blue';
+  const showDelta = delta !== undefined && Math.abs(delta) >= 0.5 * 10 ** -(deltaDec ?? 1);
 
   return (
-    <div className={`bg-card tint-card ${tint} w-full border border-border rounded-2xl ${isHero ? 'p-5' : 'p-4'} flex flex-col gap-2.5 hover:-translate-y-0.5 hover:shadow-md relative overflow-visible`}>
-      <div className="flex items-center gap-2 w-full">
-        {isHero && (
-          <div className="tint-ico w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0">
-            <Icon size={14} />
-          </div>
-        )}
-        <p title={title} className="min-w-0 flex-1 text-[11.5px] font-medium text-text-secondary truncate">{title}</p>
+    <Card as="article" size="sm" className="flex w-full flex-col gap-3">
+      <div className="flex w-full items-center gap-2">
+        <p title={title} className="ui-card-label min-w-0 flex-1 truncate">{title}</p>
         <FormulaTooltip title={title} />
       </div>
 
-      <div className={`flex items-baseline gap-1 tabular-nums font-semibold tracking-tight leading-none ${numberColor} ${isHero ? 'text-[34px]' : 'text-[24px]'}`}>
+      <div className={`ui-stat-value ui-stat-md flex items-baseline tabular-nums ${numberColor}`}>
         <CountUpValue value={value} />
-        {unit && <span className="text-[13px] font-medium text-text-muted">{unit}</span>}
+        {unit && <span className="ui-stat-unit">{unit}</span>}
       </div>
 
-      {isHero && sparkValues && (
-        <div className={sparkColor}>
-          <Sparkline values={sparkValues} height={24} />
-        </div>
-      )}
-
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {targetLabel && !isCompareMode && (
-          <span className={`inline-flex items-center text-[11px] tabular-nums rounded-md px-1.5 py-0.5 ${
-            status === 'miss'
-              ? 'text-danger bg-danger/10'
-              : status === 'watch'
-                ? 'text-warning bg-warning/10'
-                : 'text-text-muted bg-surface-muted'
-          }`}>
-            target {targetLabel}
-          </span>
-        )}
-        {delta !== undefined && Math.abs(delta) >= 0.5 * 10 ** -(deltaDec ?? 1) && (
-          <span
-            className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${
-              delta > 0 ? 'text-success bg-success/10' : 'text-danger bg-danger/10'
-            }`}
+      <div className="flex min-h-[26px] flex-wrap items-center gap-x-2 gap-y-1.5">
+        {showDelta && (
+          <Pill
+            tone="neutral"
+            className="tabular-nums"
             title={isCompareMode ? undefined : 'Dibanding bulan lalu pada jumlah hari yang sama (bulan berjalan dipotong sampai tanggal data terakhir)'}
           >
-            {delta > 0 ? '▲ +' : '▼ −'}{formatNum(Math.abs(delta), deltaDec ?? (Math.abs(delta) >= 100 ? 0 : 1))}
-            {!isCompareMode && <span className="font-normal opacity-75 ml-0.5">vs bln lalu</span>}
-          </span>
+            <b className={delta! > 0 ? 'text-success-text' : 'text-danger-text'}>{delta! > 0 ? '▲' : '▼'}</b>
+            {delta! > 0 ? '+' : '−'}{formatNum(Math.abs(delta!), deltaDec ?? (Math.abs(delta!) >= 100 ? 0 : 1))}
+            {!isCompareMode && <span className="font-normal opacity-70">vs bln lalu</span>}
+          </Pill>
         )}
-        {subValue && !isCompareMode && (
-          <span className="text-[10px] font-medium text-text-muted">{subValue}</span>
+        {targetLabel && !isCompareMode && <span className="text-[12.5px] tabular-nums text-text-muted">target {targetLabel}</span>}
+        {(status === 'miss' || status === 'watch') && !isCompareMode && (
+          <Pill tone={status === 'miss' ? 'bad' : 'warn'}>{status === 'miss' ? '▼ Di bawah' : '▽ Hampir'}</Pill>
         )}
+        {subValue && !isCompareMode && <span className="text-[12px] font-medium text-text-muted">{subValue}</span>}
       </div>
 
-      {isCompareMode && (
-        <div className="flex items-center gap-1.5 pt-1.5 border-t border-border/60">
-          <span className="text-[9px] font-medium text-text-muted uppercase tracking-wide">Prev</span>
-          <span className="text-[13px] font-semibold text-text-secondary tabular-nums">{previousValue}</span>
+      {sparkValues && (
+        <div className={sparkColor}>
+          <Sparkline values={sparkValues} height={44} />
         </div>
       )}
-    </div>
+
+      {isCompareMode && (
+        <div className="flex items-center gap-2 border-t border-border/60 pt-2">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Prev</span>
+          <span className="text-[14px] font-semibold tabular-nums text-text-secondary">{previousValue}</span>
+        </div>
+      )}
+    </Card>
   );
 };
 
@@ -1060,7 +704,7 @@ const WeeklyReportPanel = ({
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-6 relative group">
+    <div className="ui-card p-0! overflow-hidden relative group">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-border bg-surface/40">
         <div className="flex items-center gap-3">

@@ -145,7 +145,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6 min-w-0">
       {/* KPI vs Target — bullet rows */}
-      <div className="bg-card border border-border rounded-lg p-5 min-w-0">
+      <div className="ui-card min-w-0">
         <div className="flex items-center justify-between gap-4 mb-5">
           <h2 className="text-sm font-bold text-text-primary">KPI vs Target</h2>
           <span className="inline-flex items-center gap-3 text-[9px] text-text-muted">
@@ -171,7 +171,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
       </div>
 
       {/* Weekly/Daily Trend Chart */}
-      <div className="bg-card border border-border rounded-lg p-5 min-w-0">
+      <div className="ui-card min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <h2 className="text-sm font-bold text-text-primary">
             {trendMode === 'weekly' ? 'Tren mingguan' : 'Tren harian'} <span className="text-text-muted font-medium text-xs ml-1">(Total Productivity)</span>

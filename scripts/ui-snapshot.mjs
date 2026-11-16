@@ -91,6 +91,8 @@ async function capture() {
     await page.waitForTimeout(5000);
 
     const open = async (label) => {
+      // Laci/modal dari tab sebelumnya (mis. detail Insentif di ponsel) menutupi menu: tutup dulu dengan klik di luar kartunya.
+      if (await page.locator('main div.fixed.inset-0').count()) { await page.mouse.click(3, 3); await page.waitForTimeout(500); }
       const item = page.getByRole('button', { name: label, exact: true }).first();
       if (vp === 'phone') {
         // Drawer menu: open it only when the item is not on screen (it closes itself after a selection).

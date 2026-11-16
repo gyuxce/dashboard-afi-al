@@ -468,6 +468,7 @@ export default function App() {
     return planComparison({ tab: planTab, isComparisonEnabled, comparisonMode, startDate, endDate, productivityLastDate, todayIso });
   }, [planTab, isComparisonEnabled, comparisonMode, startDate, endDate, productivityLastDate]);
   const { comparisonTabs, needsComparisonData, passivePrevMonth, weekRanges, monthRanges } = plan;
+  const previousPeriods = useMemo(() => ({ prev1: plan.prev1, prev2: plan.prev2, prev3: plan.prev3 }), [plan]);
 
   // Auto-disable comparison when switching to a tab that doesn't support it.
   useEffect(() => {
@@ -1115,7 +1116,7 @@ export default function App() {
             <div key={activeTab} className="tab-enter">
               <TabErrorBoundary label={activeNavLabel}>
                 <React.Suspense fallback={<TabLoading />}>
-                  {activeTab === 'summary' && <DashboardSummary data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekRanges={weekRanges} weekData={weekKpiData} />}
+                  {activeTab === 'summary' && <DashboardSummary data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekRanges={weekRanges} weekData={weekKpiData} previousPeriods={previousPeriods} />}
                   {activeTab === 'leaderboard' && <Leaderboard data={kpiData} />}
                   {activeTab === 'incentive' && (
                     isProcessingKpis && incentiveKpiData.length === 0
