@@ -10,8 +10,7 @@ import {
   formatCsId,
 } from "../../lib/utils";
 import { KpiValue, KpiCue } from "../ui/KpiCue";
-import { Sparkline } from "../ui/Sparkline";
-import { DayStrip } from "../ui/DayStrip";
+import { ProductivityDayCalendar } from "./ProductivityDayCalendar";
 import { chart } from "../../lib/themeColors";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../../store";
@@ -392,7 +391,7 @@ export const ProductivityDetail: React.FC<{
 
       {/* PER-AGENT — sparkline-first rank list */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] text-text-muted">Klik baris untuk chat harian · 3 terbawah ditandai garis merah</span>
+        <span className="text-[11px] text-text-muted">Klik baris untuk rincian harian · 3 terbawah ditandai garis merah</span>
       </div>
       <div
         ref={tableScrollRef}
@@ -404,9 +403,9 @@ export const ProductivityDetail: React.FC<{
               <th className="p-2 font-bold text-center border-b border-border bg-surface w-[48px]">No</th>
               <SortableHeader label="Nama / CS ID" sortKey="name" config={sortConfig} onSort={handleSort} className="border-b border-border bg-surface min-w-[200px]" />
               <SortableHeader label="BPO · TL" sortKey="teamLeader" config={sortConfig} onSort={handleSort} className="border-b border-border bg-surface min-w-[130px]" />
-              <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]">Tren harian</th>
+              <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]" title={`Rata-rata chat per man-day dibanding target ${PROD_TARGET}`}>Capaian target</th>
               <SortableHeader label="Total" sortKey="total" config={sortConfig} onSort={handleSort} className="text-right text-text-primary border-b border-border bg-surface w-[90px]" />
-              <SortableHeader label={`Avg/MD · t ${PROD_TARGET}`} sortKey="average" config={sortConfig} onSort={handleSort} className="text-right text-text-primary border-b border-border bg-surface w-[110px]" />
+              <SortableHeader label="Avg/MD" sortKey="average" config={sortConfig} onSort={handleSort} className="text-right text-text-primary border-b border-border bg-surface w-[110px]" />
               <SortableHeader label="Gap" sortKey="gap" config={sortConfig} onSort={handleSort} className="text-right text-text-primary border-b border-border bg-surface w-[84px]" />
               <th className="p-2 border-b border-border bg-surface w-[40px]" aria-hidden />
             </tr>
@@ -422,11 +421,6 @@ export const ProductivityDetail: React.FC<{
               const displayName = agent.name || agent.csId;
               const prodByDate = indexByDate(agent.dailyHistory?.productivity);
               const scheduleByDate = indexByDate(agent.dailyHistory?.schedule);
-              const dailyByDate = uniqueDates.map((date) => {
-                const d = getByCalendarDate(prodByDate, date);
-                return d && d.value !== null && d.value !== undefined ? d.value : null;
-              });
-              const sparkVals = [...dailyByDate].reverse();
               const md = agent.manDays;
               const avg = md > 0 ? agent.productivityTotal / md : null;
               const gap = md > 0 ? agent.productivityTotal - md * PROD_TARGET : null;
@@ -450,9 +444,14 @@ export const ProductivityDetail: React.FC<{
                       <span className="text-text-muted"> · {agent.teamLeader || "-"}</span>
                     </td>
                     <td className="p-2 min-w-[150px]">
-                      <div className={avgStat === "miss" ? "text-danger" : avgStat === "watch" ? "text-warning" : "text-text-muted"}>
-                        <Sparkline values={sparkVals} height={22} />
-                      </div>
+                      {avg !== null ? (
+                        <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-black/[0.07]" title={`${formatNum(avg, 0)} dari target ${PROD_TARGET}`}>
+                          <div
+                            className={`h-full rounded-full ${avgStat === "miss" ? "bg-danger" : avgStat === "watch" ? "bg-warning" : "bg-primary"}`}
+                            style={{ width: `${Math.max(0, Math.min(avg / PROD_TARGET, 1)) * 100}%` }}
+                          />
+                        </div>
+                      ) : null}
                     </td>
                     <td className="p-2 text-right w-[90px] text-[11px] tabular-nums text-text-secondary">
                       {formatNum(agent.productivityTotal, 0)}
@@ -477,12 +476,8 @@ export const ProductivityDetail: React.FC<{
                   {isOpen && (
                     <tr className="bg-surface/40 border-b border-border">
                       <td colSpan={tableColSpan} className="px-4 pb-4 pt-1">
-                        <div className="text-[9px] text-text-muted uppercase tracking-wide pt-3 pb-2">
-                          Chat per hari &mdash; hanya di bawah {PROD_TARGET} yang berwarna &middot; sel kosong = tidak ada data &middot; ²² shift 22:00, ᴾᴼ pullout
-                        </div>
-                        <DayStrip
-                          kpiType="productivity"
-                          items={chronoDates.map((date) => {
+                        <ProductivityDayCalendar
+                          cells={chronoDates.map((date) => {
                             const d = getByCalendarDate(prodByDate, date);
                             const sched = getByCalendarDate(scheduleByDate, date);
                             const st = (sched?.status || "").toUpperCase();
