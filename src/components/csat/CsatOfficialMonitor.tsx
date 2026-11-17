@@ -85,7 +85,16 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
           value={score !== null ? formatNum(score, 2) : '-'}
           unit={score !== null ? '/ 5' : undefined}
           tone={scoreTone}
-          sub={`Target ${targetLabel}`}
+          sub={score !== null && score >= CSAT_OFFICIAL_TARGET ? 'Target tercapai' : `Target ${targetLabel}`}
+          footer={score !== null ? (
+            <div className="relative h-2 rounded-full bg-black/[0.07]" title={`${formatNum(score, 2)} dari 5 · target ${targetLabel}`}>
+              <div
+                className={`h-full rounded-full ${scoreStatus === 'miss' ? 'bg-danger' : scoreStatus === 'watch' ? 'bg-warning' : 'bg-primary'}`}
+                style={{ width: `${Math.max(0, Math.min(score / 5, 1)) * 100}%` }}
+              />
+              <div className="absolute -top-0.5 h-3 w-px bg-text-secondary" style={{ left: `${(CSAT_OFFICIAL_TARGET / 5) * 100}%` }} aria-hidden />
+            </div>
+          ) : undefined}
         />
         <StatCard
           label="Total responden"

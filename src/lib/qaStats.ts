@@ -1,5 +1,6 @@
 import { normalizeDateStr, type AgentKPI, type QAEntry } from './dataProcessor';
-import { formatCalendarHeader, formatNum, parseDateForSort } from './utils';
+import { formatDayMonth } from './dayCalendar';
+import { formatNum, parseDateForSort } from './utils';
 
 /** QA target, percent (KPI_TARGETS.qa). */
 export const QA_TARGET = 92;
@@ -181,7 +182,7 @@ export function buildQaHighlights(tableData: AgentKPI[], defectData: QaDefectAge
     mistakeRate: totalEvaluations > 0 ? (totalMistakes / totalEvaluations) * 100 : 0,
     topCategories: categoriesByCount.slice(0, 3).map((c) => ({ label: c.category, value: `${formatNum(c.count, 0)} temuan` })),
     bottomDays: daysByQa.slice(0, 3).map((d) => ({
-      label: formatCalendarHeader(d.date),
+      label: formatDayMonth(d.date),
       subLabel: `${formatNum(d.mistakes, 0)} temuan · ${formatNum(d.scoreCount, 0)} evaluasi`,
       value: `${formatNum(d.avg, 1)}%`,
     })),

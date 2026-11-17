@@ -17,6 +17,8 @@ export const DayCalendar: React.FC<{
   target: number;
   /** Heading, e.g. "Chat per hari". */
   title: string;
+  /** Small hint under the legend, e.g. "Klik hari untuk audit trail". */
+  hint?: string;
   /** Target as shown in the digest, default `formatNum(target)`. */
   targetText?: string;
   /** value → cell text. Default: integer. */
@@ -29,7 +31,7 @@ export const DayCalendar: React.FC<{
   onSelect?: (date: string) => void;
   /** Show the shift-22 / pullout legend (Productivity only). */
   showMarkerLegend?: boolean;
-}> = ({ cells, kpiType, target, title, targetText, format = (v) => formatNum(v, 0), formatExtreme, emptyText = "tanpa data", onSelect, showMarkerLegend = false }) => {
+}> = ({ cells, kpiType, target, title, hint, targetText, format = (v) => formatNum(v, 0), formatExtreme, emptyText = "tanpa data", onSelect, showMarkerLegend = false }) => {
   const summary = useMemo(() => summarizeDays(cells, target), [cells, target]);
   const weeks = useMemo(() => buildWeekGrid(cells), [cells]);
   const hasOff = cells.some((c) => c.off);
@@ -71,6 +73,7 @@ export const DayCalendar: React.FC<{
           {hasOff && <span className="inline-flex items-center gap-1"><span className="text-[10px] italic text-text-disabled">off</span> libur terjadwal</span>}
           <span className="inline-flex items-center gap-1"><span className="text-text-disabled">–</span> {emptyText}</span>
         </div>
+        {hint && <div className="text-[11px] text-text-muted">{hint}</div>}
       </div>
 
       <div className="min-w-0 flex-1 lg:max-w-[560px]">

@@ -3,8 +3,7 @@ import { AgentKPI, normalizeDateStr } from '../../lib/dataProcessor';
 import { QA_TARGET, buildDefectData, buildQaHighlights, filterQaAgents, isQaDefect, sortDefectAgents, sortPerformanceAgents, type SortConfig } from '../../lib/qaStats';
 import { formatNum, getKpiStatus, groupByDate, uniqueCalendarDates, getGroupByCalendarDate, formatCalendarHeader, parseDateForSort, formatCsId } from '../../lib/utils';
 import { KpiValue, KpiCue, KpiLegend } from '../ui/KpiCue';
-import { Sparkline } from '../ui/Sparkline';
-import { DayStrip } from '../ui/DayStrip';
+import { DayCalendar } from '../ui/DayCalendar';
 import { Eye, X, BarChart2, AlertCircle, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 
 import { SortableHeader } from '../ui/SortableHeader';
@@ -139,8 +138,8 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                   <th className="p-2 font-bold text-center border-b border-border bg-surface w-[48px]">No</th>
                   <SortableHeader label="Nama / CS ID" sortKey="name" config={perfSortConfig} onSort={handlePerfSort} className="border-b border-border bg-surface min-w-[200px]" />
                   <SortableHeader label="BPO · TL" sortKey="teamLeader" config={perfSortConfig} onSort={handlePerfSort} className="border-b border-border bg-surface min-w-[130px]" />
-                  <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]">Tren 20 hari</th>
-                  <SortableHeader label="Rata-rata QA" sortKey="average" config={perfSortConfig} onSort={handlePerfSort} className="text-right text-text-primary border-b border-border bg-surface w-[112px]" />
+                  <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]" title={`Rata-rata QA dibanding target ${QA_TARGET}`}>Capaian target</th>
+                  <SortableHeader label="Rata-rata" sortKey="average" config={perfSortConfig} onSort={handlePerfSort} className="text-right text-text-primary border-b border-border bg-surface w-[112px]" />
                   <th className="p-2 font-bold text-right text-text-muted border-b border-border bg-surface w-[72px]">vs&nbsp;92</th>
                   <th className="p-2 font-bold text-right text-text-muted border-b border-border bg-surface w-[84px]">Defect</th>
                   <th className="p-2 border-b border-border bg-surface w-[40px]" aria-hidden />
@@ -182,9 +181,14 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                         <span className="text-text-muted"> · {agent.teamLeader || '-'}</span>
                       </td>
                       <td className="p-2 min-w-[150px]">
-                        <div className={vsStatus === 'miss' ? 'text-danger' : vsStatus === 'watch' ? 'text-warning' : 'text-text-muted'}>
-                          <Sparkline values={dailyAvgs} height={22} />
-                        </div>
+                        {avg !== null ? (
+                          <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-black/[0.07]" title={`${formatNum(avg, 2)} dari target ${QA_TARGET}`}>
+                            <div
+                              className={`h-full rounded-full ${vsStatus === 'miss' ? 'bg-danger' : vsStatus === 'watch' ? 'bg-warning' : 'bg-primary'}`}
+                              style={{ width: `${Math.max(0, Math.min(avg / QA_TARGET, 1)) * 100}%` }}
+                            />
+                          </div>
+                        ) : null}
                       </td>
                       <td className="p-2 text-right w-[112px]">
                         {avg !== null ? (
@@ -221,14 +225,15 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                     {isOpen && (
                       <tr className="bg-surface/40 border-b border-border">
                         <td colSpan={perfTableColSpan} className="px-4 pb-4 pt-1">
-                          <div className="text-[9px] text-text-muted uppercase tracking-wide pt-3 pb-2">
-                            QA per hari &mdash; hanya di bawah target yang berwarna &middot; sel kosong = tidak ada audit &middot; klik untuk audit trail
-                          </div>
-                          <DayStrip
+                          <DayCalendar
                             kpiType="qa"
-                            format={(v) => formatNum(v, 2)}
-                            chipWidth={50}
-                            items={uniqueDates.map((date, di) => ({ date, value: dailyAvgs[di] })).slice().reverse()}
+                            target={QA_TARGET}
+                            title="Skor QA per hari"
+                            hint="Klik satu hari untuk membuka audit trail defect-nya."
+                            emptyText="tanpa audit"
+                            format={(v) => formatNum(v, 1)}
+                            formatExtreme={(v) => formatNum(v, 2)}
+                            cells={uniqueDates.map((date, di) => ({ date, value: dailyAvgs[di] })).slice().reverse()}
                             onSelect={(date) => setSelectedAgent({ agent, date, type: 'defects' })}
                           />
                         </td>

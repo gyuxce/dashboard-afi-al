@@ -18,21 +18,12 @@ export type KpiRankCardConfig = {
 type RankCardProps = KpiRankCardConfig;
 
 const RankCard: React.FC<RankCardProps> = ({ title, items, tone = 'neutral', emptyText = 'Belum ada data' }) => {
-  const toneClass =
-    tone === 'good'
-      ? 'border-t-success'
-      : tone === 'bad'
-        ? 'border-t-danger'
-        : 'border-t-border';
-
   return (
-    <div
-      className={cn(
-        'rounded-lg border border-border border-t-[3px] bg-card p-4 min-w-0',
-        toneClass,
-      )}
-    >
-      <div className="text-[11px] font-medium tracking-wide text-text-muted mb-3">{title}</div>
+    <div className="min-w-0">
+      <div className="mb-3 flex items-center gap-2 text-[12px] font-semibold text-text-secondary">
+        <span className={cn('h-2 w-2 rounded-full', tone === 'good' ? 'bg-success' : tone === 'bad' ? 'bg-danger' : 'bg-border')} aria-hidden />
+        {title}
+      </div>
       {items.length === 0 ? (
         <p className="text-xs text-text-muted">{emptyText}</p>
       ) : (
@@ -117,7 +108,7 @@ export function KpiRankLists({
       {open ? (
         <div
           className={cn(
-            'grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-border p-3',
+            'grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6 border-t border-border p-5',
             visible.length >= 4 ? 'xl:grid-cols-4' : visible.length === 3 ? 'xl:grid-cols-3' : '',
           )}
         >
