@@ -10,8 +10,7 @@ import {
   formatCsId,
 } from '../../lib/utils';
 import { KpiValue, KpiCue, KpiLegend } from '../ui/KpiCue';
-import { Sparkline } from '../ui/Sparkline';
-import { DayStrip } from '../ui/DayStrip';
+import { DayCalendar } from '../ui/DayCalendar';
 import { ChevronDown } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { SearchField } from '../ui/SearchField';
@@ -102,8 +101,8 @@ export const SlaWhuMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
               <th className="p-2 font-bold text-center border-b border-border bg-surface w-[48px]">No</th>
               <SortableHeader label="Nama / CS ID" sortKey="name" config={sortConfig} onSort={handleSort} className="border-b border-border bg-surface min-w-[200px]" />
               <SortableHeader label="BPO · TL" sortKey="teamLeader" config={sortConfig} onSort={handleSort} className="border-b border-border bg-surface min-w-[130px]" />
-              <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]">Tren 20 hari</th>
-              <SortableHeader label={`Rata-rata · t ${cfg.target}%`} sortKey="average" config={sortConfig} onSort={handleSort} className="text-right text-text-primary border-b border-border bg-surface w-[110px]" />
+              <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]" title={`Rata-rata dibanding target ${cfg.target}%`}>Capaian target</th>
+              <SortableHeader label="Rata-rata" sortKey="average" config={sortConfig} onSort={handleSort} className="text-right text-text-primary border-b border-border bg-surface w-[110px]" />
               <th className="p-2 font-bold text-right text-text-muted border-b border-border bg-surface w-[72px]">vs&nbsp;{cfg.target}</th>
               <th className="p-2 border-b border-border bg-surface w-[40px]" aria-hidden />
             </tr>
@@ -143,9 +142,14 @@ export const SlaWhuMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                       <span className="text-text-muted"> · {agent.teamLeader || '-'}</span>
                     </td>
                     <td className="p-2 min-w-[150px]">
-                      <div className={status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'text-text-muted'}>
-                        <Sparkline values={dailyVals} height={22} />
-                      </div>
+                      {avg !== null ? (
+                        <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-black/[0.07]" title={`${formatNum(avg, 1)}% dari target ${cfg.target}%`}>
+                          <div
+                            className={`h-full rounded-full ${status === 'miss' ? 'bg-danger' : status === 'watch' ? 'bg-warning' : 'bg-primary'}`}
+                            style={{ width: `${Math.max(0, Math.min(avg / cfg.target, 1)) * 100}%` }}
+                          />
+                        </div>
+                      ) : null}
                     </td>
                     <td className="p-2 text-right w-[110px]">
                       {avg !== null
@@ -167,12 +171,13 @@ export const SlaWhuMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                   {isOpen && (
                     <tr className="bg-surface/40 border-b border-border">
                       <td colSpan={colSpan} className="px-4 pb-4 pt-1">
-                        <div className="text-[9px] text-text-muted uppercase tracking-wide pt-3 pb-2">
-                          {cfg.label} per hari &mdash; hanya di bawah target yang berwarna &middot; sel kosong = tidak ada data
-                        </div>
-                        <DayStrip
+                        <DayCalendar
                           kpiType={cfg.type}
-                          items={uniqueDates.map((date, di) => ({ date, value: dailyVals[di] })).slice().reverse()}
+                          target={cfg.target}
+                          targetText={`${cfg.target}%`}
+                          title={`${cfg.label} per hari`}
+                          format={(v) => formatNum(v, 1)}
+                          cells={uniqueDates.map((date, di) => ({ date, value: dailyVals[di] })).slice().reverse()}
                         />
                       </td>
                     </tr>

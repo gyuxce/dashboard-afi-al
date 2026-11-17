@@ -1,5 +1,6 @@
 import type { AgentKPI } from './dataProcessor';
 import { isCsatTakeoutCategory } from './dataProcessor';
+import { formatDayMonth } from './dayCalendar';
 import { formatNum } from './utils';
 
 export type RoomViewMode = 'full' | 'fair';
@@ -91,7 +92,7 @@ export function buildRoomHighlights(tableData: AgentKPI[], viewMode: RoomViewMod
   return {
     topCategories: categories.slice(0, 3).map((c) => ({ label: c.name, value: formatNum(c.count, 0) })),
     bottomDays: daysByScore.slice(0, 3).map((d) => ({
-      label: d.date,
+      label: formatDayMonth(d.date),
       subLabel: `${formatNum(d.count, 0)} rating`,
       value: `${formatNum(d.pct, 1)}%`,
     })),

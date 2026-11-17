@@ -86,7 +86,7 @@ describe('buildRoomHighlights', () => {
     expect(h.topAgents.map((x) => x.label)).toEqual(['A', 'B']);
     expect(h.topAgents[0].value).toBe('80,0%');
     expect(h.bottomAgents).toEqual([]);
-    expect(h.bottomDays[0]).toEqual({ label: '2026-10-01', subLabel: '20 rating', value: '50,0%' });
+    expect(h.bottomDays[0]).toEqual({ label: '1 Okt', subLabel: '20 rating', value: '50,0%' });
     expect(h.bottomDays[1].value).toBe('50,0%');
   });
 

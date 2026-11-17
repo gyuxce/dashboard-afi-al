@@ -20,8 +20,7 @@ import {
 } from '../../lib/csatRoomStats';
 import { formatNum, getKpiStatus, getMonthOffsetLabel, parseDateForSort, cn, indexByDate, uniqueCalendarDates, getByCalendarDate, formatCsId } from '../../lib/utils';
 import { KpiValue, KpiCue } from '../ui/KpiCue';
-import { Sparkline } from '../ui/Sparkline';
-import { DayStrip } from '../ui/DayStrip';
+import { DayCalendar } from '../ui/DayCalendar';
 import { Search, Star, Eye, AlertCircle, ChevronDown, BarChart2, CheckCircle, Filter, Layers, TrendingUp } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store';
@@ -586,8 +585,8 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                 <th className="p-2 font-bold text-center border-b border-border bg-surface w-[48px]">No</th>
                 <SortableHeader label="Nama / CS ID" sortKey="name" config={agentSortConfig} onSort={handleAgentSort} className="border-b border-border bg-surface min-w-[200px]" />
                 <SortableHeader label="BPO · TL" sortKey="teamLeader" config={agentSortConfig} onSort={handleAgentSort} className="border-b border-border bg-surface min-w-[130px]" />
-                <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]">Tren 20 hari</th>
-                <SortableHeader label={`Rata-rata · t ${csatTarget}%`} sortKey="average" config={agentSortConfig} onSort={handleAgentSort} className="text-right text-text-primary border-b border-border bg-surface w-[130px]" />
+                <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]" title={`Rata-rata dibanding target ${csatTarget}%`}>Capaian target</th>
+                <SortableHeader label="Rata-rata" sortKey="average" config={agentSortConfig} onSort={handleAgentSort} className="text-right text-text-primary border-b border-border bg-surface w-[130px]" />
                 <th className="p-2 font-bold text-right text-text-muted border-b border-border bg-surface w-[72px]">vs&nbsp;{csatTarget}</th>
                 <th className="p-2 border-b border-border bg-surface w-[40px]" aria-hidden />
               </tr>
@@ -627,9 +626,14 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                         <span className="text-text-muted"> · {agent.teamLeader || '-'}</span>
                       </td>
                       <td className="p-2 min-w-[150px]">
-                        <div className={status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'text-text-muted'}>
-                          <Sparkline values={dailyVals} height={22} />
-                        </div>
+                        {pct !== null ? (
+                          <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-black/[0.07]" title={`${formatNum(pct)}% dari target ${csatTarget}%`}>
+                            <div
+                              className={`h-full rounded-full ${status === 'miss' ? 'bg-danger' : status === 'watch' ? 'bg-warning' : 'bg-primary'}`}
+                              style={{ width: `${Math.max(0, Math.min(pct / csatTarget, 1)) * 100}%` }}
+                            />
+                          </div>
+                        ) : null}
                       </td>
                       <td className="p-2 text-right w-[130px]">
                         {pct !== null ? (
@@ -656,23 +660,24 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                     {isOpen && (
                       <tr className="bg-surface/40 border-b border-border">
                         <td colSpan={7} className="px-4 pb-4 pt-1">
-                          <div className="flex items-center justify-between pt-3 pb-2">
-                            <span className="text-[9px] text-text-muted uppercase tracking-wide">
-                              CSAT per hari &mdash; hanya di bawah target yang berwarna &middot; klik sel untuk rincian
-                            </span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setSelectedAgent({ agent, type: 'csat' }); }}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-text-muted hover:text-primary transition-colors"
-                            >
-                              <Eye className="w-3 h-3" /> Lihat semua rating
-                            </button>
-                          </div>
-                          <DayStrip
+                          <DayCalendar
                             kpiType={csatKpiType}
-                            format={(v) => `${formatNum(v, 2)}%`}
-                            chipWidth={56}
+                            target={csatTarget}
+                            targetText={`${csatTarget}%`}
+                            title="CSAT per hari"
+                            hint="Klik satu hari untuk melihat rating-nya."
+                            emptyText="tanpa responden"
+                            format={(v) => `${formatNum(v, 1)}%`}
                             onSelect={(date) => setSelectedAgent({ agent, date, type: 'csat' })}
-                            items={chronoDates.map((date, di) => {
+                            action={
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedAgent({ agent, type: 'csat' }); }}
+                                className="inline-flex w-fit items-center gap-1 text-[11px] font-semibold text-text-muted hover:text-primary transition-colors"
+                              >
+                                <Eye className="w-3 h-3" /> Lihat semua rating
+                              </button>
+                            }
+                            cells={chronoDates.map((date, di) => {
                               const st = getByCalendarDate(scheduleByDate, date)?.status?.toUpperCase() || '';
                               return { date, value: dailyVals[di], off: st === 'OFF' || st === 'C' };
                             })}

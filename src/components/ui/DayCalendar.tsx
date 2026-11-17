@@ -17,6 +17,8 @@ export const DayCalendar: React.FC<{
   target: number;
   /** Heading, e.g. "Chat per hari". */
   title: string;
+  /** Extra control under the legend, e.g. a "see all ratings" button. */
+  action?: React.ReactNode;
   /** Small hint under the legend, e.g. "Klik hari untuk audit trail". */
   hint?: string;
   /** Target as shown in the digest, default `formatNum(target)`. */
@@ -31,7 +33,7 @@ export const DayCalendar: React.FC<{
   onSelect?: (date: string) => void;
   /** Show the shift-22 / pullout legend (Productivity only). */
   showMarkerLegend?: boolean;
-}> = ({ cells, kpiType, target, title, hint, targetText, format = (v) => formatNum(v, 0), formatExtreme, emptyText = "tanpa data", onSelect, showMarkerLegend = false }) => {
+}> = ({ cells, kpiType, target, title, hint, action, targetText, format = (v) => formatNum(v, 0), formatExtreme, emptyText = "tanpa data", onSelect, showMarkerLegend = false }) => {
   const summary = useMemo(() => summarizeDays(cells, target), [cells, target]);
   const weeks = useMemo(() => buildWeekGrid(cells), [cells]);
   const hasOff = cells.some((c) => c.off);
@@ -74,6 +76,7 @@ export const DayCalendar: React.FC<{
           <span className="inline-flex items-center gap-1"><span className="text-text-disabled">–</span> {emptyText}</span>
         </div>
         {hint && <div className="text-[11px] text-text-muted">{hint}</div>}
+        {action}
       </div>
 
       <div className="min-w-0 flex-1 lg:max-w-[560px]">
