@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import { AgentKPI } from "../../lib/dataProcessor";
-import { formatNum, getKpiStatus, KPI_TARGETS, type KpiType } from "../../lib/utils";
-import { AlertTriangle, CheckCircle, TrendingUp, Users, Info, ChevronDown, Download, ClipboardCopy } from "lucide-react";
+import { formatNum, getKpiStatus, type KpiType } from "../../lib/utils";
+import { TrendingUp, Info, Download, ClipboardCopy } from "lucide-react";
 import { Sparkline } from "../ui/Sparkline";
 import { Card } from "../ui/Card";
 import { PageHeader } from "../ui/PageHeader";
@@ -16,7 +16,6 @@ import type { CalendarWeek } from "../../lib/weeks";
 import { downloadBlob, renderTableSlide } from "../../lib/slideExport";
 import { buildDailyTrend, withPreviousProductivity } from "../../lib/dailyTrend";
 import { buildReportPanel, periodHasActivity } from "../../lib/reportPanel";
-import { buildAttentionItems, lowestCsatScAgent } from "../../lib/attention";
 import type { Period } from "../../lib/comparisonPlan";
 import {
   REPORT_METRICS,
@@ -46,7 +45,6 @@ const NO_PERIODS = { prev1: null, prev2: null, prev3: null } as const;
 
 export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], previousData2 = [], previousData3 = [], weekRanges = [], weekData = [], previousPeriods = NO_PERIODS }) => {
   const [search, setSearch] = useState("");
-  const [isRulesOpen, setIsRulesOpen] = useState(false);
   const { startDate, endDate, comparisonMode } = useStore(useShallow((s) => ({
     startDate: s.startDate,
     endDate: s.endDate,
@@ -138,7 +136,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
               dailyTrend.map((d) => d[key] as number | null);
             return (
               <>
-                <AttentionStrip stats={currentStats as unknown as Record<string, number | null | undefined>} data={data} />
                 {/* Hero KPI strip — the five people lead with */}
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-5">
                   <StatCard
@@ -250,11 +247,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
               </>
             );
           })()}
-
-          <KpiRulesPanel
-            isOpen={isRulesOpen}
-            onToggle={() => setIsRulesOpen((value) => !value)}
-          />
 
           {/* Weekly Report Panel - only shown when comparison is active + has data */}
           {isComparisonEnabled && reportPanel && (
@@ -394,175 +386,6 @@ const FormulaTooltip = ({ title }: { title: string }) => {
   );
 };
 
-const KpiRulesPanel = ({
-  isOpen,
-  onToggle,
-}: {
-  isOpen: boolean;
-  onToggle: () => void;
-}) => {
-  const rules = Object.entries(KPI_FORMULAS);
-
-  return (
-    <section className="ui-card p-0! overflow-hidden">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-surface/60 focus:outline-none focus:ring-2 focus:ring-primary/30"
-        aria-expanded={isOpen}
-      >
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Info size={14} className="shrink-0 text-primary" />
-            <h2 className="text-sm font-bold text-text-primary">Aturan KPI</h2>
-          </div>
-          <p className="mt-0.5 text-xs text-text-muted">
-            Target dan ringkasan cara penilaian setiap KPI.
-          </p>
-        </div>
-        <ChevronDown
-          size={16}
-          className={`shrink-0 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {isOpen && (
-        <div className="border-t border-border">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[11px]">
-              <thead className="bg-surface text-text-muted">
-                <tr>
-                  <th className="px-4 py-2 font-medium tracking-wide">KPI</th>
-                  <th className="px-4 py-2 font-medium tracking-wide">Target</th>
-                  <th className="px-4 py-2 font-medium tracking-wide">Cara Hitung</th>
-                  <th className="px-4 py-2 font-medium tracking-wide">Sumber Data</th>
-                  <th className="px-4 py-2 font-medium tracking-wide">Catatan</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rules.map(([name, rule], index) => (
-                  <tr
-                    key={name}
-                    className={`border-t border-border/60 ${index % 2 === 0 ? 'bg-surface/20' : ''}`}
-                  >
-                    <td className="px-4 py-3 font-semibold text-text-primary whitespace-nowrap">
-                      {name}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-text-secondary whitespace-nowrap">
-                      {rule.target || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-text-secondary min-w-[260px]">
-                      {rule.formula}
-                    </td>
-                    <td className="px-4 py-3 text-text-muted whitespace-nowrap">
-                      {rule.source}
-                    </td>
-                    <td className="px-4 py-3 text-text-muted min-w-[220px]">
-                      {rule.note || '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-};
-
-// Accepts Indonesian ("63.121", "3,62") and plain ("3.62") number strings.
-const parseDisplayValue = (value: string) => {
-  const match = value.match(/^(-?[\d.,]+)(.*)$/);
-  if (!match) return null;
-  const raw = match[1];
-  let normalized: string;
-  let decimals = 0;
-  if (raw.includes(",")) {
-    normalized = raw.replace(/\./g, "").replace(",", ".");
-    decimals = raw.split(",")[1].length;
-  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(raw)) {
-    normalized = raw.replace(/\./g, "");
-  } else {
-    normalized = raw;
-    decimals = raw.includes(".") ? raw.split(".")[1].length : 0;
-  }
-  const target = Number(normalized);
-  if (Number.isNaN(target)) return null;
-  return { target, decimals, suffix: match[2] };
-};
-
-const formatCount = (n: number, decimals: number) =>
-  n.toLocaleString("id-ID", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-
-const CountUpValue = ({ value }: { value: string }) => {
-  const parsed = parseDisplayValue(value);
-  const [displayValue, setDisplayValue] = useState(value);
-
-  useEffect(() => {
-    if (!parsed || Number.isNaN(parsed.target)) {
-      setDisplayValue(value);
-      return;
-    }
-
-    let animationFrame = 0;
-    const durationMs = 800;
-    const startedAt = performance.now();
-
-    const tick = (now: number) => {
-      const progress = Math.min((now - startedAt) / durationMs, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const nextValue = parsed.target * eased;
-      setDisplayValue(`${formatCount(nextValue, parsed.decimals)}${parsed.suffix}`);
-
-      if (progress < 1) {
-        animationFrame = requestAnimationFrame(tick);
-      }
-    };
-
-    setDisplayValue(`${formatCount(0, parsed.decimals)}${parsed.suffix}`);
-    animationFrame = requestAnimationFrame(tick);
-
-    return () => cancelAnimationFrame(animationFrame);
-  }, [value, parsed?.target, parsed?.decimals, parsed?.suffix]);
-
-  return <>{displayValue}</>;
-};
-
-
-// --- "Perlu perhatian": KPIs under target (worst first) + the lowest CSAT SC agent ---
-const AttentionStrip = ({ stats, data }: { stats: Record<string, number | null | undefined>; data: AgentKPI[] }) => {
-  const items = useMemo(() => buildAttentionItems(stats), [stats]);
-  const lowAgent = useMemo(() => lowestCsatScAgent(data), [data]);
-  const shown = items.slice(0, 4);
-  const allGood = shown.length === 0;
-  return (
-    <Card size="sm" flat aria-label="Perlu perhatian">
-      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
-        <div className="flex items-center gap-2 pr-1">
-          {allGood ? <CheckCircle size={18} className="text-success" /> : <AlertTriangle size={18} className="text-warning" />}
-          <h2 className="text-[15px] font-bold text-text-primary">{allGood ? 'Semua KPI utama sesuai target' : 'Perlu perhatian'}</h2>
-        </div>
-        {shown.map((it) => (
-          <Pill key={it.key} tone={it.level === 'miss' ? 'bad' : 'warn'} className="w-full flex-wrap !whitespace-normal sm:w-auto">
-            <span aria-hidden>{it.level === 'miss' ? '▼' : '▽'}</span>
-            <span>{it.title}</span>
-            <b className="tabular-nums">{it.value}</b>
-            <span className="font-normal tabular-nums opacity-80">· target {it.target} · {it.gap}</span>
-          </Pill>
-        ))}
-        {lowAgent && lowAgent.pct < KPI_TARGETS.csatFull && (
-          <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-text-secondary sm:ml-auto sm:w-auto">
-            <Users size={14} aria-hidden />
-            CSAT SC agent terendah: <b className="font-semibold text-text-primary">{lowAgent.name}</b>
-            <span className="tabular-nums">{formatNum(lowAgent.pct, 1)}% · {formatNum(lowAgent.n, 0)} respons</span>
-          </span>
-        )}
-      </div>
-    </Card>
-  );
-};
-
 const STATUS_TEXT_CLASS: Record<string, string> = {
   on: 'text-text-primary',
   none: 'text-text-primary',
@@ -610,7 +433,7 @@ const StatCard = ({
       </div>
 
       <div className={`ui-stat-value ui-stat-md flex items-baseline tabular-nums ${numberColor}`}>
-        <CountUpValue value={value} />
+        {value}
         {unit && <span className="ui-stat-unit">{unit}</span>}
       </div>
 
