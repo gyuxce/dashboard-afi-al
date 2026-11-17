@@ -579,7 +579,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
           </span>
         </div>
         <div className="ui-card p-0! relative w-full overflow-auto text-sm flex-1 max-h-[calc(100vh-200px)]">
-          <table className="kpi-data-table w-full text-left border-collapse">
+          <table className="kpi-data-table rank-table w-full text-left border-collapse">
             <thead className="bg-surface text-text-secondary sticky top-0 z-30">
               <tr>
                 <th className="p-2 font-bold text-center border-b border-border bg-surface w-[48px]">No</th>
