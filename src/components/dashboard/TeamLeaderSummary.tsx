@@ -74,9 +74,9 @@ export const TeamLeaderSummary: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div>
           <h3 className="text-sm font-bold text-text-primary">Ringkasan per Team Leader</h3>
-          <p className="text-[10px] text-text-muted mt-0.5">Rata-rata KPI tiap tim · warna hanya bila di bawah target</p>
+          <p className="text-[11px] text-text-muted mt-0.5">Rata-rata KPI tiap tim · warna hanya bila di bawah target</p>
         </div>
-        <span className="text-[10px] tabular-nums text-text-muted">{rows.length} TL</span>
+        <span className="text-[11px] tabular-nums text-text-muted">{rows.length} TL</span>
       </div>
 
       {rows.length === 0 ? (

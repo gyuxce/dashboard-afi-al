@@ -15,7 +15,7 @@ const CopyButton = ({ text }: { text: string }) => {
   };
   return (
     <button onClick={handleCopy} className="ml-1 p-0.5 rounded text-text-muted hover:bg-surface-muted hover:text-primary transition-colors" title="Copy">
-      {copied ? <span className="text-[9px] text-success font-bold">Copied</span> : <Copy className="w-3 h-3" />}
+      {copied ? <span className="text-[11px] text-success font-bold">Copied</span> : <Copy className="w-3 h-3" />}
     </button>
   );
 };
@@ -209,7 +209,7 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
         <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 bg-surface/40 space-y-4">
           <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Total</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Total</div>
               <div className="ui-stat-value text-3xl leading-none text-text-primary">{filteredSurveys.length}</div>
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-2">
@@ -270,7 +270,7 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                             return (
                               <span
                                 key={score}
-                                className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", scorePill(score))}
+                                className={cn("rounded-full px-1.5 py-0.5 text-[11px] font-semibold", scorePill(score))}
                               >
                                 {score}:{count}
                               </span>
@@ -314,8 +314,8 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                         </span>
                         <span className="flex shrink-0 items-center gap-1">
                           <span className="font-bold text-text-secondary">{(item.s1 || 0) + (item.s2 || 0)}</span>
-                          {item.s2 > 0 && <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", scorePill(2))}>2:{item.s2}</span>}
-                          {item.s1 > 0 && <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", scorePill(1))}>1:{item.s1}</span>}
+                          {item.s2 > 0 && <span className={cn("rounded-full px-1.5 py-0.5 text-[11px] font-semibold", scorePill(2))}>2:{item.s2}</span>}
+                          {item.s1 > 0 && <span className={cn("rounded-full px-1.5 py-0.5 text-[11px] font-semibold", scorePill(1))}>1:{item.s1}</span>}
                         </span>
                       </button>
                     );
@@ -329,7 +329,7 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-primary-soft border border-primary/20 rounded-2xl text-sm mb-4">
               <span className="font-medium text-text-primary">
                 Menampilkan hasil khusus untuk {selectedDetailFilter.type === 'agent' ? 'Agent' : 'Kategori'}: <span className="font-bold text-primary">{selectedDetailFilter.value}</span>
-                {selectedDetailFilter.scoreScope === 'bad' && <span className="ml-2 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] font-semibold text-danger-text">Score 1 & 2 saja</span>}
+                {selectedDetailFilter.scoreScope === 'bad' && <span className="ml-2 rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-semibold text-danger-text">Score 1 & 2 saja</span>}
               </span>
               <button 
                 onClick={() => setSelectedDetailFilter(null)}
@@ -393,7 +393,7 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                             </td>
                             <td className="p-3 align-top font-medium text-text-primary min-w-[180px] max-w-[300px] whitespace-normal leading-relaxed">
                               {s.category}
-                              {s.isTakeout && <div className="mt-1"><span className="text-[9px] bg-card border border-border px-1.5 py-0.5 rounded text-text-muted">Takeout</span></div>}
+                              {s.isTakeout && <div className="mt-1"><span className="text-[11px] bg-card border border-border px-1.5 py-0.5 rounded text-text-muted">Takeout</span></div>}
                             </td>
                             <td className="p-3 align-top">
                               <div className="flex flex-col gap-1">
@@ -415,12 +415,12 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                             </td>
                             <td className="p-3 align-top font-medium text-text-primary min-w-[180px] whitespace-normal">
                               {s.agentName || s.csId}
-                              <div className="text-[10px] text-text-muted font-normal mt-0.5">{s.csId}</div>
+                              <div className="text-[11px] text-text-muted font-normal mt-0.5">{s.csId}</div>
                             </td>
                             <td className="p-3 align-top whitespace-normal min-w-[200px] max-w-[300px] text-text-secondary leading-relaxed">
                               {s.response || '-'}
                             </td>
-                            <td className="p-3 align-top whitespace-normal min-w-[150px] max-w-[250px] text-text-secondary leading-relaxed text-[10px]">
+                            <td className="p-3 align-top whitespace-normal min-w-[150px] max-w-[250px] text-text-secondary leading-relaxed text-[11px]">
                               {s.rcaAgent && <div className="mb-1"><span className="font-semibold text-danger">Agent:</span> {s.rcaAgent}</div>}
                               {s.rcaCustomer && <div className="mb-1"><span className="font-semibold text-primary">Customer:</span> {s.rcaCustomer}</div>}
                               {s.rcaAkulaku && <div><span className="font-semibold text-warning">Process:</span> {s.rcaAkulaku}</div>}

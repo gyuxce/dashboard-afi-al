@@ -175,7 +175,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                       <td className="p-2 text-center text-text-muted font-medium w-[48px]">{index + 1}</td>
                       <td className="p-2 min-w-[200px]">
                         <div className="font-semibold text-text-primary truncate" title={agent.csId}>{displayName}</div>
-                        <div className="text-[9px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
+                        <div className="text-[11px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
                       </td>
                       <td className="p-2 text-text-secondary min-w-[130px] truncate">
                         <span className="uppercase">{agent.bpo || '-'}</span>
@@ -195,7 +195,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                         {avg !== null ? (
                           <div className="flex flex-col items-end">
                             <KpiValue value={avg} type="qa" text={formatNum(avg, 2)} className="justify-end" />
-                            <span className="text-[9px] text-text-muted tabular-nums">{agent.qaScoreCount} evaluasi</span>
+                            <span className="text-[11px] text-text-muted tabular-nums">{agent.qaScoreCount} evaluasi</span>
                           </div>
                         ) : <span className="text-[11px] text-text-disabled">-</span>}
                       </td>
@@ -304,13 +304,13 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                       <td className="p-2 text-center md:sticky md:left-[510px] z-20 bg-card group-hover:bg-surface-muted min-w-[72px] max-w-[72px] shadow-[10px_0_15px_-3px_rgba(0,0,0,0.05)]">
                         <button 
                           onClick={() => setSelectedAgent({ agent, type: 'defects' })}
-                          className="inline-flex items-center gap-1 text-[10px] text-text-muted hover:text-primary transition-colors px-2 py-1 rounded hover:bg-surface-muted relative cursor-pointer"
+                          className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-primary transition-colors px-2 py-1 rounded hover:bg-surface-muted relative cursor-pointer"
                           title="View Defect Details"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span className="font-bold">Detail</span>
                           {agent.totalDefect > 0 && (
-                            <span className="text-danger text-[9px] font-bold px-1.5 py-0.5 rounded-full absolute -top-1 -right-2 leading-none shadow-[0_1px_3px_rgba(0,0,0,0.04)]">{agent.totalDefect}</span>
+                            <span className="text-danger text-[11px] font-bold px-1.5 py-0.5 rounded-full absolute -top-1 -right-2 leading-none shadow-[0_1px_3px_rgba(0,0,0,0.04)]">{agent.totalDefect}</span>
                           )}
                         </button>
                       </td>
@@ -466,12 +466,12 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
 
                 <div className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-2">
                   <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{countLabel}</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{countLabel}</div>
                     <div className={`ui-stat-value text-3xl leading-none ${typeColor}`}>{filteredDefects.length}</div>
                   </div>
                   {levelCounts.length > 0 && (
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Tingkat</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Tingkat</div>
                       <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-text-secondary">
                         {levelCounts.map(({ level, count }) => (
                           <span key={level} className="tabular-nums"><span className="font-semibold text-text-primary">{count}</span> {level.charAt(0) + level.slice(1).toLowerCase()}</span>
@@ -481,7 +481,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                   )}
                   {topCategories[0] !== '-' && (
                     <div className="min-w-0">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Top kategori</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Top kategori</div>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {topCategories.map((cat, i) => (
                           <span key={i} className="max-w-[240px] truncate rounded-full bg-surface-muted px-2.5 py-0.5 text-[11px] text-text-secondary" title={cat}>{cat}</span>
@@ -525,7 +525,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                           >
                             {isExpanded ? <ChevronDown className="h-4 w-4 text-text-muted" /> : <ChevronRight className="h-4 w-4 text-text-muted" />}
                             <span className="text-[13px] font-bold text-text-primary">{dayLabel(date)}</span>
-                            <span className="ml-1 rounded-full bg-card px-2 py-0.5 text-[10px] font-bold text-text-muted">
+                            <span className="ml-1 rounded-full bg-card px-2 py-0.5 text-[11px] font-bold text-text-muted">
                               {defects.length} temuan
                             </span>
                           </button>
@@ -545,7 +545,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                                 return (
                                   <div key={`${date}-${i}`} className="rounded-2xl border border-border bg-card p-4">
                                     <div className="flex flex-wrap items-center gap-2">
-                                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${badgeClass}`}>
+                                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold uppercase ${badgeClass}`}>
                                         {q.mistakeLevel || 'N/A'}
                                       </span>
                                       <span className="text-[13px] font-semibold text-text-primary">{q.category || '-'}</span>

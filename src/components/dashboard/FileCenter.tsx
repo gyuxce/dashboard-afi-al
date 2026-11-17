@@ -148,7 +148,7 @@ const DataHealthPanel = ({ isSheetMode }: { isSheetMode: boolean }) => {
         <div>
           <div className="text-[11px] tracking-wide text-text-muted font-medium">Total baris</div>
           <div className="text-lg font-semibold text-text-primary mt-0.5">{summary.rows}</div>
-          <div className="text-[10px] text-text-muted mt-0.5">Bulan aktif saja</div>
+          <div className="text-[11px] text-text-muted mt-0.5">Bulan aktif saja</div>
         </div>
         <div>
           <div className="text-[11px] tracking-wide text-text-muted font-medium">Agent dikenal</div>
@@ -168,22 +168,22 @@ const DataHealthPanel = ({ isSheetMode }: { isSheetMode: boolean }) => {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-text-primary truncate">{item.label}</div>
-                  <div className="text-[10px] text-text-muted mt-1">
+                  <div className="text-[11px] text-text-muted mt-1">
                     {item.rows > 0 ? `${item.rows} rows detected bulan aktif` : 'No data detected'}
                   </div>
                   {item.fileName && (
-                    <div className="text-[10px] text-text-muted mt-1 truncate" title={item.fileName}>
+                    <div className="text-[11px] text-text-muted mt-1 truncate" title={item.fileName}>
                       {item.fileName}
                     </div>
                   )}
                 </div>
-                <div className={cn('shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-bold', style.className)}>
+                <div className={cn('shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-bold', style.className)}>
                   {style.icon}
                   {style.label}
                 </div>
               </div>
               {item.message && (
-                <div className="mt-3 text-[10px] leading-relaxed text-text-secondary bg-card border border-border rounded-lg p-2">
+                <div className="mt-3 text-[11px] leading-relaxed text-text-secondary bg-card border border-border rounded-lg p-2">
                   {item.errorType && <span className="font-bold">{item.errorType}: </span>}
                   {item.message}
                 </div>
@@ -244,7 +244,7 @@ const UploadCard = ({ title, fileKey }: { title: string, fileKey: keyof AppState
     <div className="bg-card border border-border rounded-xl p-5 flex flex-col items-center text-center shadow-[0_1px_3px_rgba(0,0,0,0.04)] relative overflow-hidden group">
       {/* Saved Indicator */}
       {isPersisted && (
-        <div className="absolute top-2 right-2 flex items-center gap-1 text-[9px] font-bold text-success  px-1.5 py-0.5 rounded tracking-wide backdrop-blur-sm mt-0.5">
+        <div className="absolute top-2 right-2 flex items-center gap-1 text-[11px] font-bold text-success  px-1.5 py-0.5 rounded tracking-wide backdrop-blur-sm mt-0.5">
            <DatabaseBackup className="w-3 h-3" />
            Saved
         </div>
@@ -274,7 +274,7 @@ const UploadCard = ({ title, fileKey }: { title: string, fileKey: keyof AppState
           <div className="mt-0.5 shrink-0">
             {validation.severity === 'warning' ? <AlertTriangle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
           </div>
-          <div className="text-[10px] leading-tight">
+          <div className="text-[11px] leading-tight">
             <strong>{validation.errorType}:</strong> {validation.message}
           </div>
         </div>
@@ -461,7 +461,7 @@ export const FileCenter = () => {
                 </p>
               </div>
               <span className={cn(
-                "text-[10px] font-medium tracking-wide px-2 py-1 rounded-lg border",
+                "text-[11px] font-medium tracking-wide px-2 py-1 rounded-lg border",
                 hasSuccessfulSync
                   ? "text-success border-success/30 bg-success/10"
                   : activeMonth.suffix

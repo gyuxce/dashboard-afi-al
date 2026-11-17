@@ -160,7 +160,7 @@ const IncentiveDetail = ({
             <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-text-secondary">
               Skor {item.score !== null ? formatNum(item.score, 1) : "–"}
             </span>
-            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", statusClass[item.status])}>
+            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", statusClass[item.status])}>
               {statusLabel[item.status]}
             </span>
           </div>
@@ -186,7 +186,7 @@ const IncentiveDetail = ({
           maxPoints={20}
           decimals={0}
         />
-        <p className="text-[10px] text-text-muted">
+        <p className="text-[11px] text-text-muted">
           Total skor {item.score !== null ? formatNum(item.score, 2) : "–"} / 100. Kuis &amp; training tidak menambah skor, hanya syarat (Pass Gate).
           {mode === "agent" && (
             <> Training {TRAINING_QUIZ_DEFAULT.trainingPct}% · Kuis {TRAINING_QUIZ_DEFAULT.quizPct}% · Pass Gate {TRAINING_QUIZ_DEFAULT.passGate ? "YES" : "NO"} (otomatis, data dari trainer).</>
@@ -434,7 +434,7 @@ export const IncentiveSimulation: React.FC<{
                 ref={listScrollRef}
                 className="ui-card p-0! max-h-[calc(100vh-240px)] overflow-y-auto"
               >
-                <div className={cn("sticky top-0 z-10 grid gap-3 border-b border-border bg-surface px-4 py-2.5 text-[10px] font-medium uppercase tracking-wide text-text-muted", gridCols)}>
+                <div className={cn("sticky top-0 z-10 grid gap-3 border-b border-border bg-surface px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide text-text-muted", gridCols)}>
                   <span>{viewMode === "agent" ? "Agent" : "Team Leader"}</span>
                   <span>Kontribusi poin</span>
                   <span>QC · CSAT · Prod</span>
@@ -467,7 +467,7 @@ export const IncentiveSimulation: React.FC<{
                         >
                           <span className="min-w-0">
                             <span className="block truncate text-[13px] font-semibold text-text-primary" title={item.name}>{item.name}</span>
-                            <span className="block truncate text-[10px] text-text-muted">{item.meta}</span>
+                            <span className="block truncate text-[11px] text-text-muted">{item.meta}</span>
                           </span>
                           <span
                             className="flex h-2 overflow-hidden rounded-full bg-surface-muted"
@@ -487,7 +487,7 @@ export const IncentiveSimulation: React.FC<{
                           </span>
                           <span className="text-right">
                             <span className="block text-[12px] font-bold tabular-nums text-text-primary">{formatCurrency(item.total)}</span>
-                            <span className={cn("mt-0.5 inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-bold", statusClass[item.status])}>
+                            <span className={cn("mt-0.5 inline-flex rounded-full px-1.5 py-0.5 text-[11px] font-bold", statusClass[item.status])}>
                               {item.tier === "-" ? statusLabel[item.status] : item.tier}
                             </span>
                           </span>
@@ -498,7 +498,7 @@ export const IncentiveSimulation: React.FC<{
                   </>
                 )}
 
-                <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-4 py-2.5 text-[10px] text-text-muted">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-4 py-2.5 text-[11px] text-text-muted">
                   <span className="inline-flex items-center gap-1.5"><span className="tint-bar tint-blue h-2 w-2.5 rounded-sm" />QC (55)</span>
                   <span className="inline-flex items-center gap-1.5"><span className="tint-bar tint-orange h-2 w-2.5 rounded-sm" />CSAT (25)</span>
                   <span className="inline-flex items-center gap-1.5"><span className="tint-bar tint-green h-2 w-2.5 rounded-sm" />Prod (20)</span>

@@ -854,7 +854,7 @@ export default function App() {
             <span className="text-[11px] font-medium text-text-muted tracking-wide pl-1">Filter</span>
             <div className="flex items-center gap-2">
               {activeFilters.length > 0 && !isMobileFilterOpen && (
-                <span className="inline-flex h-6 items-center rounded-full bg-primary-soft border border-primary/20 px-2 text-[10px] font-semibold text-primary">
+                <span className="inline-flex h-6 items-center rounded-full bg-primary-soft border border-primary/20 px-2 text-[11px] font-semibold text-primary">
                   {activeFilters.length} aktif
                 </span>
               )}
@@ -996,15 +996,15 @@ export default function App() {
             {/* Advanced: custom date range + week nav — hidden by default */}
             {showAdvancedFilter && (
               <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-2">
-                <span className="text-[10px] font-medium text-text-muted tracking-wide">Rentang</span>
+                <span className="text-[11px] font-medium text-text-muted tracking-wide">Rentang</span>
                 <input type="date" className="h-8 w-[128px] shrink-0 rounded-lg border border-border bg-surface px-2 text-xs font-medium text-text-primary transition-colors focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30" value={startDate || ''} onChange={e => setDateRange(e.target.value, endDate)} />
-                <span className="text-text-muted text-[10px] shrink-0">–</span>
+                <span className="text-text-muted text-[11px] shrink-0">–</span>
                 <input type="date" className="h-8 w-[128px] shrink-0 rounded-lg border border-border bg-surface px-2 text-xs font-medium text-text-primary transition-colors focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30" value={endDate || ''} onChange={e => setDateRange(startDate, e.target.value)} />
-                <button onClick={resetPeriodToCurrentMonth} className="h-8 rounded-lg px-2 text-[10px] font-semibold text-text-muted transition-colors hover:bg-primary-soft hover:text-primary whitespace-nowrap">Bulan Ini</button>
+                <button onClick={resetPeriodToCurrentMonth} className="h-8 rounded-lg px-2 text-[11px] font-semibold text-text-muted transition-colors hover:bg-primary-soft hover:text-primary whitespace-nowrap">Bulan Ini</button>
                 <div className="flex h-8 items-center bg-card rounded-lg border border-border p-0.5 gap-0.5">
-                  <button onClick={() => navigateWeek('prev')} className="text-[10px] hover:bg-surface-muted text-text-secondary px-1.5 py-1 rounded font-medium transition-colors cursor-pointer whitespace-nowrap">&laquo;</button>
-                  <button onClick={() => navigateWeek('current')} className="text-[10px] bg-primary-soft text-primary px-2 py-1 rounded font-medium transition-colors cursor-pointer whitespace-nowrap">Minggu Ini</button>
-                  <button onClick={() => navigateWeek('next')} className="text-[10px] hover:bg-surface-muted text-text-secondary px-1.5 py-1 rounded font-medium transition-colors cursor-pointer whitespace-nowrap">&raquo;</button>
+                  <button onClick={() => navigateWeek('prev')} className="text-[11px] hover:bg-surface-muted text-text-secondary px-1.5 py-1 rounded font-medium transition-colors cursor-pointer whitespace-nowrap">&laquo;</button>
+                  <button onClick={() => navigateWeek('current')} className="text-[11px] bg-primary-soft text-primary px-2 py-1 rounded font-medium transition-colors cursor-pointer whitespace-nowrap">Minggu Ini</button>
+                  <button onClick={() => navigateWeek('next')} className="text-[11px] hover:bg-surface-muted text-text-secondary px-1.5 py-1 rounded font-medium transition-colors cursor-pointer whitespace-nowrap">&raquo;</button>
                 </div>
               </div>
             )}
@@ -1066,7 +1066,7 @@ export default function App() {
                   onClick={() => { if (isAdmin) setActiveTab('files'); }}
                   title={dataQuality.detail}
                   className={cn(
-                    "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[10px] font-medium transition-colors",
+                    "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-medium transition-colors",
                     dataQuality.status === 'ok'
                       ? "border-success/30 bg-success/10 text-success hover:bg-success/15"
                       : dataQuality.status === 'warning'
@@ -1086,7 +1086,7 @@ export default function App() {
                     onClick={fetchFromSheets}
                     disabled={isFetchingSheets}
                     className={`flex h-7 items-center gap-1 px-2.5 
-                      rounded-lg text-[10px] font-medium transition-colors
+                      rounded-lg text-[11px] font-medium transition-colors
                       border border-border shrink-0
                       ${isFetchingSheets 
                         ? 'bg-surface-muted text-text-muted cursor-not-allowed' 

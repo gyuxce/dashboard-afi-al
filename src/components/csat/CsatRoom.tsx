@@ -251,9 +251,9 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                    </div>
                 </div>
                 <div className="flex flex-col items-center justify-center px-6 py-3 bg-surface-muted/30">
-                   <span className="text-[10px] text-text-muted font-bold tracking-wider uppercase mb-1">Response Rate</span>
+                   <span className="text-[11px] text-text-muted font-bold tracking-wider uppercase mb-1">Response Rate</span>
                    <span className="text-lg font-semibold text-primary">{formatNum(surveyResponseRate, 1)}%</span>
-                   <span className="text-[10px] text-text-muted font-medium mt-0.5">({formatNum(answeredScoreRows, 0)} / {formatNum(totalScoreRows, 0)} Ratings)</span>
+                   <span className="text-[11px] text-text-muted font-medium mt-0.5">({formatNum(answeredScoreRows, 0)} / {formatNum(totalScoreRows, 0)} Ratings)</span>
                 </div>
              </div>
           </div>
@@ -294,19 +294,19 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                         {card.label}
                      </div>
                      {'sub' in card && card.sub ? (
-                       <div className="text-[10px] font-medium text-text-muted mb-1">{card.sub}</div>
+                       <div className="text-[11px] font-medium text-text-muted mb-1">{card.sub}</div>
                      ) : (
                        <div className="h-[15px] mb-1" />
                      )}
                      <div className={`text-2xl font-semibold mb-1 ${countClass}`}>{formatNum(count, 0)}</div>
                      <div className="text-xs font-medium text-text-muted">{formatNum(pct, 1)}%</div>
                      {card.key === 'Bad' && (
-                       <div className="mt-2 text-[10px] font-semibold text-danger/80">
+                       <div className="mt-2 text-[11px] font-semibold text-danger/80">
                          1: {formatNum(scoreDistribution['1'], 0)} · 2: {formatNum(scoreDistribution['2'], 0)}
                        </div>
                      )}
                      {card.key === 'Good' && (
-                       <div className="mt-2 text-[10px] font-semibold text-success/80">
+                       <div className="mt-2 text-[11px] font-semibold text-success/80">
                          4: {formatNum(scoreDistribution['4'], 0)} · 5: {formatNum(scoreDistribution['5'], 0)}
                        </div>
                      )}
@@ -487,7 +487,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                           <td className={`p-2 font-medium max-w-[200px] truncate ${isTakeoutCategory ? 'text-danger' : 'text-text-primary'}`} title={cat.name}>{cat.name}</td>
                           <td className="p-2 text-center font-bold text-[11px] text-text-secondary">{formatNum(cat.count, 0)}</td>
                           {isComparisonEnabled && (
-                            <td className="p-2 text-center font-bold text-[10px]">
+                            <td className="p-2 text-center font-bold text-[11px]">
                               {diff !== 0 ? (
                                 <span className="text-text-secondary" title={isUp ? 'Naik dari periode pembanding' : 'Turun dari periode pembanding'}>
                                   {isUp ? '▲' : '▼'} {Math.abs(diff)}
@@ -619,7 +619,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                       <td className="p-2 text-center text-text-muted font-medium w-[48px]">{index + 1}</td>
                       <td className="p-2 min-w-[200px]">
                         <div className="font-semibold text-text-primary truncate" title={agent.csId}>{displayName}</div>
-                        <div className="text-[9px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
+                        <div className="text-[11px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
                       </td>
                       <td className="p-2 text-text-secondary min-w-[130px] truncate">
                         <span className="uppercase">{agent.bpo || '-'}</span>
@@ -639,7 +639,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                         {pct !== null ? (
                           <div className="flex flex-col items-end">
                             <KpiValue value={pct} type={csatKpiType} text={`${formatNum(pct)}%`} className="justify-end" />
-                            <span className="text-[9px] text-text-muted">{totalCount} valid</span>
+                            <span className="text-[11px] text-text-muted">{totalCount} valid</span>
                           </div>
                         ) : (
                           <span className="text-[11px] text-text-disabled">-</span>
@@ -788,7 +788,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                   <td className="p-2 text-center flex items-center justify-center z-10 md:sticky md:right-0 bg-card group-hover:bg-surface-muted border-l border-border/50">
                     <button 
                       onClick={() => setSelectedAgent({ agent, type: 'defects' })}
-                      className="flex items-center gap-1 text-[10px] text-text-muted hover:text-primary transition-colors px-2 py-1 rounded hover:bg-surface-muted relative cursor-pointer"
+                      className="flex items-center gap-1 text-[11px] text-text-muted hover:text-primary transition-colors px-2 py-1 rounded hover:bg-surface-muted relative cursor-pointer"
                       title="View Defect Details"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -1067,7 +1067,7 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekL
         <div className="flex flex-col">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-bold text-text-primary">{comparisonMode === 'mom' ? 'Tren 3 bulan' : 'Tren 4 minggu'}</h3>
-            <span className="inline-flex items-center gap-3 text-[9px] text-text-muted">
+            <span className="inline-flex items-center gap-3 text-[11px] text-text-muted">
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2.5 rounded-sm" style={{ background: chart.muted }} />Full · t 75</span>
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2.5 rounded-sm" style={{ background: chart.kpiCsat }} />After Takeout · t 92</span>
             </span>
@@ -1102,7 +1102,7 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekL
                   type="button"
                   onClick={() => setTrendMode(mode)}
                   className={cn(
-                    'rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors',
+                    'rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors',
                     trendMode === mode ? 'bg-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-primary',
                   )}
                 >
@@ -1229,7 +1229,7 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, we
           
           {(type === 'all' || type === 'category') && (
             <div className="overflow-hidden border border-border rounded-[18px] bg-card flex flex-col">
-              <div className="p-2 bg-surface-muted border-b border-border font-bold text-[10px] text-text-secondary text-center uppercase">
+              <div className="p-2 bg-surface-muted border-b border-border font-bold text-[11px] text-text-secondary text-center uppercase">
                 Top {topCatsLimit} Categories
               </div>
             <table className="kpi-data-table w-full text-left">
@@ -1252,14 +1252,14 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, we
                     >
                       <td className="p-1 text-center text-text-muted font-medium">{i+1}</td>
                       <td className={`p-1 font-medium max-w-[96px] truncate ${isTakeoutCategory ? 'text-danger' : 'text-text-primary'}`} title={cat.name}>{cat.name}</td>
-                      <td className="p-1 text-center font-bold text-[9px] text-text-secondary">{formatNum(cat.count, 0)}</td>
-                      <td className="p-1 text-center font-bold text-[9px] text-text-secondary">{cat.csatPct === null ? '-' : `${formatNum(cat.csatPct, 1)}%`}</td>
+                      <td className="p-1 text-center font-bold text-[11px] text-text-secondary">{formatNum(cat.count, 0)}</td>
+                      <td className="p-1 text-center font-bold text-[11px] text-text-secondary">{cat.csatPct === null ? '-' : `${formatNum(cat.csatPct, 1)}%`}</td>
                     </tr>
                   );
                 })}
                 {week.cats.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-2 text-center text-text-muted text-[9px] border-b border-border">
+                    <td colSpan={4} className="p-2 text-center text-text-muted text-[11px] border-b border-border">
                       No categories
                     </td>
                   </tr>
@@ -1271,7 +1271,7 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, we
 
           {(type === 'all' || type === 'agent') && (
             <div className="overflow-hidden border border-border rounded-[18px] bg-card flex flex-col">
-              <div className="p-2 bg-surface-muted border-b border-border font-bold text-[10px] text-text-secondary text-center uppercase">
+              <div className="p-2 bg-surface-muted border-b border-border font-bold text-[11px] text-text-secondary text-center uppercase">
                 Top {topAgentsLimit} Agents
               </div>
             <table className="kpi-data-table w-full text-left">
@@ -1299,7 +1299,7 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, we
                           {agent.topCategories.length > 0 ? agent.topCategories.map(category => (
                             <div
                               key={category.name}
-                              className="flex items-start justify-between gap-2 border-b border-border/50 pb-0.5 text-[9px] leading-tight last:border-b-0 last:pb-0"
+                              className="flex items-start justify-between gap-2 border-b border-border/50 pb-0.5 text-[11px] leading-tight last:border-b-0 last:pb-0"
                             >
                               <span className="min-w-0 whitespace-normal break-words text-text-secondary" title={category.name}>{category.name}</span>
                               <span className="shrink-0 font-bold text-text-primary" title={`${category.count} cases`}>{category.count}</span>
@@ -1307,13 +1307,13 @@ const WoWAnalysisPanel = ({ data, previousData, previousData2, previousData3, we
                           )) : <span className="text-text-muted">-</span>}
                         </div>
                       </td>
-                      <td className="p-1 text-center font-bold text-[9px] text-text-secondary">{agent.badScoreCount}</td>
+                      <td className="p-1 text-center font-bold text-[11px] text-text-secondary">{agent.badScoreCount}</td>
                     </tr>
                   );
                 })}
                 {week.agents.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-2 text-center text-text-muted text-[9px] border-b border-border">
+                    <td colSpan={4} className="p-2 text-center text-text-muted text-[11px] border-b border-border">
                       No critical agents
                     </td>
                   </tr>
@@ -1597,8 +1597,8 @@ const RespondentChartPanel = ({ data, previousData, previousData2, previousData3
                         const heightPct = (bar.value / maxVal) * 100;
                         return (
                           <div key={bar.label} className="flex flex-col items-center gap-0.5 group/bar flex-1 max-w-[28px] h-full relative">
-                            <span className="text-[9px] font-bold text-text-primary leading-none">{bar.value}</span>
-                            <span className="text-[8px] font-bold text-text-muted leading-none mt-0.5">{bar.label}</span>
+                            <span className="text-[11px] font-bold text-text-primary leading-none">{bar.value}</span>
+                            <span className="text-[10px] font-bold text-text-muted leading-none mt-0.5">{bar.label}</span>
                             <div className="w-full bg-surface-muted/50 rounded flex-1 flex items-end overflow-hidden border border-border/30 mt-0.5">
                               <div className={`w-full rounded-sm ${bar.color} transition-all duration-700`} style={{ height: `${heightPct}%` }}></div>
                             </div>
@@ -1626,7 +1626,7 @@ const RespondentChartPanel = ({ data, previousData, previousData2, previousData3
                   type="button"
                   onClick={() => setTrendMode(mode)}
                   className={cn(
-                    'rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors',
+                    'rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors',
                     trendMode === mode ? 'bg-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-primary',
                   )}
                 >

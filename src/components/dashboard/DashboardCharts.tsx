@@ -53,7 +53,7 @@ const KpiBulletRow: React.FC<{
       <span className="flex items-baseline justify-end gap-1.5 tabular-nums">
         <span className={`text-[13px] font-bold ${STATUS_TEXT[status]}`}>{valueText}</span>
         {hasVal && (
-          <span className={`text-[10px] ${delta < 0 ? "text-danger" : "text-text-muted"}`}>
+          <span className={`text-[11px] ${delta < 0 ? "text-danger" : "text-text-muted"}`}>
             {delta >= 0 ? "+" : "−"}{formatNum(Math.abs(delta), type === "csatOfficial" ? 2 : 1)}
           </span>
         )}
@@ -148,7 +148,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
       <div className="ui-card min-w-0">
         <div className="flex items-center justify-between gap-4 mb-5">
           <h2 className="text-sm font-bold text-text-primary">KPI vs Target</h2>
-          <span className="inline-flex items-center gap-3 text-[9px] text-text-muted">
+          <span className="inline-flex items-center gap-3 text-[11px] text-text-muted">
             <span className="inline-flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-text-muted" />aktual</span>
             <span className="inline-flex items-center gap-1"><span className="h-3 w-px bg-text-primary" />target</span>
           </span>
@@ -183,7 +183,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
                 type="button"
                 onClick={() => setTrendMode(mode)}
                 className={[
-                  'rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors',
+                  'rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors',
                   trendMode === mode ? 'bg-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-primary',
                 ].join(' ')}
               >
@@ -193,7 +193,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
           </div>
         </div>
         {trendMode === 'weekly' && weeklyTrend.some(w => w.isPartial) && (
-          <p className="mb-3 text-[10px] text-text-muted">
+          <p className="mb-3 text-[11px] text-text-muted">
             * Minggu tidak penuh (lintas bulan / data period belum lengkap) diproyeksikan ke setara 7 hari agar perbandingan adil.
           </p>
         )}

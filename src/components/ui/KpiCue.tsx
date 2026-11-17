@@ -57,7 +57,7 @@ export function KpiValue({
 /** One-line key for a table of coloured KPI values. */
 export function KpiLegend({ label = 'Warna', className = '' }: { label?: string; className?: string }) {
   return (
-    <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-text-muted ${className}`}>
+    <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-text-muted ${className}`}>
       <span className="font-semibold text-text-secondary">{label}</span>
       <span className="inline-flex items-center gap-1.5">
         <span className="h-[7px] w-[7px] rounded-full bg-text-muted" />

@@ -32,7 +32,7 @@ const RankCard: React.FC<RankCardProps> = ({ title, items, tone = 'neutral', emp
             <li key={`${item.label}-${idx}`} className="flex items-start gap-2.5 min-w-0">
               <span
                 className={cn(
-                  'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[10px] font-bold',
+                  'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-bold',
                   tone === 'good'
                     ? 'bg-success/10 text-success'
                     : tone === 'bad'
@@ -53,7 +53,7 @@ const RankCard: React.FC<RankCardProps> = ({ title, items, tone = 'neutral', emp
                   <span className="shrink-0 pt-0.5 text-xs font-bold tabular-nums text-text-primary">{item.value}</span>
                 </div>
                 {item.subLabel ? (
-                  <div className="mt-0.5 truncate text-[10px] text-text-muted" title={item.subLabel}>
+                  <div className="mt-0.5 truncate text-[11px] text-text-muted" title={item.subLabel}>
                     {item.subLabel}
                   </div>
                 ) : null}

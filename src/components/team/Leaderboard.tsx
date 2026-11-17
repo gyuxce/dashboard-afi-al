@@ -179,7 +179,7 @@ const AgentDetail = ({
               Skor {agent.score.toFixed(1)}
             </span>
             {isBottom && (
-              <span className="text-[10px] bg-warning-soft text-warning-text px-2 py-0.5 rounded-full font-semibold">
+              <span className="text-[11px] bg-warning-soft text-warning-text px-2 py-0.5 rounded-full font-semibold">
                 3 terbawah
               </span>
             )}
@@ -223,7 +223,7 @@ const AgentDetail = ({
           <div className="relative w-full bg-border-strong rounded-full h-1.5 overflow-hidden">
             <div className="absolute top-0 h-full rounded-full bg-success" style={{ width: '100%' }} />
           </div>
-          <p className="text-[10px] text-text-muted">Auto 100% — pastikan modul training selesai tepat waktu</p>
+          <p className="text-[11px] text-text-muted">Auto 100% — pastikan modul training selesai tepat waktu</p>
         </div>
         <div className="space-y-1.5 mt-2">
           <div className="flex items-center justify-between">
@@ -233,7 +233,7 @@ const AgentDetail = ({
           <div className="relative w-full bg-border-strong rounded-full h-1.5 overflow-hidden">
             <div className="absolute top-0 h-full rounded-full bg-success" style={{ width: '100%' }} />
           </div>
-          <p className="text-[10px] text-text-muted">Auto 100% — pastikan kuis dikerjakan sebelum deadline</p>
+          <p className="text-[11px] text-text-muted">Auto 100% — pastikan kuis dikerjakan sebelum deadline</p>
         </div>
       </div>
 
@@ -290,7 +290,7 @@ const AgentDetail = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-text-primary">QA Score</span>
-                    {easiest === 'qa' && <span className="text-[9px] text-primary bg-primary-soft px-1 rounded font-medium">prioritas</span>}
+                    {easiest === 'qa' && <span className="text-[11px] text-primary bg-primary-soft px-1 rounded font-medium">prioritas</span>}
                   </div>
                   <div className="text-[11px] text-text-secondary mt-1 leading-relaxed">
                     {canQa
@@ -305,7 +305,7 @@ const AgentDetail = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-text-primary">Produktivitas</span>
-                    {easiest === 'prod' && <span className="text-[9px] text-primary bg-primary-soft px-1 rounded font-medium">prioritas</span>}
+                    {easiest === 'prod' && <span className="text-[11px] text-primary bg-primary-soft px-1 rounded font-medium">prioritas</span>}
                   </div>
                   <div className="text-[11px] text-text-secondary mt-1 leading-relaxed">
                     {currProd >= 100
@@ -322,7 +322,7 @@ const AgentDetail = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-text-primary">CSAT Rating</span>
-                    {easiest === 'csat' && <span className="text-[9px] text-primary bg-primary-soft px-1 rounded font-medium">prioritas</span>}
+                    {easiest === 'csat' && <span className="text-[11px] text-primary bg-primary-soft px-1 rounded font-medium">prioritas</span>}
                   </div>
                   <div className="text-[11px] text-text-secondary mt-1 leading-relaxed">
                     {canCsat
@@ -649,7 +649,7 @@ export const Leaderboard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           ref={listScrollRef}
           className="rounded-xl border border-border bg-card overflow-y-auto max-h-[calc(100vh-230px)]"
         >
-          <div className={cn("sticky top-0 z-10 grid gap-3 px-4 py-2.5 bg-surface border-b border-border text-[10px] font-medium uppercase tracking-wide text-text-muted", gridCols)}>
+          <div className={cn("sticky top-0 z-10 grid gap-3 px-4 py-2.5 bg-surface border-b border-border text-[11px] font-medium uppercase tracking-wide text-text-muted", gridCols)}>
             <span className="text-center">#</span>
             <span>{toggleMode === "agent" ? "Agent" : "Team Leader"}</span>
             <span>Kontribusi skor</span>
@@ -694,7 +694,7 @@ export const Leaderboard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                     <span className={cn("text-center text-[12px] font-bold tabular-nums", rank <= 3 ? "text-text-primary" : "text-text-muted")}>{rank}</span>
                     <span className="min-w-0">
                       <span className="block truncate text-[13px] font-semibold text-text-primary" title={item.name}>{item.name}</span>
-                      <span className="block truncate text-[10px] text-text-muted">{meta}</span>
+                      <span className="block truncate text-[11px] text-text-muted">{meta}</span>
                     </span>
                     <span
                       className="flex h-2 rounded-full overflow-hidden bg-surface-muted"
@@ -720,7 +720,7 @@ export const Leaderboard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
             </>
           )}
 
-          <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2.5 border-t border-border text-[10px] text-text-muted">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-2.5 border-t border-border text-[11px] text-text-muted">
             <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2 rounded-sm bg-text-secondary" />QA (50)</span>
             <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2 rounded-sm bg-text-muted" />Prod (20)</span>
             <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2 rounded-sm bg-border-strong" />CSAT (20)</span>

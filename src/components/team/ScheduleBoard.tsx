@@ -45,8 +45,8 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
       {coverage.length >= 2 && maxCoverage > 0 && (
         <div className="ui-card ui-card-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-text-muted">Agen bertugas per hari</span>
-            <span className="inline-flex items-center gap-3 text-[9px] text-text-muted">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Agen bertugas per hari</span>
+            <span className="inline-flex items-center gap-3 text-[11px] text-text-muted">
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-primary/40" />normal</span>
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-warning" />hari sepi</span>
               <span className="tabular-nums">maks {maxCoverage}</span>
@@ -58,7 +58,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
               return (
                 <div key={date} className="flex h-full min-w-[3px] flex-1 flex-col items-center justify-end gap-1">
                   {coverage.length <= 24 && (
-                    <span className="text-[8px] tabular-nums text-text-muted">{count}</span>
+                    <span className="text-[10px] tabular-nums text-text-muted">{count}</span>
                   )}
                   <div
                     className={`w-full rounded-[2px] ${low ? 'bg-warning' : 'bg-primary/40'}`}
@@ -69,7 +69,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
               );
             })}
           </div>
-          <div className="mt-1 flex justify-between text-[9px] tabular-nums text-text-muted">
+          <div className="mt-1 flex justify-between text-[11px] tabular-nums text-text-muted">
             <span>{formatCalendarHeader(coverageChrono[0]?.date ?? '')}</span>
             <span>{formatCalendarHeader(coverageChrono[coverageChrono.length - 1]?.date ?? '')}</span>
           </div>
@@ -92,7 +92,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                   Attend. % <span className="font-normal text-text-muted">· t {KPI_TARGETS.attendance}%</span>
                 </th>
                 {uniqueDates.map((date, i) => (
-                  <th key={date} className={`p-1.5 text-center text-[10px] font-medium text-text-muted bg-surface tabular-nums ${weekSeparatorClass(i)}`}>
+                  <th key={date} className={`p-1.5 text-center text-[11px] font-medium text-text-muted bg-surface tabular-nums ${weekSeparatorClass(i)}`}>
                     {formatCalendarHeader(date)}
                   </th>
                 ))}
@@ -149,7 +149,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
 
                     return (
                       <td key={date} className={`p-1.5 text-center z-10 transition-colors ${weekSeparatorClass(i)}`}>
-                         <span className={`inline-flex min-w-[30px] items-center justify-center rounded px-1.5 py-0.5 text-[10px] tabular-nums ${CELL_CLASS[kind]}`}>{label}</span>
+                         <span className={`inline-flex min-w-[30px] items-center justify-center rounded px-1.5 py-0.5 text-[11px] tabular-nums ${CELL_CLASS[kind]}`}>{label}</span>
                       </td>
                     );
                   })}
@@ -159,7 +159,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           </table>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-text-muted">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-text-muted">
         <span className="font-semibold text-text-secondary">Kode</span>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-flex min-w-[26px] justify-center rounded bg-surface-muted px-1 py-0.5 font-semibold text-text-secondary">7</span>

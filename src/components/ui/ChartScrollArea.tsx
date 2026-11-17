@@ -19,7 +19,7 @@ export function MobileScrollHint({
   className?: string;
 }) {
   return (
-    <p className={cn('mb-1.5 text-[10px] font-medium text-text-muted md:hidden', className)}>
+    <p className={cn('mb-1.5 text-[11px] font-medium text-text-muted md:hidden', className)}>
       {label}
     </p>
   );

@@ -95,9 +95,9 @@ export const DayCalendar: React.FC<{
                 const cls = `relative flex h-11 flex-col items-center justify-center rounded-lg border text-xs tabular-nums ${hasValue ? "border-border bg-card shadow-sm" : "border-dashed border-border bg-transparent"}`;
                 const inner = (
                   <>
-                    <span className="absolute left-1.5 top-1 text-[9px] leading-none text-text-muted">{showMonth ? formatDayMonth(cell.date) : dayNum}</span>
+                    <span className="absolute left-1.5 top-1 text-[10px] leading-none text-text-muted">{showMonth ? formatDayMonth(cell.date) : dayNum}</span>
                     {cell.marker === "22" && <span className="absolute right-1.5 top-1 h-1.5 w-1.5 rounded-full bg-primary" aria-label="shift 22" />}
-                    {cell.marker === "PO" && <span className="absolute right-1 top-0.5 rounded bg-card px-1 text-[8px] font-semibold leading-tight text-text-secondary">PO</span>}
+                    {cell.marker === "PO" && <span className="absolute right-1 top-0.5 rounded bg-card px-1 text-[9px] font-semibold leading-tight text-text-secondary">PO</span>}
                     {cell.off ? (
                       <span className="pt-2 text-[10px] italic text-text-disabled">off</span>
                     ) : cell.value === null ? (

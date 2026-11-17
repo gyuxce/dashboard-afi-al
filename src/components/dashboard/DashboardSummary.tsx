@@ -360,11 +360,11 @@ const FormulaTooltip = ({ title }: { title: string }) => {
         <span className="mt-2 block text-[11px] leading-relaxed text-text-secondary">
           {formula.formula}
         </span>
-        <span className="mt-2 block text-[10px] text-text-muted">
+        <span className="mt-2 block text-[11px] text-text-muted">
           Sumber data: {formula.source}
         </span>
         {formula.note && (
-          <span className="mt-1 block text-[10px] leading-relaxed text-text-muted">
+          <span className="mt-1 block text-[11px] leading-relaxed text-text-muted">
             Note: {formula.note}
           </span>
         )}
@@ -526,7 +526,7 @@ const WeeklyReportPanel = ({
           </div>
           <div>
             <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">{title}</h2>
-            <p className="text-[10px] text-text-muted mt-0.5">Perbandingan antar periode</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Perbandingan antar periode</p>
           </div>
         </div>
         <div className="flex items-center gap-2 text-[11px] flex-wrap justify-end mt-2 sm:mt-0">
@@ -578,12 +578,12 @@ const WeeklyReportPanel = ({
               {columns.map((col) => (
                 <th key={col.key} className="text-right px-4 py-3 text-[11px] font-medium text-text-muted tracking-wide whitespace-nowrap" title={col.title}>
                   {col.label}
-                  {col.sublabel && <span className="block text-[10px] font-normal text-text-muted/80">{col.sublabel}</span>}
+                  {col.sublabel && <span className="block text-[11px] font-normal text-text-muted/80">{col.sublabel}</span>}
                 </th>
               ))}
               <th className="text-right px-5 py-3 text-[11px] font-medium text-text-muted tracking-wide whitespace-nowrap" title={deltaTitle}>
                 Perubahan
-                <span className="block text-[10px] font-normal text-text-muted/80">{deltaTitle}</span>
+                <span className="block text-[11px] font-normal text-text-muted/80">{deltaTitle}</span>
               </th>
             </tr>
           </thead>
@@ -634,7 +634,7 @@ const WeeklyReportPanel = ({
           </tbody>
         </table>
       </div>
-      {note && <p className="px-5 py-3 text-[10px] leading-relaxed text-text-muted border-t border-border/50">{note}</p>}
+      {note && <p className="px-5 py-3 text-[11px] leading-relaxed text-text-muted border-t border-border/50">{note}</p>}
     </div>
   );
 };

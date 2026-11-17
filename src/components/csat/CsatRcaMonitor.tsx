@@ -81,7 +81,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
         </div>
 
         <div className="mt-3 border-t border-border pt-3">
-          <div className="mb-2 text-[10px] font-medium uppercase tracking-wide text-text-muted">Top isu</div>
+          <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">Top isu</div>
           {topIssues.length === 0 ? (
             <p className="text-[11px] text-text-muted">Belum ada kasus.</p>
           ) : (
@@ -144,7 +144,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
         )}
         {issueCategories.length > 0 && (
           <div className="mt-4 border-t border-border pt-3">
-            <div className="text-[10px] font-medium text-text-muted tracking-wide mb-2">
+            <div className="text-[11px] font-medium text-text-muted tracking-wide mb-2">
               Kategori per isu
             </div>
             <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -206,9 +206,9 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
             <p className="text-sm font-semibold text-text-primary">Kolom RCA Belum Terdeteksi</p>
             <p className="text-xs text-text-muted mt-1">
               Pastikan Google Sheet <strong>CSAT SC</strong> sudah memiliki kolom header persis:
-              <code className="ml-1 bg-surface px-1 rounded text-[10px]">RCA Agent Area</code>,
-              <code className="ml-1 bg-surface px-1 rounded text-[10px]">RCA Customer Area</code>,
-              <code className="ml-1 bg-surface px-1 rounded text-[10px]">RCA Akulaku Process</code>. Setelah itu, refresh data.
+              <code className="ml-1 bg-surface px-1 rounded text-[11px]">RCA Agent Area</code>,
+              <code className="ml-1 bg-surface px-1 rounded text-[11px]">RCA Customer Area</code>,
+              <code className="ml-1 bg-surface px-1 rounded text-[11px]">RCA Akulaku Process</code>. Setelah itu, refresh data.
             </p>
           </div>
         </div>
@@ -222,7 +222,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
               <AreaCard key={area.key} label={area.label} count={area.count} issues={area.issues} />
             ))}
           </div>
-          <p className="text-center text-[10px] text-text-muted">
+          <p className="text-center text-[11px] text-text-muted">
             Total kasus dianalisa: <strong className="text-text-primary">{grandTotal}</strong>
           </p>
         </>
@@ -248,7 +248,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
         >
           <div>
             <h3 className="text-sm font-bold text-text-primary">Detail isu per area</h3>
-            <p className="text-[10px] text-text-muted mt-0.5">Top isu + kategori per area</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Top isu + kategori per area</p>
           </div>
           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-text-muted">
             {showIssueDetail ? 'Sembunyikan' : 'Tampilkan'}
@@ -269,7 +269,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-sm font-bold text-text-primary">Profil RCA per agent</h3>
-            <p className="text-[10px] text-text-muted mt-0.5">Ranking berdasarkan total kasus</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Ranking berdasarkan total kasus</p>
           </div>
           <SearchField value={agentSearch} onChange={setAgentSearch} placeholder="Cari nama / TL..." />
         </div>

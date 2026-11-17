@@ -31,7 +31,7 @@ const NumberField = ({
   onChange: (value: string) => void;
   step?: string;
 }) => (
-  <label className="flex flex-col gap-1 text-[10px] font-medium text-text-muted">
+  <label className="flex flex-col gap-1 text-[11px] font-medium text-text-muted">
     {label}
     <input
       type="number"
@@ -134,7 +134,7 @@ export const IncentiveTierPlanner: React.FC<{
           )}
 
           <div className="space-y-2">
-            <p className="text-[10px] font-medium text-text-muted">Jika hanya satu komponen yang berubah</p>
+            <p className="text-[11px] font-medium text-text-muted">Jika hanya satu komponen yang berubah</p>
 
             <div className="rounded-lg border border-border bg-surface px-3 py-2 text-[11px]">
               <div className="flex items-center justify-between gap-2">
@@ -214,7 +214,7 @@ export const IncentiveTierPlanner: React.FC<{
       )}
 
       <div className="mt-4 rounded-lg border border-border bg-surface p-3">
-        <p className="mb-2 text-[10px] font-medium text-text-muted">Coba skenario</p>
+        <p className="mb-2 text-[11px] font-medium text-text-muted">Coba skenario</p>
         <div className="grid grid-cols-3 gap-2">
           <NumberField label="QA %" value={qaInput} onChange={setQaInput} />
           <NumberField label="Tambah bad rating" value={badInput} onChange={setBadInput} step="1" />
@@ -222,23 +222,23 @@ export const IncentiveTierPlanner: React.FC<{
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
           <div>
-            <p className="text-[10px] text-text-muted">Skor</p>
+            <p className="text-[11px] text-text-muted">Skor</p>
             <p className="text-sm font-bold tabular-nums text-text-primary">{formatNum(scenario.totalScore, 2)}</p>
-            <p className="text-[10px] tabular-nums text-text-muted">{scoreDelta >= 0 ? "+" : ""}{formatNum(scoreDelta, 2)}</p>
+            <p className="text-[11px] tabular-nums text-text-muted">{scoreDelta >= 0 ? "+" : ""}{formatNum(scoreDelta, 2)}</p>
           </div>
           <div>
-            <p className="text-[10px] text-text-muted">Tier</p>
+            <p className="text-[11px] text-text-muted">Tier</p>
             <p className="text-sm font-bold text-text-primary">{scenario.tier === "-" ? "–" : scenario.tier}</p>
           </div>
           <div>
-            <p className="text-[10px] text-text-muted">Insentif</p>
+            <p className="text-[11px] text-text-muted">Insentif</p>
             <p className="text-sm font-bold tabular-nums text-text-primary">{formatRp(scenario.totalIncentive)}</p>
-            <p className={cn("text-[10px] tabular-nums", incentiveDelta === 0 ? "text-text-muted" : "text-text-secondary")}>
+            <p className={cn("text-[11px] tabular-nums", incentiveDelta === 0 ? "text-text-muted" : "text-text-secondary")}>
               {incentiveDelta >= 0 ? "+" : "−"}{formatRp(Math.abs(incentiveDelta))}
             </p>
           </div>
         </div>
-        <p className="mt-2 text-[10px] text-text-muted">Perkiraan saja, tidak mengubah data.</p>
+        <p className="mt-2 text-[11px] text-text-muted">Perkiraan saja, tidak mengubah data.</p>
       </div>
     </div>
   );

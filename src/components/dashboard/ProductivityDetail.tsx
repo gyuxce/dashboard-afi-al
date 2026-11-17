@@ -327,7 +327,7 @@ export const ProductivityDetail: React.FC<{
                   </span>
                   <span className="text-xs font-semibold text-text-muted">chats</span>
                   {selectedIntervalInsight.change !== null && (
-                    <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${selectedIntervalInsight.change >= 0 ? "bg-surface-muted text-text-secondary" : "bg-danger-soft text-danger-text"}`}>
+                    <span className={`rounded-md px-2 py-1 text-[11px] font-bold ${selectedIntervalInsight.change >= 0 ? "bg-surface-muted text-text-secondary" : "bg-danger-soft text-danger-text"}`}>
                       {selectedIntervalInsight.change >= 0 ? "+" : ""}
                       {formatNum(selectedIntervalInsight.change, 0)} vs pembanding
                     </span>
@@ -437,7 +437,7 @@ export const ProductivityDetail: React.FC<{
                     <td className="p-2 text-center text-text-muted font-medium w-[48px]">{idx + 1}</td>
                     <td className="p-2 min-w-[200px]">
                       <div className="font-semibold text-text-primary truncate" title={agent.csId}>{displayName}</div>
-                      <div className="text-[9px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
+                      <div className="text-[11px] text-text-muted truncate" title={agent.csId}>{formatCsId(agent.csId)}</div>
                     </td>
                     <td className="p-2 text-text-secondary min-w-[130px] truncate">
                       <span className="uppercase">{agent.bpo || "-"}</span>
