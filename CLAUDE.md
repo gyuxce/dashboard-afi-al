@@ -19,6 +19,8 @@ npx vitest run -t "shift 22"                                # one test by name
 node scripts/verify-mandays.mjs   # standalone man-days regression check (no test runner)
 ```
 
+**Before merging any UI change** run the screenshot/number safety net (`scripts/ui-snapshot.mjs`, header comment explains usage; needs `playwright` installed ad hoc, not a project dependency): `capture` on master, `capture` on the branch, then `compare` — every number on every tab must be identical. Month Oktober 2026 is the stable reference (closed month, loads without Vercel env).
+
 `npm run lint` / `tsc` is the only static gate. `tsconfig.json` has no `noUnusedLocals`, so unused imports compile — keep them clean manually.
 
 ## Data flow (read this before touching KPI code)
