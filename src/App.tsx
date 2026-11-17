@@ -775,8 +775,8 @@ export default function App() {
       {/* Sidebar */}
       <aside className={cn(
         "glass fixed md:relative top-0 left-0 h-full text-sidebar-text flex flex-col border-r border-sidebar-border z-[70] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform shrink-0 group/sidebar",
-        isSidebarOpen ? "translate-x-0 w-[262px]" : "-translate-x-full md:translate-x-0",
-        isSidebarMinimized ? "md:w-[76px] w-[262px]" : "w-[262px]"
+        isSidebarOpen ? "translate-x-0 w-[236px]" : "-translate-x-full md:translate-x-0",
+        isSidebarMinimized ? "md:w-[76px] w-[236px]" : "w-[236px]"
       )}>
         {/* Toggle Button for Desktop */}
         <button
@@ -787,7 +787,7 @@ export default function App() {
           {isSidebarMinimized ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
         </button>
 
-        <div className={cn("px-5 pt-6 pb-3 overflow-hidden", isSidebarMinimized ? "md:px-4" : "")}>
+        <div className={cn("px-4 pt-5 pb-2 overflow-hidden", isSidebarMinimized ? "md:px-4" : "")}>
         <div className={cn("flex items-center gap-3 relative z-10 group cursor-default", isSidebarMinimized ? "md:justify-center" : "")}>
           <div className="w-[42px] h-[42px] rounded-[13px] bg-gradient-to-b from-brand/85 to-brand shadow-[0_6px_16px_rgb(var(--brand)/0.32)] flex items-center justify-center text-white font-bold shrink-0 text-[15px]">LC</div>
           <div className={cn("min-w-0 whitespace-nowrap transition-all duration-300", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>
@@ -796,7 +796,7 @@ export default function App() {
           </div>
         </div>
       </div>
-        <nav className="flex-1 px-3 pb-2 space-y-0.5 overflow-y-auto overflow-x-hidden no-scrollbar">
+        <nav className="flex-1 px-2.5 pb-2 space-y-0 overflow-y-auto overflow-x-hidden no-scrollbar">
           {navItems.map((item, idx) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -805,13 +805,13 @@ export default function App() {
             return (
               <React.Fragment key={item.id}>
                 {isFirstOfSection && !isSidebarMinimized && (
-                  <div className={cn("px-3 pb-1.5 text-[12px] font-semibold tracking-wide text-text-muted", idx > 0 ? "pt-4" : "pt-1")}>{item.section}</div>
+                  <div className={cn("px-3 pb-1 text-[11.5px] font-semibold tracking-wide text-text-muted", idx > 0 ? "pt-3" : "pt-0.5")}>{item.section}</div>
                 )}
                 {isFirstOfSection && isSidebarMinimized && idx > 0 && <div className="mx-3 my-2 h-px bg-sidebar-border" />}
                 <button
                   onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
                   className={cn(
-                    "group relative w-full flex items-center gap-3 px-3 py-2 rounded-[15px] text-[15px] font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer",
+                    "group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[14px] text-[14.5px] font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer",
                     isActive
                       ? "bg-card text-sidebar-text-active ring-[2.5px] ring-primary/30 shadow-[0_6px_18px_rgb(30_40_90/0.08)]"
                       : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-hover hover:translate-x-0.5",
@@ -820,7 +820,7 @@ export default function App() {
                   title={isSidebarMinimized ? item.label : undefined}
                 >
                   <span
-                    className="navico grid h-8 w-8 shrink-0 place-items-center rounded-[10px] transition-transform duration-200 group-hover:scale-105"
+                    className="navico grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] transition-transform duration-200 group-hover:scale-105"
                     style={{ '--tint': SECTION_TINT[item.section] || '0 122 255' } as React.CSSProperties}
                   >
                     <Icon className="h-[17px] w-[17px]" />
@@ -831,7 +831,7 @@ export default function App() {
             )
           })}
         </nav>
-        <div className={cn("m-3 mt-2 rounded-[20px] bg-card/85 p-3.5 shadow-sm", isSidebarMinimized && "md:p-2 md:flex md:justify-center")}>
+        <div className={cn("m-2.5 mt-1.5 rounded-[18px] bg-card/85 p-3 shadow-sm", isSidebarMinimized && "md:p-2 md:flex md:justify-center")}>
           <span className={cn("hidden", isSidebarMinimized && "md:flex")} title={syncCard.title}>
             <span className={cn("h-2.5 w-2.5 rounded-full", syncCard.dot)} />
           </span>
@@ -841,14 +841,14 @@ export default function App() {
               {syncCard.title}
             </div>
             <div className="mt-1 text-[13px] text-text-secondary tabular-nums">{syncCard.clock}</div>
-            <p className="mt-2 text-[12.5px] leading-snug text-text-muted">{syncCard.note}</p>
+            <p className="mt-1.5 text-[12px] leading-snug text-text-muted [@media(max-height:860px)]:hidden">{syncCard.note}</p>
           </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col p-3 pt-20 md:px-11 md:py-9 gap-6 overflow-y-auto overflow-x-hidden w-full relative">
-        <div className="ui-card-flat rounded-[22px] px-5 py-3 flex flex-col relative z-50 overflow-visible">
+      <main className="flex-1 flex flex-col p-3 pt-20 md:px-8 md:py-6 gap-5 overflow-y-auto overflow-x-hidden w-full relative">
+        <div className="ui-card-flat rounded-[20px] px-4 py-2.5 flex flex-col relative z-50 overflow-visible">
           {/* Mobile Filter Toggle */}
           <div className="flex md:hidden items-center justify-between w-full mb-2">
             <span className="text-[11px] font-medium text-text-muted tracking-wide pl-1">Filter</span>
@@ -879,7 +879,7 @@ export default function App() {
             <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2 md:overflow-visible">
               {/* Scope */}
               <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 md:border-r md:border-border md:pr-2.5 shrink-0">
-                                <div className="w-[112px] shrink-0 [&_button]:h-9 [&_button]:rounded-[12px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[13.5px] [&_button]:px-3">
+                                <div className="w-[100px] shrink-0 [&_button]:h-9 [&_button]:rounded-[12px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[13.5px] [&_button]:px-3">
                   <SearchableSelect 
                     options={['NSI', 'TCID', 'TCID X NSI']}
                     value={selectedBpo}
@@ -888,7 +888,7 @@ export default function App() {
                     placeholder="Cari BPO..."
                   />
                 </div>
-                <div className="w-[128px] shrink-0 [&_button]:h-9 [&_button]:rounded-[12px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[13.5px] [&_button]:px-3">
+                <div className="w-[112px] shrink-0 [&_button]:h-9 [&_button]:rounded-[12px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[13.5px] [&_button]:px-3">
                   <SearchableSelect 
                     options={tlList}
                     value={selectedTL}
@@ -897,7 +897,7 @@ export default function App() {
                     placeholder="Cari TL..."
                   />
                 </div>
-                <div className="w-[146px] shrink-0 [&_button]:h-9 [&_button]:rounded-[12px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[13.5px] [&_button]:px-3">
+                <div className="w-[128px] shrink-0 [&_button]:h-9 [&_button]:rounded-[12px] [&_button]:border-0 [&_button]:bg-black/[0.07] [&_button]:text-[13.5px] [&_button]:px-3">
                   <SearchableSelect
                     options={agentList}
                     value={selectedGlobalAgent}

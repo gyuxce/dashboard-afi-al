@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { AgentKPI } from "../../lib/dataProcessor";
-import { formatNum, getKpiStatus, type KpiType } from "../../lib/utils";
+import { formatNum, getKpiStatus, KPI_TARGETS, type KpiType } from "../../lib/utils";
 import { TrendingUp, Info, Download, ClipboardCopy } from "lucide-react";
-import { Sparkline } from "../ui/Sparkline";
 import { Card } from "../ui/Card";
 import { PageHeader } from "../ui/PageHeader";
 import { Pill } from "../ui/Pill";
@@ -132,8 +131,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
           {(() => {
             const cmp = isComparisonEnabled && previousData.length > 0;
             const prev = (s: string | undefined) => (cmp ? s : undefined);
-            const trend = (key: keyof (typeof dailyTrend)[number]) =>
-              dailyTrend.map((d) => d[key] as number | null);
             return (
               <>
                 {/* Hero KPI strip — the five people lead with */}
@@ -141,7 +138,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                   <StatCard
                     title="Total Productivity"
                     value={formatNum(currentStats.productivity, 0)}
-                    sparkValues={trend("productivity")}
                     delta={getDelta(currentStats.productivity, previousStats.productivity)}
                     previousValue={prev(formatNum(previousStats.productivity, 0))}
                   />
@@ -151,7 +147,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.avgProductivity}
                     targetType="productivity"
                     targetLabel="100"
-                    sparkValues={trend("avgProductivity")}
                     delta={getDelta(currentStats.avgProductivity, previousStats.avgProductivity)}
                     previousValue={prev(formatNum(previousStats.avgProductivity, 0))}
                   />
@@ -162,7 +157,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.csat}
                     targetType="csatOfficial"
                     targetLabel="3,75"
-                    sparkValues={trend("csat")}
                     delta={getDelta(currentStats.csat, previousStats.csat)}
                     deltaDec={2}
                     previousValue={prev(formatNum(previousStats.csat) + " / 5")}
@@ -173,7 +167,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.qa}
                     targetType="qa"
                     targetLabel="92%"
-                    sparkValues={trend("qa")}
                     delta={getDelta(currentStats.qa, previousStats.qa)}
                     previousValue={prev(formatNum(previousStats.qa) + "%")}
                   />
@@ -183,7 +176,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.attendance}
                     targetType="attendance"
                     targetLabel="95%"
-                    sparkValues={trend("attendance")}
                     delta={getDelta(currentStats.attendance, previousStats.attendance)}
                     previousValue={prev(formatNum(previousStats.attendance) + "%")}
                   />
@@ -198,7 +190,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     targetType="csatFull"
                     targetLabel="75%"
                     subValue={currentStats.csatScFull > 0 ? formatNum((currentStats.csatScFull / 100) * 5, 2) + " poin" : undefined}
-                    sparkValues={trend("csatScFull")}
                     delta={getDelta(currentStats.csatScFull, previousStats.csatScFull)}
                     previousValue={prev(formatNum(previousStats.csatScFull) + "%")}
                   />
@@ -209,7 +200,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     targetType="csatFair"
                     targetLabel="92%"
                     subValue={currentStats.csatScFair > 0 ? formatNum((currentStats.csatScFair / 100) * 5, 2) + " poin" : undefined}
-                    sparkValues={trend("csatScFair")}
                     delta={getDelta(currentStats.csatScFair, previousStats.csatScFair)}
                     previousValue={prev(formatNum(previousStats.csatScFair) + "%")}
                   />
@@ -219,7 +209,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.sla1m}
                     targetType="sla1m"
                     targetLabel="92%"
-                    sparkValues={trend("sla1m")}
                     delta={getDelta(currentStats.sla1m, previousStats.sla1m)}
                     previousValue={prev(formatNum(previousStats.sla1m) + "%")}
                   />
@@ -229,7 +218,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.sla3m}
                     targetType="sla3m"
                     targetLabel="96%"
-                    sparkValues={trend("sla3m")}
                     delta={getDelta(currentStats.sla3m, previousStats.sla3m)}
                     previousValue={prev(formatNum(previousStats.sla3m) + "%")}
                   />
@@ -239,7 +227,6 @@ export const DashboardSummary: React.FC<Props> = ({ data, previousData = [], pre
                     rawValue={currentStats.whu}
                     targetType="whu"
                     targetLabel="96%"
-                    sparkValues={trend("whu")}
                     delta={getDelta(currentStats.whu, previousStats.whu)}
                     previousValue={prev(formatNum(previousStats.whu) + "%")}
                   />
@@ -400,7 +387,6 @@ const StatCard = ({
   rawValue,
   targetType,
   targetLabel,
-  sparkValues,
   subValue,
   delta,
   deltaDec,
@@ -412,7 +398,6 @@ const StatCard = ({
   rawValue?: number | null;
   targetType?: KpiType;
   targetLabel?: string;
-  sparkValues?: Array<number | null | undefined>;
   subValue?: string;
   delta?: number;
   /** Fixed decimals for the delta chip (e.g. 2 for CSAT stars); default: 0 for ≥100, else 1. */
@@ -421,7 +406,9 @@ const StatCard = ({
 }) => {
   const status = targetType ? getKpiStatus(rawValue, targetType) : 'none';
   const numberColor = STATUS_TEXT_CLASS[status] ?? 'text-text-primary';
-  const sparkColor = status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'text-primary';
+  const targetValue = targetType ? KPI_TARGETS[targetType] : null;
+  const progress = targetValue && rawValue !== null && rawValue !== undefined && Number.isFinite(rawValue) ? Math.max(0, Math.min(100, (rawValue / targetValue) * 100)) : null;
+  const barColor = status === 'miss' ? 'bg-danger' : status === 'watch' ? 'bg-warning' : 'bg-primary';
   const isCompareMode = previousValue !== undefined;
   const showDelta = delta !== undefined && Math.abs(delta) >= 0.5 * 10 ** -(deltaDec ?? 1);
 
@@ -456,9 +443,12 @@ const StatCard = ({
         {subValue && !isCompareMode && <span className="text-[12px] font-medium text-text-muted">{subValue}</span>}
       </div>
 
-      {sparkValues && (
-        <div className={sparkColor}>
-          <Sparkline values={sparkValues} height={44} />
+      {progress !== null && (
+        <div className="mt-auto" aria-label={`Capaian terhadap target: ${formatNum(progress, 0)}%`}>
+          <div className="h-2 overflow-hidden rounded-full bg-black/[0.07]">
+            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${progress}%` }} />
+          </div>
+          <div className="mt-1.5 text-right text-[11.5px] tabular-nums text-text-muted">{progress >= 100 ? 'Target tercapai' : `${formatNum(progress, 0)}% dari target`}</div>
         </div>
       )}
 
