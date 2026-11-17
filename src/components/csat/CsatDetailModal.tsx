@@ -1,7 +1,8 @@
 import React from 'react';
-import { CSATEntry } from '../../lib/dataProcessor';
+import { CSATEntry, normalizeDateStr } from '../../lib/dataProcessor';
+import { formatDateFull } from '../../lib/dayCalendar';
 import { parseDateForSort, cn } from '../../lib/utils';
-import { AlertCircle, X, ChevronUp, ChevronDown, Star, Copy } from 'lucide-react';
+import { AlertCircle, X, ChevronUp, ChevronDown, Star, Copy, Check } from 'lucide-react';
 import { EmptyState } from '../ui/EmptyState';
 
 const CopyButton = ({ text }: { text: string }) => {
@@ -18,6 +19,12 @@ const CopyButton = ({ text }: { text: string }) => {
     </button>
   );
 };
+
+/** Soft status pill per score: green = good (4-5), neutral = 3, amber = 2, red = 1. */
+const scorePill = (score: number) =>
+  score >= 4 ? 'bg-success-soft text-success-text' : score === 3 ? 'bg-surface-muted text-text-secondary' : score === 2 ? 'bg-warning-soft text-warning-text' : 'bg-danger-soft text-danger-text';
+
+const dayLabel = (d: string) => formatDateFull(normalizeDateStr(d) || d);
 
 interface CsatDetailModalProps {
   title: React.ReactNode;
@@ -159,13 +166,27 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
       .map(([csId, stats]) => ({ csId, ...stats }));
   }, [filteredSurveys]);
 
+  // Unique ticket IDs of what is listed, for pasting into an appeal (banding) in one go.
+  const ticketList = React.useMemo(
+    () => Array.from(new Set(tableSurveys.map((s) => (s.ticketId || '').trim()).filter(Boolean))),
+    [tableSurveys],
+  );
+  const ticketCount = ticketList.length;
+  const [ticketsCopied, setTicketsCopied] = React.useState(false);
+  const copyTickets = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(ticketList.join('\n'));
+    setTicketsCopied(true);
+    setTimeout(() => setTicketsCopied(false), 2000);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-start justify-center overflow-y-auto p-2 sm:items-center sm:p-4">
-      <div className="bg-card w-full max-w-[98vw] xl:max-w-7xl rounded-xl shadow-2xl flex flex-col max-h-[94vh] sm:max-h-[90vh] border border-border overflow-hidden">
-        <div className="flex shrink-0 flex-col md:flex-row md:items-start justify-between p-3 sm:p-4 border-b border-border bg-surface-muted rounded-t-xl relative gap-4 pr-11 sm:pr-12 md:pr-5 overflow-x-hidden">
+    <div className="fixed inset-0 bg-text-primary/50 backdrop-blur-sm z-[100] flex items-start justify-center overflow-y-auto p-2 sm:items-center sm:p-4">
+      <div className="bg-card w-full max-w-[98vw] xl:max-w-7xl rounded-[24px] shadow-2xl flex flex-col max-h-[94vh] sm:max-h-[90vh] border border-border overflow-hidden">
+        <div className="flex shrink-0 flex-col md:flex-row md:items-start justify-between p-4 sm:p-5 border-b border-border bg-card relative gap-4 pr-11 sm:pr-12 md:pr-5 overflow-x-hidden">
           <div className="flex min-w-0 flex-col gap-3">
             <div>
-              <h3 className="font-bold text-base sm:text-lg text-text-primary flex flex-wrap items-center gap-2">
+              <h3 className="font-bold text-lg sm:text-xl text-text-primary flex flex-wrap items-center gap-2">
                 <AlertCircle className={`w-5 h-5 ${agentType === 'defects' ? 'text-danger' : 'text-primary'}`} />
                 {title}
               </h3>
@@ -185,39 +206,39 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
           </button>
         </div>
         
-        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 bg-card space-y-4">
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-            <div className="flex min-w-0 flex-col rounded-lg border border-border bg-surface/40 px-2 py-1.5">
-              <span className="truncate text-[8px] font-medium tracking-wide text-text-muted">Total</span>
-              <span className="text-sm font-semibold text-text-primary">{filteredSurveys.length}</span>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 bg-surface/40 space-y-4">
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Total</div>
+              <div className="ui-stat-value text-3xl leading-none text-text-primary">{filteredSurveys.length}</div>
             </div>
-            <div className="flex min-w-0 flex-col rounded-lg border border-success/20 bg-success/5 px-2 py-1.5">
-              <span className="truncate text-[8px] font-medium tracking-wide text-success">Score 5</span>
-              <span className="text-sm font-semibold text-success">{scoreCounts[5] || 0}</span>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {[5, 4, 3, 2, 1].map((score) => (
+                <div key={score} className="flex flex-col">
+                  <span className="inline-flex items-center gap-1 text-[11px] text-text-muted"><Star className="h-3 w-3 fill-current" />{score}</span>
+                  <span className={cn('text-lg font-semibold leading-tight tabular-nums', (scoreCounts[score] || 0) > 0 && score === 1 ? 'text-danger-text' : (scoreCounts[score] || 0) > 0 && score === 2 ? 'text-warning-text' : 'text-text-primary')}>{scoreCounts[score] || 0}</span>
+                </div>
+              ))}
             </div>
-            <div className="flex min-w-0 flex-col rounded-lg border border-success/20 bg-success/5 px-2 py-1.5">
-              <span className="truncate text-[8px] font-medium tracking-wide text-success/80">Score 4</span>
-              <span className="text-sm font-semibold text-success/80">{scoreCounts[4] || 0}</span>
-            </div>
-            <div className="flex min-w-0 flex-col rounded-lg border border-warning/20 bg-warning/5 px-2 py-1.5">
-              <span className="truncate text-[8px] font-medium tracking-wide text-warning">Score 3</span>
-              <span className="text-sm font-semibold text-warning">{scoreCounts[3] || 0}</span>
-            </div>
-            <div className="flex min-w-0 flex-col rounded-lg border border-warning/30 bg-warning/5 px-2 py-1.5">
-              <span className="truncate text-[8px] font-medium tracking-wide text-warning">Score 2</span>
-              <span className="text-sm font-semibold text-warning">{scoreCounts[2] || 0}</span>
-            </div>
-            <div className="flex min-w-0 flex-col rounded-lg border border-danger/20 bg-danger/5 px-2 py-1.5">
-              <span className="truncate text-[8px] font-medium tracking-wide text-danger">Score 1</span>
-              <span className="text-sm font-semibold text-danger">{scoreCounts[1] || 0}</span>
-            </div>
+            {ticketCount > 0 && (
+              <button
+                type="button"
+                onClick={copyTickets}
+                className="ml-auto inline-flex items-center gap-1.5 self-center rounded-full border border-border bg-card px-3 py-1.5 text-[12px] font-semibold text-text-secondary transition-colors hover:border-primary hover:text-primary"
+                title="Salin semua nomor tiket yang tampil, satu per baris"
+              >
+                {ticketsCopied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                {ticketsCopied ? 'Tersalin' : `Salin ${ticketCount} tiket`}
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
             {/* Menu 1: All Scores */}
             {(modalType === 'category' ? topAgentsAll.length > 0 : topCategoriesAll.length > 0) && (
-              <div className="min-w-0 rounded-lg border border-border bg-surface/30 p-3">
-                <div className="mb-2 text-[10px] font-medium tracking-wide text-text-muted">
+              <div className="min-w-0 rounded-2xl border border-border bg-card p-4">
+                <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-text-secondary">
+                  <span className="h-2 w-2 rounded-full bg-border-strong" aria-hidden />
                   Top {modalType === 'category' ? topAgentsAll.length : topCategoriesAll.length} {modalType === 'category' ? 'Agents' : 'Categories'} (All Scores 1-5)
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-1.5">
@@ -234,7 +255,7 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                         onClick={() => toggleDetailFilter({ type: filterType, value: filterValue, scoreScope: 'all' })}
                         className={cn(
                           "flex min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] transition-colors",
-                          isSelected ? 'bg-primary/10 border border-primary/20' : 'border border-transparent hover:bg-surface-muted'
+                          isSelected ? 'bg-primary-soft border border-primary/20' : 'border border-transparent hover:bg-surface-muted'
                         )}
                       >
                         <span className="flex min-w-0 items-center gap-2">
@@ -249,10 +270,7 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                             return (
                               <span
                                 key={score}
-                                className={cn(
-                                  "rounded px-1 py-0.5 text-[8px] font-bold text-white",
-                                  score === 5 ? 'bg-success' : score === 4 ? 'bg-success/80' : score === 3 ? 'bg-warning' : score === 2 ? 'bg-orange-500' : 'bg-danger'
-                                )}
+                                className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", scorePill(score))}
                               >
                                 {score}:{count}
                               </span>
@@ -268,8 +286,9 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
 
             {/* Menu 2: Bad Scores */}
             {(modalType === 'category' ? topAgentsBad.length > 0 : topCategoriesBad.length > 0) && (
-              <div className="min-w-0 rounded-lg border border-danger/30 bg-danger/5 p-3">
-                <div className="mb-2 text-[10px] font-medium tracking-wide text-danger">
+              <div className="min-w-0 rounded-2xl border border-border bg-card p-4">
+                <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-text-secondary">
+                  <span className="h-2 w-2 rounded-full bg-danger" aria-hidden />
                   Top {modalType === 'category' ? topAgentsBad.length : topCategoriesBad.length} {modalType === 'category' ? 'Agents' : 'Categories'} (Score 1 & 2 Only)
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-1.5">
@@ -286,7 +305,7 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                         onClick={() => toggleDetailFilter({ type: filterType, value: filterValue, scoreScope: 'bad' })}
                         className={cn(
                           "flex min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] transition-colors",
-                          isSelected ? 'bg-danger/10 border border-danger/20' : 'border border-transparent hover:bg-danger/10'
+                          isSelected ? 'bg-danger-soft border border-danger/20' : 'border border-transparent hover:bg-surface-muted'
                         )}
                       >
                         <span className="flex min-w-0 items-center gap-2">
@@ -295,8 +314,8 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                         </span>
                         <span className="flex shrink-0 items-center gap-1">
                           <span className="font-bold text-text-secondary">{(item.s1 || 0) + (item.s2 || 0)}</span>
-                          {item.s2 > 0 && <span className="rounded bg-orange-500 px-1 py-0.5 text-[8px] font-bold text-white">2:{item.s2}</span>}
-                          {item.s1 > 0 && <span className="rounded bg-danger px-1 py-0.5 text-[8px] font-bold text-white">1:{item.s1}</span>}
+                          {item.s2 > 0 && <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", scorePill(2))}>2:{item.s2}</span>}
+                          {item.s1 > 0 && <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", scorePill(1))}>1:{item.s1}</span>}
                         </span>
                       </button>
                     );
@@ -307,14 +326,14 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
           </div>
 
           {selectedDetailFilter && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-primary/10 border border-primary/20 rounded-lg text-sm mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-primary-soft border border-primary/20 rounded-2xl text-sm mb-4">
               <span className="font-medium text-text-primary">
                 Menampilkan hasil khusus untuk {selectedDetailFilter.type === 'agent' ? 'Agent' : 'Kategori'}: <span className="font-bold text-primary">{selectedDetailFilter.value}</span>
-                {selectedDetailFilter.scoreScope === 'bad' && <span className="ml-2 rounded bg-danger/10 px-2 py-0.5 text-[10px] font-bold text-danger">Score 1 & 2 saja</span>}
+                {selectedDetailFilter.scoreScope === 'bad' && <span className="ml-2 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] font-semibold text-danger-text">Score 1 & 2 saja</span>}
               </span>
               <button 
                 onClick={() => setSelectedDetailFilter(null)}
-                className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-md text-xs font-bold text-text-primary hover:bg-surface-muted transition-colors border border-border shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-1 bg-card rounded-md text-xs font-bold text-text-primary hover:bg-surface-muted transition-colors border border-border shadow-sm"
               >
                 <X className="w-3.5 h-3.5" /> Clear Filter
               </button>
@@ -322,17 +341,17 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
           )}
           
           {surveysByDate.map(({ date, surveys: dateSurveys, scoreCounts: dateScoreCounts }) => {
-            const isExpanded = expandedDates.has(date);
+            const isExpanded = expandedDates.has(date) || surveysByDate.length === 1;
             
             return (
-              <div key={date} className="border border-border rounded-lg overflow-hidden shadow-sm">
+              <div key={date} className="border border-border rounded-2xl overflow-hidden bg-card">
                 <button
                   onClick={() => toggleExpandDate(date)}
-                  className="w-full flex items-center justify-between p-4 bg-surface hover:bg-surface-muted transition-colors text-left"
+                  className="w-full flex items-center justify-between p-4 bg-card hover:bg-surface-muted/60 transition-colors text-left"
                 >
                   <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                    <span className="font-bold text-text-primary text-sm md:text-base">{date}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 whitespace-nowrap">
+                    <span className="font-bold text-text-primary text-sm md:text-base">{dayLabel(date)}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-surface-muted text-text-secondary whitespace-nowrap">
                       {dateSurveys.length} survey{dateSurveys.length !== 1 ? 's' : ''}
                     </span>
                     <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto mt-1 sm:mt-0">
@@ -340,7 +359,7 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                         const count = dateScoreCounts[score] || 0;
                         if (count === 0) return null;
                         return (
-                          <span key={score} className={cn("px-1.5 py-0.5 rounded text-[10px] md:text-[9px] font-bold text-white flex items-center gap-0.5", score === 5 ? 'bg-success' : score === 4 ? 'bg-success/80' : score === 3 ? 'bg-warning' : score === 2 ? 'bg-orange-500' : 'bg-danger')}>
+                          <span key={score} className={cn("px-2 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-0.5", scorePill(score))}>
                             <Star className="w-2.5 h-2.5 fill-current" /> {score} <span className="ml-0.5">({count})</span>
                           </span>
                         );
@@ -368,7 +387,7 @@ export const CsatDetailModal: React.FC<CsatDetailModalProps> = ({
                         {dateSurveys.map((s, i) => (
                           <tr key={i} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
                             <td className="p-3 align-top">
-                              <span className={cn("px-2 py-1 rounded text-white font-bold inline-flex items-center gap-1", s.score === 5 ? 'bg-success' : s.score === 4 ? 'bg-success/80' : s.score === 3 ? 'bg-warning' : s.score === 2 ? 'bg-orange-500' : 'bg-danger')}>
+                              <span className={cn("px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1", scorePill(s.score))}>
                                 {s.score} <Star className="w-3 h-3 fill-current" />
                               </span>
                             </td>

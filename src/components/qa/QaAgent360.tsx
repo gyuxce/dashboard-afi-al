@@ -402,12 +402,15 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
             <span className="max-w-[170px] truncate">{value}</span>
             {copiedId === value
               ? <Check className="h-3 w-3 text-success" />
-              : <Copy className="h-3 w-3 text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />}
+              : <Copy className="h-3 w-3 text-text-muted transition-colors group-hover:text-primary" />}
           </button>
         ) : null;
 
         const dayLabel = (d: string) => formatDateFull(normalizeDateStr(d) || d);
         const levelCounts = countByMistakeLevel(filteredDefects);
+        // Unique ticket IDs of what is listed, for pasting into an appeal (banding) in one go.
+        const ticketList = Array.from(new Set(filteredDefects.map((d) => (d.ticketId || '').trim()).filter(Boolean))).join('\n');
+        const ticketCount = ticketList ? ticketList.split('\n').length : 0;
 
         return (
           <div
@@ -485,6 +488,17 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                         ))}
                       </div>
                     </div>
+                  )}
+                  {ticketCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopy(e, ticketList)}
+                      className="ml-auto inline-flex items-center gap-1.5 self-center rounded-full border border-border bg-card px-3 py-1.5 text-[12px] font-semibold text-text-secondary transition-colors hover:border-primary hover:text-primary"
+                      title="Salin semua nomor tiket yang tampil, satu per baris"
+                    >
+                      {copiedId === ticketList ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedId === ticketList ? 'Tersalin' : `Salin ${ticketCount} tiket`}
+                    </button>
                   )}
                 </div>
               </div>
