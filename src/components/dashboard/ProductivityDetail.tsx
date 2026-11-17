@@ -270,10 +270,10 @@ export const ProductivityDetail: React.FC<{
                   }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
-                <Line type="monotone" name={weekCompare ? weekCompare.labels[0] : comparisonMode === "mom" ? "Bulan Ini" : "Minggu Ini"} dataKey="total" stroke={chart.primary} strokeWidth={3} dot={{ r: 3, cursor: "pointer", onClick: handleChartIntervalClick }} activeDot={{ r: 5, cursor: "pointer", onClick: handleChartIntervalClick }} />
-                <Line type="monotone" name={weekCompare ? weekCompare.labels[1] : comparisonMode === "mom" ? "Bulan Lalu" : "Minggu Lalu"} dataKey="prev" stroke={chart.secondary} strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                {previousData2.length > 0 && <Line type="monotone" name={weekCompare ? weekCompare.labels[2] : comparisonMode === "mom" ? "2 Bulan Lalu" : "2 Minggu Lalu"} dataKey="prev2" stroke={chart.muted} strokeWidth={2} strokeDasharray="3 3" dot={false} />}
-                {previousData3.length > 0 && <Line type="monotone" name={weekCompare ? weekCompare.labels[3] : comparisonMode === "mom" ? "3 Bulan Lalu" : "3 Minggu Lalu"} dataKey="prev3" stroke={chart.disabled} strokeWidth={2} strokeDasharray="2 2" dot={false} />}
+                <Line isAnimationActive={false} type="monotone" name={weekCompare ? weekCompare.labels[0] : comparisonMode === "mom" ? "Bulan Ini" : "Minggu Ini"} dataKey="total" stroke={chart.primary} strokeWidth={3} dot={{ r: 3, cursor: "pointer", onClick: handleChartIntervalClick }} activeDot={{ r: 5, cursor: "pointer", onClick: handleChartIntervalClick }} />
+                <Line isAnimationActive={false} type="monotone" name={weekCompare ? weekCompare.labels[1] : comparisonMode === "mom" ? "Bulan Lalu" : "Minggu Lalu"} dataKey="prev" stroke={chart.secondary} strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                {previousData2.length > 0 && <Line isAnimationActive={false} type="monotone" name={weekCompare ? weekCompare.labels[2] : comparisonMode === "mom" ? "2 Bulan Lalu" : "2 Minggu Lalu"} dataKey="prev2" stroke={chart.muted} strokeWidth={2} strokeDasharray="3 3" dot={false} />}
+                {previousData3.length > 0 && <Line isAnimationActive={false} type="monotone" name={weekCompare ? weekCompare.labels[3] : comparisonMode === "mom" ? "3 Bulan Lalu" : "3 Minggu Lalu"} dataKey="prev3" stroke={chart.disabled} strokeWidth={2} strokeDasharray="2 2" dot={false} />}
               </LineChart>
             ) : (
               <BarChart data={hourlyDataWow} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -294,7 +294,7 @@ export const ProductivityDetail: React.FC<{
                     return null;
                   }}
                 />
-                <Bar dataKey="total" radius={[4, 4, 0, 0]} onClick={handleChartIntervalClick}>
+                <Bar isAnimationActive={false} dataKey="total" radius={[4, 4, 0, 0]} onClick={handleChartIntervalClick}>
                   {hourlyDataWow.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}

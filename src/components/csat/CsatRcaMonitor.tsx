@@ -136,7 +136,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                 contentStyle={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 11 }}
                 formatter={(value: any) => [value, 'Kasus']}
               />
-              <Bar dataKey="count" fill={color} radius={[0, 6, 6, 0]} maxBarSize={20}>
+              <Bar isAnimationActive={false} dataKey="count" fill={color} radius={[0, 6, 6, 0]} maxBarSize={20}>
                 <LabelList dataKey="count" position="right" style={{ fontSize: 11, fill: 'var(--color-text-primary)', fontWeight: 700 }} />
               </Bar>
             </BarChart>

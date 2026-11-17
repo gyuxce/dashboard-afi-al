@@ -367,7 +367,7 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekL
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                 <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: 'var(--color-surface-muted)', opacity: 0.4 }} contentStyle={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: any) => formatNum(Number(v), 2)} />
-                <Bar dataKey="CSAT Official" fill={chart.kpiCsat} radius={[4, 4, 0, 0]} maxBarSize={48}>
+                <Bar isAnimationActive={false} dataKey="CSAT Official" fill={chart.kpiCsat} radius={[4, 4, 0, 0]} maxBarSize={48}>
                   <LabelList dataKey="CSAT Official" position="top" style={{ fontSize: 11, fontWeight: 700, fill: 'var(--color-text-primary)' }} formatter={(v: any) => (Number(v) > 0 ? formatNum(Number(v), 2) : '')} />
                 </Bar>
               </BarChart>
@@ -403,7 +403,7 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekL
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} minTickGap={8} />
                 <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: 'var(--color-surface-muted)', opacity: 0.4 }} contentStyle={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: any) => formatNum(Number(v), 2)} />
-                <Bar dataKey="CSAT" fill={chart.kpiCsat} radius={[3, 3, 0, 0]} maxBarSize={30}>
+                <Bar isAnimationActive={false} dataKey="CSAT" fill={chart.kpiCsat} radius={[3, 3, 0, 0]} maxBarSize={30}>
                   <LabelList dataKey="CSAT" position="top" style={{ fontSize: 10, fontWeight: 700, fill: 'var(--color-text-primary)' }} formatter={(v: any) => (Number(v) > 0 ? formatNum(Number(v), 2) : '')} />
                 </Bar>
               </BarChart>

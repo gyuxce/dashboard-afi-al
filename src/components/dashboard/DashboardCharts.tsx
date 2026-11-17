@@ -258,7 +258,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
                 formatter={(value: any, name: string) => [formatNum(value, 0), name === 'productivity' ? 'Current Period' : 'Previous Period']}
               />
               
-              <Area
+              <Area isAnimationActive={false}
                 type="monotone"
                 dataKey="prevProductivity"
                 stroke={chart.muted}
@@ -270,7 +270,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
                 activeDot={{ r: 4, strokeWidth: 0, fill: chart.muted }}
               />
 
-              <Area
+              <Area isAnimationActive={false}
                 type="monotone"
                 dataKey="productivity"
                 stroke={chart.primary}
