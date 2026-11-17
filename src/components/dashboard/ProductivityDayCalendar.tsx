@@ -64,7 +64,7 @@ export const ProductivityDayCalendar: React.FC<{ cells: DayCell[] }> = ({ cells 
                   <div
                     key={key}
                     title={cell.date}
-                    className="relative flex h-11 flex-col items-center justify-center rounded-lg bg-surface-muted/60 text-xs tabular-nums"
+                    className={`relative flex h-11 flex-col items-center justify-center rounded-lg border text-xs tabular-nums ${cell.value === null ? "border-dashed border-border bg-transparent" : "border-border bg-card shadow-sm"}`}
                   >
                     <span className="absolute left-1.5 top-1 text-[9px] leading-none text-text-muted">
                       {showMonth ? formatDayMonth(cell.date) : dayNum}
