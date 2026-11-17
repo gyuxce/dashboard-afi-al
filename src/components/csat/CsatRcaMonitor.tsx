@@ -75,9 +75,9 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{label}</span>
           <span className="text-[11px] tabular-nums text-text-muted">{share.toFixed(1)}%</span>
         </div>
-        <div className="mt-1 text-2xl font-bold tabular-nums text-text-primary">{count}</div>
+        <div className="ui-stat-value ui-stat-md mt-1 tabular-nums text-text-primary">{count}</div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-muted">
-          <div className="h-full rounded-full bg-border-strong" style={{ width: `${share}%` }} />
+          <div className="h-full rounded-full bg-primary" style={{ width: `${share}%` }} />
         </div>
 
         <div className="mt-3 border-t border-border pt-3">
@@ -93,7 +93,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                     <span className="shrink-0 text-[11px] font-semibold tabular-nums text-text-primary">{issue.count}</span>
                   </div>
                   <div className="h-1 overflow-hidden rounded-full bg-surface-muted">
-                    <div className="h-full rounded-full bg-text-muted" style={{ width: `${(issue.count / maxIssue) * 100}%` }} />
+                    <div className="h-full rounded-full bg-primary/50" style={{ width: `${(issue.count / maxIssue) * 100}%` }} />
                   </div>
                 </li>
               ))}

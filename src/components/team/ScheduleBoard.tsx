@@ -29,6 +29,8 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
   // How many agents are actually on a shift each day — the coverage strip.
   const coverage = useMemo(() => buildCoverage(data, uniqueDates), [data, uniqueDates]);
   const maxCoverage = Math.max(1, ...coverage.map((c) => c.count));
+  // uniqueDates is newest-first; the chart reads left→right as oldest→newest.
+  const coverageChrono = useMemo(() => [...coverage].reverse(), [coverage]);
 
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const tableVirtual = useVirtualRows({
@@ -45,13 +47,13 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-medium uppercase tracking-wide text-text-muted">Agen bertugas per hari</span>
             <span className="inline-flex items-center gap-3 text-[9px] text-text-muted">
-              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-text-muted" />normal</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-primary/40" />normal</span>
               <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-warning" />hari sepi</span>
               <span className="tabular-nums">maks {maxCoverage}</span>
             </span>
           </div>
           <div className="mt-2 flex h-16 items-end gap-0.5">
-            {coverage.map(({ date, count }) => {
+            {coverageChrono.map(({ date, count }) => {
               const low = count < maxCoverage * 0.7;
               return (
                 <div key={date} className="flex h-full min-w-[3px] flex-1 flex-col items-center justify-end gap-1">
@@ -59,7 +61,7 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                     <span className="text-[8px] tabular-nums text-text-muted">{count}</span>
                   )}
                   <div
-                    className={`w-full rounded-[2px] ${low ? 'bg-warning' : 'bg-text-muted'}`}
+                    className={`w-full rounded-[2px] ${low ? 'bg-warning' : 'bg-primary/40'}`}
                     style={{ height: `${Math.max(12, (count / maxCoverage) * 100)}%` }}
                     title={`${formatCalendarHeader(date)} · ${count} agen bertugas`}
                   />
@@ -68,8 +70,8 @@ export const ScheduleBoard: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
             })}
           </div>
           <div className="mt-1 flex justify-between text-[9px] tabular-nums text-text-muted">
-            <span>{formatCalendarHeader(coverage[0]?.date ?? '')}</span>
-            <span>{formatCalendarHeader(coverage[coverage.length - 1]?.date ?? '')}</span>
+            <span>{formatCalendarHeader(coverageChrono[0]?.date ?? '')}</span>
+            <span>{formatCalendarHeader(coverageChrono[coverageChrono.length - 1]?.date ?? '')}</span>
           </div>
         </div>
       )}
