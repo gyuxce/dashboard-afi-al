@@ -70,9 +70,10 @@ export const ScheduleAttendance: React.FC<{ data: AgentKPI[]; initialView?: View
         }
       />
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(190px,1fr))] sm:gap-5">
         <StatCard
           size="md"
+          className="col-span-2 sm:col-span-1"
           label="Avg team attendance"
           value={formatNum(summary.avgTeamAttendance, 1)}
           unit="%"
