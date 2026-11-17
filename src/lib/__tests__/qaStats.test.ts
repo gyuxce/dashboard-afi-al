@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentKPI, QAEntry } from '../dataProcessor';
-import { buildDefectData, buildQaHighlights, filterQaAgents, isQaDefect, sortDefectAgents, sortPerformanceAgents } from '../qaStats';
+import { buildDefectData, buildQaHighlights, countByMistakeLevel, filterQaAgents, isQaDefect, sortDefectAgents, sortPerformanceAgents } from '../qaStats';
 
 const entry = (date: string, mistakeLevel: string, category = '', score = 100, extra: Partial<QAEntry> = {}): QAEntry =>
   ({ date, normDate: date, ticketId: `${date}-${mistakeLevel}-${category}`, mistakeLevel, category, remarks: '', score, hasScore: true, ...extra }) as QAEntry;
@@ -108,5 +108,19 @@ describe('buildQaHighlights', () => {
     expect(h.bottomDays).toHaveLength(2);
     expect(h.bottomDays[0].value).toBe('80,0%');
     expect(h.bottomDays[0].subLabel).toBe('3 temuan · 3 evaluasi');
+  });
+});
+
+describe('countByMistakeLevel', () => {
+  it('counts per level, most severe first, skipping no-mistake and blanks', () => {
+    const r = countByMistakeLevel([
+      { mistakeLevel: 'Medium' }, { mistakeLevel: 'MEDIUM' }, { mistakeLevel: 'Very High' },
+      { mistakeLevel: 'LOW' }, { mistakeLevel: 'No Mistake' }, { mistakeLevel: '' }, {},
+    ]);
+    expect(r).toEqual([
+      { level: 'VERY HIGH', count: 1 },
+      { level: 'MEDIUM', count: 2 },
+      { level: 'LOW', count: 1 },
+    ]);
   });
 });

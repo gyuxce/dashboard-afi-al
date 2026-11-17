@@ -73,3 +73,9 @@ export function formatDayMonth(date: string): string {
   if (!m) return date;
   return `${Number(m[2])} ${MONTH_ABBR[Number(m[1]) - 1] ?? ''}`.trim();
 }
+
+/** `2026-10-01` → `1 Okt 2026`; anything else is returned unchanged. */
+export function formatDateFull(date: string): string {
+  const m = /^(\d{4})-\d{2}-\d{2}$/.exec(date);
+  return m ? `${formatDayMonth(date)} ${m[1]}` : date;
+}

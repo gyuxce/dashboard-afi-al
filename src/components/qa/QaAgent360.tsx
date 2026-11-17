@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { AgentKPI, normalizeDateStr } from '../../lib/dataProcessor';
-import { QA_TARGET, buildDefectData, buildQaHighlights, filterQaAgents, isQaDefect, sortDefectAgents, sortPerformanceAgents, type SortConfig } from '../../lib/qaStats';
-import { formatNum, getKpiStatus, groupByDate, uniqueCalendarDates, getGroupByCalendarDate, formatCalendarHeader, parseDateForSort, formatCsId } from '../../lib/utils';
+import { QA_TARGET, buildDefectData, buildQaHighlights, countByMistakeLevel, filterQaAgents, isQaDefect, sortDefectAgents, sortPerformanceAgents, type SortConfig } from '../../lib/qaStats';
+import { formatNum, getKpiStatus, groupByDate, uniqueCalendarDates, getGroupByCalendarDate, parseDateForSort, formatCsId } from '../../lib/utils';
 import { KpiValue, KpiCue, KpiLegend } from '../ui/KpiCue';
 import { DayCalendar } from '../ui/DayCalendar';
+import { formatDateFull } from '../../lib/dayCalendar';
 import { Eye, X, BarChart2, AlertCircle, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 
 import { SortableHeader } from '../ui/SortableHeader';
@@ -394,14 +395,19 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
             key={label}
             type="button"
             onClick={(e) => handleCopy(e, value)}
-            className="inline-flex items-center gap-1 rounded border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] text-text-secondary transition-colors hover:border-primary"
-            title={`Salin ${label}`}
+            className="group inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-[11px] text-text-secondary transition-colors hover:bg-surface-muted"
+            title={`Salin ${label}: ${value}`}
           >
-            <span className="text-text-muted">{label}</span>
-            <span className="max-w-[150px] truncate">{value}</span>
-            {copiedId === value ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3 text-text-muted" />}
+            <span className="font-sans text-text-muted">{label}</span>
+            <span className="max-w-[170px] truncate">{value}</span>
+            {copiedId === value
+              ? <Check className="h-3 w-3 text-success" />
+              : <Copy className="h-3 w-3 text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />}
           </button>
         ) : null;
+
+        const dayLabel = (d: string) => formatDateFull(normalizeDateStr(d) || d);
+        const levelCounts = countByMistakeLevel(filteredDefects);
 
         return (
           <div
@@ -413,14 +419,14 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
               onClick={(e) => e.stopPropagation()}
             >
               {/* header */}
-              <div className="border-b border-border bg-surface-muted p-4">
+              <div className="border-b border-border bg-card p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="flex flex-wrap items-center gap-2 text-base font-bold text-text-primary">
                       <AlertCircle className={`h-4 w-4 shrink-0 ${typeColor}`} />
                       <span>{titleLabel}</span>
                       <span className="truncate text-text-secondary">{selectedAgent.agent.name || selectedAgent.agent.csId}</span>
-                      {selectedAgent.date && <span className="text-xs font-normal text-text-muted">&middot; {formatCalendarHeader(selectedAgent.date)}</span>}
+                      {selectedAgent.date && <span className="text-sm font-normal text-text-muted">&middot; {dayLabel(selectedAgent.date)}</span>}
                     </h3>
                     <p className="mt-1 text-[11px] text-text-muted">
                       CS ID <span className="font-semibold text-text-secondary">{selectedAgent.agent.csId}</span>
@@ -457,15 +463,25 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
 
                 <div className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-2">
                   <div>
-                    <div className="text-[9px] font-bold uppercase tracking-wide text-text-muted">{countLabel}</div>
-                    <div className={`text-lg font-semibold leading-none ${typeColor}`}>{filteredDefects.length}</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{countLabel}</div>
+                    <div className={`ui-stat-value text-3xl leading-none ${typeColor}`}>{filteredDefects.length}</div>
                   </div>
+                  {levelCounts.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Tingkat</div>
+                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-text-secondary">
+                        {levelCounts.map(({ level, count }) => (
+                          <span key={level} className="tabular-nums"><span className="font-semibold text-text-primary">{count}</span> {level.charAt(0) + level.slice(1).toLowerCase()}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {topCategories[0] !== '-' && (
                     <div className="min-w-0">
-                      <div className="text-[9px] font-bold uppercase tracking-wide text-text-muted">Top kategori</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Top kategori</div>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {topCategories.map((cat, i) => (
-                          <span key={i} className="max-w-[220px] truncate rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-text-secondary" title={cat}>{cat}</span>
+                          <span key={i} className="max-w-[240px] truncate rounded-full bg-surface-muted px-2.5 py-0.5 text-[11px] text-text-secondary" title={cat}>{cat}</span>
                         ))}
                       </div>
                     </div>
@@ -474,7 +490,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
               </div>
 
               {/* body — card list per date */}
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto bg-surface/40 p-5">
                 {sortedDates.length > 0 ? (
                   <div className="flex flex-col gap-3">
                     {sortedDates.map(date => {
@@ -482,6 +498,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                       const isExpanded = expandedDates.has(date) || sortedDates.length === 1;
                       return (
                         <div key={date}>
+                          {sortedDates.length > 1 && (
                           <button
                             type="button"
                             onClick={() => setExpandedDates(prev => {
@@ -493,42 +510,45 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                             className="flex w-full items-center gap-2 rounded-md bg-surface-muted px-3 py-2 text-left transition-colors hover:bg-surface"
                           >
                             {isExpanded ? <ChevronDown className="h-4 w-4 text-text-muted" /> : <ChevronRight className="h-4 w-4 text-text-muted" />}
-                            <span className="text-[13px] font-bold text-text-primary">{date}</span>
+                            <span className="text-[13px] font-bold text-text-primary">{dayLabel(date)}</span>
                             <span className="ml-1 rounded-full bg-card px-2 py-0.5 text-[10px] font-bold text-text-muted">
                               {defects.length} temuan
                             </span>
                           </button>
+                          )}
 
                           {isExpanded && (
-                            <div className="mt-2 flex flex-col gap-2 pl-2">
+                            <div className={`flex flex-col gap-2 ${sortedDates.length > 1 ? "mt-2 pl-2" : ""}`}>
                               {defects.map((q, i) => {
                                 const levelStr = (q.mistakeLevel || '').toUpperCase();
+                                // Only HIGH / VERY HIGH carry colour; lower levels stay neutral so the badge keeps its meaning.
                                 let badgeClass = 'bg-surface-muted text-text-secondary';
-                                if (levelStr.includes('VERY HIGH')) badgeClass = 'text-danger border border-danger';
-                                else if (levelStr.includes('HIGH') || levelStr.includes('MAJOR')) badgeClass = 'bg-danger-soft text-danger border border-danger';
-                                else if (levelStr.includes('MEDIUM') || levelStr.includes('MINOR')) badgeClass = 'bg-warning-soft text-warning border border-warning';
-                                else if (levelStr.includes('LOW')) badgeClass = 'bg-primary-soft text-primary border border-primary';
-                                else if (levelStr.includes('NO MISTAKE')) badgeClass = 'bg-success-soft text-success border border-success';
+                                if (levelStr.includes('VERY HIGH')) badgeClass = 'bg-danger text-white';
+                                else if (levelStr.includes('HIGH') || levelStr.includes('MAJOR')) badgeClass = 'bg-danger-soft text-danger-text';
+                                else if (levelStr.includes('NO MISTAKE')) badgeClass = 'bg-success-soft text-success-text';
+                                const caseDiffers = !!q.caseDate && (normalizeDateStr(q.caseDate) || q.caseDate) !== (normalizeDateStr(q.date) || q.date);
 
                                 return (
-                                  <div key={`${date}-${i}`} className="rounded-lg border border-border bg-surface/40 p-3">
+                                  <div key={`${date}-${i}`} className="rounded-2xl border border-border bg-card p-4">
                                     <div className="flex flex-wrap items-center gap-2">
                                       <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${badgeClass}`}>
                                         {q.mistakeLevel || 'N/A'}
                                       </span>
                                       <span className="text-[13px] font-semibold text-text-primary">{q.category || '-'}</span>
-                                      <span className="ml-auto shrink-0 text-[10px] tabular-nums text-text-muted">
-                                        {q.date}{q.caseDate && q.caseDate !== q.date ? ` · kasus ${q.caseDate}` : ''}
-                                      </span>
+                                      {(sortedDates.length > 1 || caseDiffers) && (
+                                        <span className="ml-auto shrink-0 text-[11px] tabular-nums text-text-muted">
+                                          {sortedDates.length > 1 ? dayLabel(q.date) : ''}{sortedDates.length > 1 && caseDiffers ? ' · ' : ''}{caseDiffers ? `kasus ${dayLabel(q.caseDate as string)}` : ''}
+                                        </span>
+                                      )}
                                     </div>
 
                                     {q.remarks && (
-                                      <p className="mt-2 whitespace-pre-wrap text-[12px] leading-relaxed text-text-secondary">{q.remarks}</p>
+                                      <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-text-secondary">{q.remarks}</p>
                                     )}
 
-                                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-text-muted">
-                                      {q.crmKode && <span>CRM <strong className="text-text-secondary">{q.crmKode}</strong></span>}
-                                      {q.qcName && <span>QC <strong className="text-text-secondary">{q.qcName}</strong></span>}
+                                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-3 text-[11px] text-text-muted">
+                                      {q.crmKode && <span>CRM <strong className="font-semibold text-text-secondary">{q.crmKode}</strong></span>}
+                                      {q.qcName && <span>QC <strong className="font-semibold text-text-secondary">{q.qcName}</strong></span>}
                                       {idChip('Ticket', q.ticketId)}
                                       {idChip('Chat', q.chatId)}
                                       {idChip('UID', q.uid)}

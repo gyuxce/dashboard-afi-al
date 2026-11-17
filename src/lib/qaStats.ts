@@ -190,3 +190,22 @@ export function buildQaHighlights(tableData: AgentKPI[], defectData: QaDefectAge
     bottomAgents: agentsByQa.length > 3 ? agentsByQa.slice(Math.max(3, agentsByQa.length - 3)).reverse().map(agentItem) : [],
   };
 }
+
+const LEVEL_ORDER = ['VERY HIGH', 'HIGH', 'MEDIUM', 'LOW'];
+
+/** How many findings per severity level, most severe first (unknown levels last). */
+export function countByMistakeLevel(entries: { mistakeLevel?: string }[]): { level: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const e of entries) {
+    const level = (e.mistakeLevel || '').trim().toUpperCase();
+    if (!level || level.includes('NO MISTAKE')) continue;
+    counts.set(level, (counts.get(level) || 0) + 1);
+  }
+  const rank = (level: string) => {
+    const i = LEVEL_ORDER.indexOf(level);
+    return i === -1 ? LEVEL_ORDER.length : i;
+  };
+  return [...counts.entries()]
+    .map(([level, count]) => ({ level, count }))
+    .sort((a, b) => rank(a.level) - rank(b.level) || a.level.localeCompare(b.level));
+}

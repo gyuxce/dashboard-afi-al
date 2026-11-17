@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWeekGrid, formatDayMonth, summarizeDays } from '../dayCalendar';
+import { buildWeekGrid, formatDateFull, formatDayMonth, summarizeDays } from '../dayCalendar';
 
 describe('buildWeekGrid', () => {
   it('places days Monday-first and pads the partial weeks with null', () => {
@@ -56,5 +56,12 @@ describe('summarizeDays off days', () => {
   it('ignores scheduled off days even when they carry a value', () => {
     const s = summarizeDays([{ date: '2026-10-01', value: 50, off: true }, { date: '2026-10-02', value: 120 }], 100);
     expect(s).toMatchObject({ daysWithData: 1, belowTarget: 0, lowest: { value: 120 } });
+  });
+});
+
+describe('formatDateFull', () => {
+  it('adds the year to the Indonesian day-month form', () => {
+    expect(formatDateFull('2026-10-01')).toBe('1 Okt 2026');
+    expect(formatDateFull('29-Sep-2026')).toBe('29-Sep-2026');
   });
 });
