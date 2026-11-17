@@ -59,8 +59,8 @@ describe('buildOfficialHighlights', () => {
     const a = agent('a', 4, { dailyHistory: { csat: [csat('2026-10-01', 4, 10), csat('2026-10-02', 4, 10)] } });
     const b = agent('b', 4, { dailyHistory: { csat: [csat('2026-10-01', 2, 10)] } });
     const h = buildOfficialHighlights([a, b]);
-    expect(h.topDays[0]).toEqual({ label: '2026-10-02', subLabel: '10 responden', value: '4,00 / 5' });
-    expect(h.topDays[1]).toEqual({ label: '2026-10-01', subLabel: '20 responden', value: '3,00 / 5' });
+    expect(h.topDays[0]).toEqual({ label: '2 Okt', subLabel: '10 responden', value: '4,00 / 5' });
+    expect(h.topDays[1]).toEqual({ label: '1 Okt', subLabel: '20 responden', value: '3,00 / 5' });
   });
 
   it('reports the team score from star counts', () => {

@@ -3,8 +3,7 @@ import { getOfficialCsatAggregate, type AgentKPI } from '../../lib/dataProcessor
 import { CSAT_OFFICIAL_TARGET, buildOfficialHighlights, filterOfficialAgents, sortOfficialAgents, type SortConfig } from '../../lib/csatOfficialStats';
 import { formatNum, getKpiStatus, getMonthOffsetLabel, parseDateForSort, cn, indexByDate, uniqueCalendarDates, getByCalendarDate, formatCsId } from '../../lib/utils';
 import { KpiValue, KpiCue } from '../ui/KpiCue';
-import { Sparkline } from '../ui/Sparkline';
-import { DayStrip } from '../ui/DayStrip';
+import { DayCalendar } from '../ui/DayCalendar';
 import { ChevronDown } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { SearchField } from '../ui/SearchField';
@@ -125,8 +124,8 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
               <th className="p-2 font-bold text-center border-b border-border bg-surface w-[48px]">No</th>
               <SortableHeader label="Nama / CS ID" sortKey="name" config={sortConfig} onSort={handleSort} className="border-b border-border bg-surface min-w-[200px]" />
               <SortableHeader label="BPO · TL" sortKey="teamLeader" config={sortConfig} onSort={handleSort} className="border-b border-border bg-surface min-w-[130px]" />
-              <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]">Tren 20 hari</th>
-              <SortableHeader label={`Rata-rata · t ${CSAT_OFFICIAL_TARGET}`} sortKey="average" config={sortConfig} onSort={handleSort} className="text-right text-text-primary border-b border-border bg-surface w-[110px]" />
+              <th className="p-2 font-bold text-text-muted border-b border-border bg-surface min-w-[150px]" title={`Rata-rata dari 5 bintang; garis tegak = target ${CSAT_OFFICIAL_TARGET}`}>Capaian target</th>
+              <SortableHeader label="Rata-rata" sortKey="average" config={sortConfig} onSort={handleSort} className="text-right text-text-primary border-b border-border bg-surface w-[110px]" />
               <th className="p-2 font-bold text-right text-text-muted border-b border-border bg-surface w-[72px]">vs&nbsp;{CSAT_OFFICIAL_TARGET}</th>
               <th className="p-2 border-b border-border bg-surface w-[40px]" aria-hidden />
             </tr>
@@ -167,9 +166,18 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
                       <span className="text-text-muted"> · {agent.teamLeader || '-'}</span>
                     </td>
                     <td className="p-2 min-w-[150px]">
-                      <div className={status === 'miss' ? 'text-danger' : status === 'watch' ? 'text-warning' : 'text-text-muted'}>
-                        <Sparkline values={dailyVals} height={22} />
-                      </div>
+                      {avg !== null && avg !== undefined ? (
+                        <div
+                          className="relative h-1.5 w-full max-w-[140px] rounded-full bg-black/[0.07]"
+                          title={`${formatNum(avg, 2)} dari 5 · target ${formatNum(CSAT_OFFICIAL_TARGET, 2)}`}
+                        >
+                          <div
+                            className={`h-full rounded-full ${status === 'miss' ? 'bg-danger' : status === 'watch' ? 'bg-warning' : 'bg-primary'}`}
+                            style={{ width: `${Math.max(0, Math.min(avg / 5, 1)) * 100}%` }}
+                          />
+                          <div className="absolute -top-0.5 h-2.5 w-px bg-text-secondary" style={{ left: `${(CSAT_OFFICIAL_TARGET / 5) * 100}%` }} aria-hidden />
+                        </div>
+                      ) : null}
                     </td>
                     <td className="p-2 text-right w-[110px]">
                       {avg !== null && avg !== undefined
@@ -191,13 +199,13 @@ export const CsatOfficialMonitor: React.FC<{ data: AgentKPI[], previousData?: Ag
                   {isOpen && (
                     <tr className="bg-surface/40 border-b border-border">
                       <td colSpan={tableColSpan} className="px-4 pb-4 pt-1">
-                        <div className="text-[9px] text-text-muted uppercase tracking-wide pt-3 pb-2">
-                          Skor CSAT per hari &mdash; hanya di bawah target yang berwarna &middot; sel kosong = tidak ada responden
-                        </div>
-                        <DayStrip
+                        <DayCalendar
                           kpiType="csatOfficial"
+                          target={CSAT_OFFICIAL_TARGET}
+                          title="Skor CSAT per hari"
+                          emptyText="tanpa responden"
                           format={(v) => formatNum(v, 2)}
-                          items={chronoDates.map((date, di) => {
+                          cells={chronoDates.map((date, di) => {
                             const st = getByCalendarDate(scheduleByDate, date)?.status?.toUpperCase() || '';
                             return { date, value: dailyVals[di], off: st === 'OFF' || st === 'C' };
                           })}

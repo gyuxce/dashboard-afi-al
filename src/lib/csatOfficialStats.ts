@@ -1,4 +1,5 @@
 import { getOfficialCsatAggregate, type AgentKPI } from './dataProcessor';
+import { formatDayMonth } from './dayCalendar';
 import { formatNum } from './utils';
 
 /** CSAT Official target, stars out of 5 (BUSINESS_RULES.md). */
@@ -64,7 +65,7 @@ export function buildOfficialHighlights(tableData: AgentKPI[]) {
   const bottomOf = <T,>(list: T[]) => (list.length > 3 ? list.slice(Math.max(3, list.length - 3)).reverse() : []);
   const agentItem = (a: AgentKPI): RankItem => ({ label: a.name || a.csId, subLabel: a.teamLeader || a.csId, value: `${formatNum(a.csatAsli, 2)} / 5` });
   const dayItem = (d: { date: string; score: number; count: number }): RankItem => ({
-    label: d.date,
+    label: formatDayMonth(d.date),
     subLabel: `${formatNum(d.count, 0)} responden`,
     value: `${formatNum(d.score, 2)} / 5`,
   });

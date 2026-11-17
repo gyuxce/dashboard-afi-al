@@ -10,7 +10,7 @@ import {
   formatCsId,
 } from "../../lib/utils";
 import { KpiValue, KpiCue } from "../ui/KpiCue";
-import { ProductivityDayCalendar } from "./ProductivityDayCalendar";
+import { DayCalendar } from "../ui/DayCalendar";
 import { chart } from "../../lib/themeColors";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../../store";
@@ -476,7 +476,11 @@ export const ProductivityDetail: React.FC<{
                   {isOpen && (
                     <tr className="bg-surface/40 border-b border-border">
                       <td colSpan={tableColSpan} className="px-4 pb-4 pt-1">
-                        <ProductivityDayCalendar
+                        <DayCalendar
+                          kpiType="productivity"
+                          target={PROD_TARGET}
+                          title="Chat per hari"
+                          showMarkerLegend
                           cells={chronoDates.map((date) => {
                             const d = getByCalendarDate(prodByDate, date);
                             const sched = getByCalendarDate(scheduleByDate, date);
