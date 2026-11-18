@@ -9,6 +9,7 @@ import {
   buildScoreTopAgents,
   buildScoreTopCases,
   filterRoomAgents,
+  responseBreakdown,
   roomKpiType,
   roomTarget,
   scoreCaseLabel,
@@ -55,6 +56,18 @@ const dateRangeLabel = (startKey: string, endKey: string): string | null => {
   return a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()
     ? `${a.getDate()}-${b.getDate()} ${mo(a)}`
     : `${a.getDate()} ${mo(a)}-${b.getDate()} ${mo(b)}`;
+};
+
+/** The "All" view cells of a category / agent row: no survey, gave a survey, response rate. */
+const BreakdownCells: React.FC<{ row: { count: number; byScore: Record<string, number> } }> = ({ row }) => {
+  const { noSurvey, responded, rate } = responseBreakdown(row);
+  return (
+    <>
+      <td className="p-2 text-center font-medium text-[11px] text-text-secondary tabular-nums">{formatNum(noSurvey, 0)}</td>
+      <td className="p-2 text-center font-medium text-[11px] text-text-primary tabular-nums">{formatNum(responded, 0)}</td>
+      <td className="p-2 text-center font-medium text-[11px] text-text-secondary tabular-nums">{formatNum(rate, 1)}%</td>
+    </>
+  );
 };
 
 export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], previousData2?: AgentKPI[], previousData3?: AgentKPI[], weekCompare?: WeekCompare | null }> = ({ data, previousData = [], previousData2 = [], previousData3 = [], weekCompare = null }) => {
@@ -156,12 +169,16 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
   const scoreDistribution = useMemo(() => buildScoreDistribution(tableData, viewMode), [tableData, viewMode]);
   const scoreAnalysisLabel = scoreCaseLabel(selectedScoreCase);
 
-  const isAccumulatedScoreCase = selectedScoreCase === 'Bad' || selectedScoreCase === 'Good';
+  const isAccumulatedScoreCase = selectedScoreCase === 'Bad' || selectedScoreCase === 'Good' || selectedScoreCase === 'Responded';
+  // "All" = every incoming case: show how many of each row did / did not give a survey, so nobody has to pivot by hand.
+  const showBreakdown = selectedScoreCase === 'All';
   const accumulatedScoreKeys = selectedScoreCase === 'Bad'
     ? (['1', '2'] as const)
     : selectedScoreCase === 'Good'
       ? (['4', '5'] as const)
-      : null;
+      : selectedScoreCase === 'Responded'
+        ? (['1', '2', '3', '4', '5'] as const)
+        : null;
 
   const { total: totalScoreRows, answered: answeredScoreRows, rate: surveyResponseRate } = useMemo(
     () => computeSurveyResponse(scoreDistribution),
@@ -259,10 +276,11 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
           </div>
 
           <div className="p-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-5 gap-3">
                {([
-                 { key: 'All', label: 'Semua survey', tone: 'neutral' },
-                 { key: 'No Survey', label: 'No Survey', tone: 'neutral' },
+                 { key: 'All', label: 'Semua survey', sub: 'Incoming case', tone: 'neutral' },
+                 { key: 'No Survey', label: 'No Survey', sub: 'Tidak mengisi', tone: 'neutral' },
+                 { key: 'Responded', label: 'Memberi survey', sub: 'Score 1 sampai 5', tone: 'neutral' },
                  { key: 'Bad', label: 'Bad Survey', sub: 'Score 1 + 2', tone: 'bad' },
                  { key: '1', label: 'Score 1', tone: 'bad' },
                  { key: '2', label: 'Score 2', tone: 'bad' },
@@ -320,9 +338,11 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
              <div className="p-4 border-b border-border bg-surface-muted">
                <h2 className="text-sm font-bold text-text-primary">Analisis detail: {scoreAnalysisLabel}</h2>
                <p className="text-xs text-text-muted mt-1">
-                 {isAccumulatedScoreCase
-                   ? `Akumulasi top category & agent dari ${scoreAnalysisLabel}. Breakdown per score tetap ditampilkan.`
-                   : 'Pilih kartu skor di atas untuk melihat kasus dan agent terkait'}
+                 {showBreakdown
+                   ? 'Semua incoming case. Kolom menunjukkan berapa yang tidak memberi survey, berapa yang memberi survey, dan response rate-nya.'
+                   : isAccumulatedScoreCase
+                     ? `Akumulasi top category & agent dari ${scoreAnalysisLabel}. Breakdown per score tetap ditampilkan.`
+                     : 'Pilih kartu skor di atas untuk melihat kasus dan agent terkait'}
                </p>
              </div>
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
@@ -335,9 +355,18 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                          <th className="p-2 font-bold w-12 text-center  min-w-[60px] max-w-[60px]">Peringkat</th>
                          <th className="p-2 font-bold ">Kasus / kategori</th>
                          {accumulatedScoreKeys?.map((sk) => (
-                           <th key={sk} className="p-2 font-bold w-16 text-center">Score {sk}</th>
+                           <th key={sk} className={`p-2 font-bold text-center ${accumulatedScoreKeys.length > 2 ? 'w-12' : 'w-16'}`} title={`Score ${sk}`}>
+                             {accumulatedScoreKeys.length > 2 ? `${sk}★` : `Score ${sk}`}
+                           </th>
                          ))}
-                         <th className="p-2 font-bold w-24 text-center">{isAccumulatedScoreCase ? 'Total' : 'Freq'}</th>
+                         {showBreakdown && (
+                           <>
+                             <th className="p-2 font-bold w-20 text-center">Tidak survey</th>
+                             <th className="p-2 font-bold w-20 text-center">Memberi survey</th>
+                             <th className="p-2 font-bold w-16 text-center">Rate</th>
+                           </>
+                         )}
+                         <th className="p-2 font-bold w-20 text-center">{isAccumulatedScoreCase || showBreakdown ? 'Total' : 'Freq'}</th>
                        </tr>
                      </thead>
                      <tbody className="">
@@ -352,12 +381,13 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                                {formatNum(cat.byScore[sk] || 0, 0)}
                              </td>
                            ))}
+                           {showBreakdown && <BreakdownCells row={cat} />}
                            <td className="p-2 text-center font-bold text-[11px] text-text-secondary">{formatNum(cat.count, 0)}</td>
                          </tr>
                        )})}
                        {scoreAnalysisTopCases.length === 0 && (
                          <tr>
-                           <td colSpan={3 + (accumulatedScoreKeys?.length || 0)} className="p-8 text-center text-text-muted text-sm border-b border-border">
+                           <td colSpan={3 + (accumulatedScoreKeys?.length || 0) + (showBreakdown ? 3 : 0)} className="p-8 text-center text-text-muted text-sm border-b border-border">
                              Tidak ada kasus.
                            </td>
                          </tr>
@@ -375,9 +405,18 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                          <th className="p-2 font-bold w-12 text-center  min-w-[60px] max-w-[60px]">Peringkat</th>
                          <th className="p-2 font-bold ">Agent Name</th>
                          {accumulatedScoreKeys?.map((sk) => (
-                           <th key={sk} className="p-2 font-bold w-16 text-center">Score {sk}</th>
+                           <th key={sk} className={`p-2 font-bold text-center ${accumulatedScoreKeys.length > 2 ? 'w-12' : 'w-16'}`} title={`Score ${sk}`}>
+                             {accumulatedScoreKeys.length > 2 ? `${sk}★` : `Score ${sk}`}
+                           </th>
                          ))}
-                         <th className="p-2 font-bold w-24 text-center">{isAccumulatedScoreCase ? 'Total' : 'Freq'}</th>
+                         {showBreakdown && (
+                           <>
+                             <th className="p-2 font-bold w-20 text-center">Tidak survey</th>
+                             <th className="p-2 font-bold w-20 text-center">Memberi survey</th>
+                             <th className="p-2 font-bold w-16 text-center">Rate</th>
+                           </>
+                         )}
+                         <th className="p-2 font-bold w-20 text-center">{isAccumulatedScoreCase || showBreakdown ? 'Total' : 'Freq'}</th>
                        </tr>
                      </thead>
                      <tbody className="">
@@ -390,12 +429,13 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                                {formatNum(agt.byScore[sk] || 0, 0)}
                              </td>
                            ))}
+                           {showBreakdown && <BreakdownCells row={agt} />}
                            <td className="p-2 text-center font-bold text-[11px] text-text-secondary">{formatNum(agt.count, 0)}</td>
                          </tr>
                        ))}
                        {scoreAnalysisTopAgents.length === 0 && (
                          <tr>
-                           <td colSpan={3 + (accumulatedScoreKeys?.length || 0)} className="p-8 text-center text-text-muted text-sm border-b border-border">
+                           <td colSpan={3 + (accumulatedScoreKeys?.length || 0) + (showBreakdown ? 3 : 0)} className="p-8 text-center text-text-muted text-sm border-b border-border">
                              No agents found.
                            </td>
                          </tr>

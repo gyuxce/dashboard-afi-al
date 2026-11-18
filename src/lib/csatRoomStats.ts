@@ -114,11 +114,11 @@ export function buildAgentRankings(tableData: AgentKPI[], viewMode: RoomViewMode
   return { critical, stable };
 }
 
-export type ScoreDistribution = Record<'All' | 'No Survey' | '1' | '2' | '3' | '4' | '5' | 'Bad' | 'Good', number>;
+export type ScoreDistribution = Record<'All' | 'No Survey' | 'Responded' | '1' | '2' | '3' | '4' | '5' | 'Bad' | 'Good', number>;
 
-/** Survey counts per score (and Bad = 1 + 2, Good = 4 + 5). Fair drops the takeout categories. */
+/** Survey counts per score (and Bad = 1 + 2, Good = 4 + 5, Responded = 1 to 5, i.e. everything but No Survey). Fair drops the takeout categories. */
 export function buildScoreDistribution(tableData: AgentKPI[], viewMode: RoomViewMode): ScoreDistribution {
-  const dist: ScoreDistribution = { All: 0, 'No Survey': 0, '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, Bad: 0, Good: 0 };
+  const dist: ScoreDistribution = { All: 0, 'No Survey': 0, Responded: 0, '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, Bad: 0, Good: 0 };
   tableData.forEach((a) => {
     if (!a.csatScScoreDistribution) return;
     (['No Survey', '1', '2', '3', '4', '5'] as const).forEach((scoreKey) => {
@@ -129,6 +129,7 @@ export function buildScoreDistribution(tableData: AgentKPI[], viewMode: RoomView
         const n = cases[c] || 0;
         dist[scoreKey] += n;
         dist.All += n;
+        if (scoreKey !== 'No Survey') dist.Responded += n;
         if (scoreKey === '1' || scoreKey === '2') dist.Bad += n;
         if (scoreKey === '4' || scoreKey === '5') dist.Good += n;
       }
@@ -146,6 +147,7 @@ export function surveyResponseRate(dist: ScoreDistribution): { total: number; an
 
 export const getScoresForSelectedCase = (selected: ScoreCase): string[] => {
   if (selected === 'All') return ['No Survey', '1', '2', '3', '4', '5'];
+  if (selected === 'Responded') return ['1', '2', '3', '4', '5'];
   if (selected === 'Bad') return ['1', '2'];
   if (selected === 'Good') return ['4', '5'];
   return [selected];
@@ -155,6 +157,7 @@ export const scoreCaseLabel = (selected: ScoreCase): string => {
   switch (selected) {
     case 'No Survey': return 'No Survey';
     case 'All': return 'All Surveys';
+    case 'Responded': return 'Memberi Survey (Score 1 sampai 5)';
     case 'Bad': return 'Bad Survey (Score 1 + 2)';
     case 'Good': return 'Good Survey (Score 4 + 5)';
     default: return `Score ${selected}`;
@@ -279,4 +282,11 @@ export function sortRoomDefectAgents(agents: AgentKPI[], sort: SortConfig, viewM
     }
     return compare(aVal, bVal, sort.direction);
   });
+}
+
+/** For one category / agent row of the "All" view: how many gave no survey, how many did, and the response rate. */
+export function responseBreakdown(row: Pick<ScoreRankRow, 'count' | 'byScore'>): { noSurvey: number; responded: number; rate: number } {
+  const noSurvey = row.byScore['No Survey'] || 0;
+  const responded = row.count - noSurvey;
+  return { noSurvey, responded, rate: row.count > 0 ? (responded / row.count) * 100 : 0 };
 }

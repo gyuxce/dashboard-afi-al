@@ -10,6 +10,7 @@ import {
   buildScoreTopCases,
   filterRoomAgents,
   getScoresForSelectedCase,
+  responseBreakdown,
   scoreCaseLabel,
   sortRoomAgents,
   sortRoomDefectAgents,
@@ -114,7 +115,7 @@ describe('score distribution', () => {
 
   it('counts per score with Bad = 1 + 2 and Good = 4 + 5', () => {
     const d = buildScoreDistribution([a, b], 'full');
-    expect(d).toMatchObject({ All: 17, 'No Survey': 4, '1': 3, '2': 3, '3': 1, '4': 2, '5': 4, Bad: 6, Good: 6 });
+    expect(d).toMatchObject({ All: 17, 'No Survey': 4, Responded: 13, '1': 3, '2': 3, '3': 1, '4': 2, '5': 4, Bad: 6, Good: 6 });
   });
 
   it('drops takeout categories in fair mode', () => {
@@ -131,11 +132,35 @@ describe('score distribution', () => {
 
   it('maps a selected case to its score keys and label', () => {
     expect(getScoresForSelectedCase('All')).toEqual(['No Survey', '1', '2', '3', '4', '5']);
+    expect(getScoresForSelectedCase('Responded')).toEqual(['1', '2', '3', '4', '5']);
     expect(getScoresForSelectedCase('Bad')).toEqual(['1', '2']);
     expect(getScoresForSelectedCase('Good')).toEqual(['4', '5']);
     expect(getScoresForSelectedCase('3')).toEqual(['3']);
     expect(scoreCaseLabel('Bad')).toBe('Bad Survey (Score 1 + 2)');
     expect(scoreCaseLabel('3')).toBe('Score 3');
+    expect(scoreCaseLabel('Responded')).toBe('Memberi Survey (Score 1 sampai 5)');
+  });
+
+  it('Responded = All minus No Survey, and fair mode drops takeout from it too', () => {
+    const full = buildScoreDistribution([a, b], 'full');
+    expect(full.Responded).toBe(full.All - full['No Survey']);
+    const fair = buildScoreDistribution([a, b], 'fair');
+    expect(fair.Responded).toBe(12);
+    expect(fair.Responded).toBe(fair.All - fair['No Survey']);
+  });
+
+  it('Responded top cases give the count per category with the 1 to 5 split', () => {
+    const cases = buildScoreTopCases([a, b], 'Responded', 'full');
+    expect(cases.find((c) => c.name === 'Saldo')).toMatchObject({ count: 6, byScore: { '1': 2, '5': 4 } });
+    expect(cases.find((c) => c.name === 'Promo')).toMatchObject({ count: 6, byScore: { '2': 3, '3': 1, '4': 2 } });
+    expect(cases.every((c) => c.byScore['No Survey'] === undefined)).toBe(true);
+  });
+
+  it('All view: breakdown per category into no survey, responded and response rate', () => {
+    const saldo = buildScoreTopCases([a, b], 'All', 'full').find((c) => c.name === 'Saldo')!;
+    expect(saldo.count).toBe(10);
+    expect(responseBreakdown(saldo)).toEqual({ noSurvey: 4, responded: 6, rate: 60 });
+    expect(responseBreakdown({ count: 0, byScore: {} })).toEqual({ noSurvey: 0, responded: 0, rate: 0 });
   });
 
   it('ranks categories and agents inside a score group, with the split per score', () => {
