@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 import { Card } from './Card';
+import { AnimatedNumber } from './AnimatedNumber';
 
 export type StatTone = 'ink' | 'good' | 'warn' | 'bad' | 'info' | 'muted';
 
@@ -43,7 +44,7 @@ export function StatCard({ label, value, unit, sub, tone = 'ink', size = 'lg', a
         {aside}
       </div>
       <div className={cn('ui-stat-value tabular-nums', size === 'lg' ? 'ui-stat-lg' : size === 'md' ? 'ui-stat-md' : 'ui-stat-sm', TONE_CLASS[tone])}>
-        {value}
+        <AnimatedNumber value={value} />
         {unit && <span className="ui-stat-unit">{unit}</span>}
       </div>
       {sub && <div className="text-[13px] leading-snug text-text-secondary">{sub}</div>}

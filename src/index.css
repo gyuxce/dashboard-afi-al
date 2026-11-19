@@ -229,7 +229,9 @@ main h2 { letter-spacing: -0.012em; }
 
 /* Every button gets a quick, springy press. */
 button:not(:disabled) { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-timing-function: var(--ease-apple); }
-button:not(:disabled):active { transform: scale(0.97); }
+button:not(:disabled):active { transform: scale(0.99); }
+/* Wide buttons (sidebar items) must not shrink on press: it reads as the whole row sinking in. */
+.no-press:active { transform: none !important; }
 
 /* Focus ring: soft halo instead of a hard outline. */
 :focus-visible { outline: none; }
@@ -250,6 +252,10 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea {
 /* `backwards` (not `both`): once finished the animation must not hold `transform`, otherwise the
    wrapper becomes the containing block of every `position: fixed` modal inside a tab. */
 .tab-enter { animation: tab-enter 0.16s ease-out backwards; }
+
+/* Progress bars: grow from the left when they appear (compositor-only transform) and glide when the value changes. */
+@keyframes bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.bar-fill { transform-origin: left center; animation: bar-grow 0.6s var(--ease-apple) backwards; transition: width 0.45s var(--ease-apple); }
 
 /* Frosted glass surfaces (sidebar, toolbar). */
 .glass {
@@ -307,7 +313,16 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea {
 /* Thin, quiet scrollbars. */
 * { scrollbar-width: thin; scrollbar-color: rgb(var(--border-strong)) transparent; }
 
+/* "Mode ringan": drop what is costly on weak laptops (blur, big shadows, long fades) and keep the cheap motion. */
+[data-perf="lite"] .glass { background-color: rgb(var(--sidebar-bg)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+[data-perf="lite"] * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+[data-perf="lite"] .tab-enter { animation: none; }
+[data-perf="lite"] .ui-skeleton, [data-perf="lite"] .animate-pulse { animation: none; }
+[data-perf="lite"] .ui-card, [data-perf="lite"] .ui-card-flat { box-shadow: 0 1px 2px rgb(30 40 90 / 0.08); }
+[data-perf="lite"] .bar-fill { animation-duration: 0.35s; }
+
 @media (prefers-reduced-motion: reduce) {
+  .bar-fill { animation: none; transition: none; }
   .tab-enter { animation: none; }
   .ui-skeleton { animation: none; }
   button:not(:disabled):active { transform: none; }

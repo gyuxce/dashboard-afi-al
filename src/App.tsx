@@ -41,6 +41,8 @@ import { TabSkeleton } from './components/ui/TabSkeleton';
 import { BootLoadingPanel } from './components/ui/BootLoadingPanel';
 import { TabErrorBoundary } from './components/ui/TabErrorBoundary';
 import { useProcessedKpis } from './hooks/useProcessedKpis';
+import { usePerfLite, usePerfPreference } from './hooks/usePerfLite';
+import { setPerfPreference, type PerfPreference } from './lib/perfMode';
 
 // Each tab is its own chunk. `loadTab` lets us start fetching a chunk before the user clicks (hover / idle),
 // so opening a tab does not wait for the network. Repeated calls are free: the module is cached after the first import.
@@ -245,6 +247,13 @@ export default function App() {
   // on screen until the new one is ready instead of flashing the loading fallback (which it also holds for ~300 ms).
   const shownTab = React.useDeferredValue(activeTab);
   const isTabPending = shownTab !== activeTab;
+  const perfLite = usePerfLite();
+  const perfPreference = usePerfPreference();
+  const cyclePerfMode = () => {
+    const order: PerfPreference[] = ['auto', 'lite', 'full'];
+    setPerfPreference(order[(order.indexOf(perfPreference) + 1) % order.length]);
+  };
+  const perfLabel = perfPreference === 'auto' ? `Otomatis (${perfLite ? 'hidup' : 'mati'})` : perfPreference === 'lite' ? 'Hidup' : 'Mati';
   // Keep <Suspense> OUTSIDE the keyed page wrapper below: a boundary that stays mounted lets React hold the old page while
   // the next one loads. A boundary remounted per tab shows its fallback and then keeps it for ~300 ms.
 
@@ -851,16 +860,16 @@ export default function App() {
                   onFocus={() => prefetchTab(item.id)}
                   onTouchStart={() => prefetchTab(item.id)}
                   className={cn(
-                    "group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[14px] text-[14.5px] font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer",
+                    "no-press group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[14px] text-[14.5px] font-medium transition-colors duration-150 cursor-pointer",
                     isActive
-                      ? "bg-card text-sidebar-text-active ring-[2.5px] ring-primary/30 shadow-[0_6px_18px_rgb(30_40_90/0.08)]"
-                      : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-hover hover:translate-x-0.5",
-                    isSidebarMinimized ? "md:justify-center md:px-0 md:hover:translate-x-0" : ""
+                      ? "bg-card text-sidebar-text-active ring-1 ring-primary/25 shadow-sm"
+                      : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-hover",
+                    isSidebarMinimized ? "md:justify-center md:px-0" : ""
                   )}
                   title={isSidebarMinimized ? item.label : undefined}
                 >
                   <span
-                    className="navico grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] transition-transform duration-200 group-hover:scale-105"
+                    className="navico grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px]"
                     style={{ '--tint': SECTION_TINT[item.section] || '0 122 255' } as React.CSSProperties}
                   >
                     <Icon className="h-[17px] w-[17px]" />
@@ -882,6 +891,15 @@ export default function App() {
             </div>
             <div className="mt-1 text-[13px] text-text-secondary tabular-nums">{syncCard.clock}</div>
             <p className="mt-1.5 text-[12px] leading-snug text-text-muted [@media(max-height:860px)]:hidden">{syncCard.note}</p>
+            <button
+              type="button"
+              onClick={cyclePerfMode}
+              className="no-press mt-2 flex w-full items-center justify-between gap-2 rounded-lg bg-black/[0.05] px-2.5 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-black/[0.08]"
+              title="Mode ringan mematikan efek buram, bayangan besar, dan animasi panjang agar dashboard lebih lancar di laptop dengan spek rendah. Klik untuk ganti: Otomatis, Hidup, Mati."
+            >
+              <span>Mode ringan</span>
+              <span className="font-semibold text-text-primary">{perfLabel}</span>
+            </button>
           </div>
         </div>
       </aside>

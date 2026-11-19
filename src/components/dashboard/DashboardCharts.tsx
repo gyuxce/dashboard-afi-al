@@ -1,4 +1,5 @@
 import React from "react";
+import { chartAnimation } from '../../lib/perfMode';
 import { formatNum, getKpiStatus, parseDateForSort, type KpiType } from "../../lib/utils";
 import { chart } from "../../lib/themeColors";
 import {
@@ -258,7 +259,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
                 formatter={(value: any, name: string) => [formatNum(value, 0), name === 'productivity' ? 'Current Period' : 'Previous Period']}
               />
               
-              <Area isAnimationActive={false}
+              <Area {...chartAnimation()}
                 type="monotone"
                 dataKey="prevProductivity"
                 stroke={chart.muted}
@@ -270,7 +271,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, dailyTr
                 activeDot={{ r: 4, strokeWidth: 0, fill: chart.muted }}
               />
 
-              <Area isAnimationActive={false}
+              <Area {...chartAnimation()}
                 type="monotone"
                 dataKey="productivity"
                 stroke={chart.primary}

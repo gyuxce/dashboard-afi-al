@@ -145,7 +145,7 @@ export const SlaWhuMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                       {avg !== null ? (
                         <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-black/[0.07]" title={`${formatNum(avg, 1)}% dari target ${cfg.target}%`}>
                           <div
-                            className={`h-full rounded-full ${status === 'miss' ? 'bg-danger' : status === 'watch' ? 'bg-warning' : 'bg-primary'}`}
+                            className={`bar-fill h-full rounded-full ${status === 'miss' ? 'bg-danger' : status === 'watch' ? 'bg-warning' : 'bg-primary'}`}
                             style={{ width: `${Math.max(0, Math.min(avg / cfg.target, 1)) * 100}%` }}
                           />
                         </div>
