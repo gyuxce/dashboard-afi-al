@@ -90,17 +90,17 @@ describe('dailyRespondents', () => {
 describe('topBadCategories', () => {
   const rows = [
     agent('a', [
-      { score: 1, category: 'Kendala QRIS' },
-      { score: 2, category: 'kendala  qris' },
-      { score: 5, category: 'Kendala QRIS' },
+      { score: 1, category: 'Informasi Tentang Limit' },
+      { score: 2, category: 'informasi  tentang limit' },
+      { score: 5, category: 'Informasi Tentang Limit' },
       { score: 1, category: 'Tidak bisa transaksi namun memiliki limit' },
-      { score: 3, category: 'Kendala QRIS' }, // rating 3 is not valid, ignored
+      { score: 3, category: 'Informasi Tentang Limit' }, // rating 3 is not valid, ignored
     ]),
   ];
 
   it('ranks by bad ratings, merges spelling variants and reports the good share', () => {
     const top = topBadCategories(rows, 'full', 10);
-    expect(top[0]).toMatchObject({ name: 'Kendala QRIS', count: 2, rank: 1, isTakeout: false });
+    expect(top[0]).toMatchObject({ name: 'Informasi Tentang Limit', count: 2, rank: 1, isTakeout: false });
     expect(top[0].goodPct).toBeCloseTo((1 / 3) * 100);
     expect(top[1]).toMatchObject({ rank: 2, count: 1, isTakeout: true });
   });

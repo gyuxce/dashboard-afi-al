@@ -15,11 +15,16 @@ Chat dengan timestamp **sebelum 07:00** diatribusikan ke **hari kalender sebelum
 
 ## 2. CSAT Takeout
 
-3 kategori berikut dikecualikan dari skor **"Fair / After Takeout"**:
+6 kategori berikut dikecualikan dari skor **"Fair / After Takeout"** (daftar di `CSAT_TAKEOUT_CATEGORIES`):
 
 1. Tidak bisa transaksi namun memiliki limit
 2. Pengajuan limit kredit ditolak
 3. Pertanyaan belum bisa diidentifikasi
+4. Kendala Qris *(ditambah 19 Nov 2026)*
+5. Chat/call terputus *(ditambah 19 Nov 2026)*
+6. Grey out problem *(ditambah 19 Nov 2026)*
+
+Dasar pemilihan: hasil kasus ditentukan kebijakan, sistem, atau koneksi, bukan oleh agent. Kandidat lain (user dengan DSAT berulang, DSAT ber-RCA non-agent, chat ditutup pelanggan) sudah dihitung dampaknya tetapi **tidak** dipakai.
 
 - **Full**: semua rating valid (1, 2, 4, 5) dihitung
 - **Fair**: rating dengan kategori takeout di atas dikecualikan
@@ -59,6 +64,8 @@ Sel kosong = tidak ada QC row di hari itu (wajar, bukan bug).
 ## 5. Dedupe Tiket
 
 CSAT, QA, SLA: tiket di-dedupe per **agent + calendar day + ticket**, bukan global ticket.
+
+**CSAT SC: kolom Ticket dan UID.** Tab CSAT SC memakai header placeholder (`Column1`, ...), jadi kolom dibaca berdasarkan posisi: kolom setelah CS ID adalah **UID pelanggan** (angka yang sama tertanam di Chat ID, `2-<uid>-3-1_...`), dan kolom empat posisi di kanannya adalah **nomor tiket**. Pemetaannya diputuskan dari Chat ID (`splitTicketAndUid`). Sebelum 19 Nov 2026 keduanya tertukar, sehingga dedupe berjalan per agent + hari + UID dan chat berulang dari satu pelanggan ke agent yang sama di hari yang sama hanya terhitung satu (CSAT Full tercatat ±0,5 poin dan Fair ±0,8 poin terlalu tinggi untuk Agu-Okt 2026).
 
 - Tiket sama di dua agent → keduanya hitung
 - Re-audit di hari berbeda → tetap hitung

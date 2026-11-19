@@ -14,6 +14,21 @@ import {
 import type { ProcessorContext } from './context';
 
 /**
+ * CSAT SC tabs whose headers are placeholders ("Column1", ...) have no named Ticket / UID columns, so both are read by
+ * position: the column right after CS ID and the one four columns further. Which of the two is the customer UID is
+ * decided from the chat id, which embeds it (`2-<uid>-3-1_...`); the other one is the ticket number. Without a chat id
+ * to compare, the current sheet layout is assumed (UID next to CS ID, ticket further right).
+ *
+ * Getting this wrong makes "ticket" the customer UID, and the per agent + day + ticket dedupe then collapses every
+ * repeat contact of one customer with the same agent on the same day into a single rating.
+ */
+export function splitTicketAndUid(near: string, far: string, chatId: string): { ticketId: string; uid: string } {
+  const embedded = (value: string) => value.length >= 5 && chatId.includes(value);
+  if (embedded(far) && !embedded(near)) return { ticketId: near, uid: far };
+  return { ticketId: far, uid: near };
+}
+
+/**
  * Step 2: CSAT SC — survey history, RCA aggregates, hourly productivity,
  * score distribution, full/fair CSAT SC %. Extracted verbatim from processKPIs.
  */
@@ -57,18 +72,20 @@ export function processCsatSc(
     const scoreIdx = pickColumn(csatColumns.score, idIdx >= 0 ? idIdx + 11 : -1);
     const categoryIdx = pickColumn(csatColumns.category, idIdx >= 0 ? idIdx + 8 : -1);
     const responseIdx = pickColumn(csatColumns.response, idIdx >= 0 ? idIdx + 15 : -1);
-    const ticketIdx = pickColumn(csatColumns.ticketId, idIdx >= 0 ? idIdx + 1 : -1);
+    const positionalIds = csatColumns.ticketId < 0 && csatColumns.uid < 0 && idIdx >= 0;
+    const ticketIdx = pickColumn(csatColumns.ticketId, idIdx >= 0 ? idIdx + 5 : -1);
     const chatIdx = pickColumn(csatColumns.chatId, idIdx > 0 ? idIdx - 1 : -1);
-    const uidIdx = pickColumn(csatColumns.uid, idIdx >= 0 ? idIdx + 5 : -1);
+    const uidIdx = pickColumn(csatColumns.uid, idIdx >= 0 ? idIdx + 1 : -1);
 
     const scoreStr = cell(row, scoreIdx).replace(",", ".");
     const score = parseFloat(scoreStr);
 
     const category = cell(row, categoryIdx).toLowerCase();
     const response = cell(row, responseIdx);
-    const ticketId = cell(row, ticketIdx);
     const chatId = cell(row, chatIdx);
-    const uid = cell(row, uidIdx);
+    const { ticketId, uid } = positionalIds
+      ? splitTicketAndUid(cell(row, idIdx + 1), cell(row, idIdx + 5), chatId)
+      : { ticketId: cell(row, ticketIdx), uid: cell(row, uidIdx) };
 
     if (timestampStr) {
       if (hour >= 0 && hour < 24) {
