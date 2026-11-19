@@ -242,14 +242,14 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   border-radius: var(--radius-md);
 }
 
-/* Tab content glides in. */
+/* Tab content eases in quickly (kept short: a long fade reads as lag after the click). */
 @keyframes tab-enter {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }
 }
 /* `backwards` (not `both`): once finished the animation must not hold `transform`, otherwise the
    wrapper becomes the containing block of every `position: fixed` modal inside a tab. */
-.tab-enter { animation: tab-enter 0.45s var(--ease-apple) backwards; }
+.tab-enter { animation: tab-enter 0.16s ease-out backwards; }
 
 /* Frosted glass surfaces (sidebar, toolbar). */
 .glass {

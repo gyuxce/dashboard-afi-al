@@ -42,18 +42,39 @@ import { BootLoadingPanel } from './components/ui/BootLoadingPanel';
 import { TabErrorBoundary } from './components/ui/TabErrorBoundary';
 import { useProcessedKpis } from './hooks/useProcessedKpis';
 
-const FileCenter = React.lazy(() => import('./components/dashboard/FileCenter').then(module => ({ default: module.FileCenter })));
-const DashboardSummary = React.lazy(() => import('./components/dashboard/DashboardSummary').then(module => ({ default: module.DashboardSummary })));
-const ProductivityDetail = React.lazy(() => import('./components/dashboard/ProductivityDetail').then(module => ({ default: module.ProductivityDetail })));
-const CsatOfficialMonitor = React.lazy(() => import('./components/csat/CsatOfficialMonitor').then(module => ({ default: module.CsatOfficialMonitor })));
-const CsatRoom = React.lazy(() => import('./components/csat/CsatRoom').then(module => ({ default: module.CsatRoom })));
-const CsatRcaMonitor = React.lazy(() => import('./components/csat/CsatRcaMonitor').then(module => ({ default: module.CsatRcaMonitor })));
-const SlaWhuMonitor = React.lazy(() => import('./components/sla/SlaWhuMonitor').then(module => ({ default: module.SlaWhuMonitor })));
-const QaAgent360 = React.lazy(() => import('./components/qa/QaAgent360').then(module => ({ default: module.QaAgent360 })));
-const Leaderboard = React.lazy(() => import('./components/team/Leaderboard').then(module => ({ default: module.Leaderboard })));
-const IncentiveSimulation = React.lazy(() => import('./components/team/IncentiveSimulation').then(module => ({ default: module.IncentiveSimulation })));
-const WeeklyExport = React.lazy(() => import('./components/export/WeeklyExport').then(module => ({ default: module.WeeklyExport })));
-const ScheduleAttendance = React.lazy(() => import('./components/team/ScheduleAttendance').then(module => ({ default: module.ScheduleAttendance })));
+// Each tab is its own chunk. `loadTab` lets us start fetching a chunk before the user clicks (hover / idle),
+// so opening a tab does not wait for the network. Repeated calls are free: the module is cached after the first import.
+const loadTab = {
+  files: () => import('./components/dashboard/FileCenter'),
+  summary: () => import('./components/dashboard/DashboardSummary'),
+  productivity: () => import('./components/dashboard/ProductivityDetail'),
+  csat_official: () => import('./components/csat/CsatOfficialMonitor'),
+  csat: () => import('./components/csat/CsatRoom'),
+  csat_rca: () => import('./components/csat/CsatRcaMonitor'),
+  sla: () => import('./components/sla/SlaWhuMonitor'),
+  qa: () => import('./components/qa/QaAgent360'),
+  leaderboard: () => import('./components/team/Leaderboard'),
+  incentive: () => import('./components/team/IncentiveSimulation'),
+  weekly_export: () => import('./components/export/WeeklyExport'),
+  schedule: () => import('./components/team/ScheduleAttendance'),
+} as const;
+const prefetchTab = (id: string) => {
+  const load = (loadTab as Record<string, (() => Promise<unknown>) | undefined>)[id];
+  if (load) void load().catch(() => {});
+};
+
+const FileCenter = React.lazy(() => loadTab.files().then(module => ({ default: module.FileCenter })));
+const DashboardSummary = React.lazy(() => loadTab.summary().then(module => ({ default: module.DashboardSummary })));
+const ProductivityDetail = React.lazy(() => loadTab.productivity().then(module => ({ default: module.ProductivityDetail })));
+const CsatOfficialMonitor = React.lazy(() => loadTab.csat_official().then(module => ({ default: module.CsatOfficialMonitor })));
+const CsatRoom = React.lazy(() => loadTab.csat().then(module => ({ default: module.CsatRoom })));
+const CsatRcaMonitor = React.lazy(() => loadTab.csat_rca().then(module => ({ default: module.CsatRcaMonitor })));
+const SlaWhuMonitor = React.lazy(() => loadTab.sla().then(module => ({ default: module.SlaWhuMonitor })));
+const QaAgent360 = React.lazy(() => loadTab.qa().then(module => ({ default: module.QaAgent360 })));
+const Leaderboard = React.lazy(() => loadTab.leaderboard().then(module => ({ default: module.Leaderboard })));
+const IncentiveSimulation = React.lazy(() => loadTab.incentive().then(module => ({ default: module.IncentiveSimulation })));
+const WeeklyExport = React.lazy(() => loadTab.weekly_export().then(module => ({ default: module.WeeklyExport })));
+const ScheduleAttendance = React.lazy(() => loadTab.schedule().then(module => ({ default: module.ScheduleAttendance })));
 
 function TabLoading() {
   return <TabSkeleton />;
@@ -220,6 +241,22 @@ function MonthPicker({ value, options, onChange }: MonthPickerProps) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('summary');
+  // The sidebar highlight follows `activeTab` at once; the page itself follows `shownTab`. React keeps the previous page
+  // on screen until the new one is ready instead of flashing the loading fallback (which it also holds for ~300 ms).
+  const shownTab = React.useDeferredValue(activeTab);
+  const isTabPending = shownTab !== activeTab;
+  // Keep <Suspense> OUTSIDE the keyed page wrapper below: a boundary that stays mounted lets React hold the old page while
+  // the next one loads. A boundary remounted per tab shows its fallback and then keeps it for ~300 ms.
+
+  // Warm the other tabs shortly after boot so the first click on each one is instant.
+  useEffect(() => {
+    const ids = ['productivity', 'qa', 'csat_official', 'csat', 'sla', 'incentive', 'schedule', 'csat_rca'];
+    const timers: number[] = [];
+    const start = window.setTimeout(() => {
+      ids.forEach((id, i) => timers.push(window.setTimeout(() => prefetchTab(id), i * 300)));
+    }, 2000);
+    return () => { window.clearTimeout(start); timers.forEach((t) => window.clearTimeout(t)); };
+  }, []);
   const isAdmin = useMemo(() => isAdminMode(), []);
   const formatClock = (date: Date) => date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -810,6 +847,9 @@ export default function App() {
                 {isFirstOfSection && isSidebarMinimized && idx > 0 && <div className="mx-3 my-2 h-px bg-sidebar-border" />}
                 <button
                   onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
+                  onMouseEnter={() => prefetchTab(item.id)}
+                  onFocus={() => prefetchTab(item.id)}
+                  onTouchStart={() => prefetchTab(item.id)}
                   className={cn(
                     "group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[14px] text-[14.5px] font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer",
                     isActive
@@ -1110,28 +1150,30 @@ export default function App() {
           {showBootLoading ? (
             <BootLoadingPanel steps={sheetsSyncProgress?.steps} subtitle={isHydrating ? 'Membaca data tersimpan' : undefined} />
           ) : (
-            <div key={activeTab} className="tab-enter">
+            <React.Suspense fallback={<TabLoading />}>
+            <div key={shownTab} className={cn('tab-enter transition-opacity duration-150', isTabPending && 'opacity-60')}>
               <TabErrorBoundary label={activeNavLabel}>
-                <React.Suspense fallback={<TabLoading />}>
-                  {activeTab === 'summary' && <DashboardSummary data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekRanges={weekRanges} weekData={weekKpiData} previousPeriods={previousPeriods} />}
-                  {activeTab === 'leaderboard' && <Leaderboard data={kpiData} />}
-                  {activeTab === 'incentive' && (
+                <>
+                  {shownTab === 'summary' && <DashboardSummary data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekRanges={weekRanges} weekData={weekKpiData} previousPeriods={previousPeriods} />}
+                  {shownTab === 'leaderboard' && <Leaderboard data={kpiData} />}
+                  {shownTab === 'incentive' && (
                     isProcessingKpis && incentiveKpiData.length === 0
                       ? <TabLoading />
                       : <IncentiveSimulation data={incentiveKpiData} period={incentivePeriod} />
                   )}
-                  {activeTab === 'productivity' && <ProductivityDetail data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
-                  {activeTab === 'csat_official' && <CsatOfficialMonitor data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
-                  {activeTab === 'csat' && <CsatRoom data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
-                  {activeTab === 'csat_rca' && <CsatRcaMonitor data={kpiData} />}
-                  {(activeTab === 'sla' || activeTab === 'whu') && <SlaWhuMonitor data={kpiData} />}
-                  {activeTab === 'qa' && <QaAgent360 data={kpiData} />}
-                  {activeTab === 'schedule' && <ScheduleAttendance data={kpiData} />}
-                  {activeTab === 'weekly_export' && <WeeklyExport weekCompare={weekCompare} weekRanges={weekRanges} weekData={weekKpiData} monthRanges={monthRanges} monthData={extraKpiData} />}
-                  {activeTab === 'files' && isAdmin && <FileCenter />}
-                </React.Suspense>
+                  {shownTab === 'productivity' && <ProductivityDetail data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
+                  {shownTab === 'csat_official' && <CsatOfficialMonitor data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
+                  {shownTab === 'csat' && <CsatRoom data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
+                  {shownTab === 'csat_rca' && <CsatRcaMonitor data={kpiData} />}
+                  {(shownTab === 'sla' || shownTab === 'whu') && <SlaWhuMonitor data={kpiData} />}
+                  {shownTab === 'qa' && <QaAgent360 data={kpiData} />}
+                  {shownTab === 'schedule' && <ScheduleAttendance data={kpiData} />}
+                  {shownTab === 'weekly_export' && <WeeklyExport weekCompare={weekCompare} weekRanges={weekRanges} weekData={weekKpiData} monthRanges={monthRanges} monthData={extraKpiData} />}
+                  {shownTab === 'files' && isAdmin && <FileCenter />}
+                </>
               </TabErrorBoundary>
             </div>
+            </React.Suspense>
           )}
         </div>
       </main>
