@@ -15,17 +15,22 @@ import { getSheetMonthKeyFromDate, getSheetMonthHistoryKeys, getSheetMonthOption
 
 import { 
   LayoutDashboard,
-  Activity,
   Star,
-  UserCircle,
   FolderDown,
-  ImageDown,
   CheckCircle,
   Menu,
   X,
   RefreshCw,
   Zap,
   Headset,
+  Gauge,
+  ClipboardCheck,
+  MessageSquareHeart,
+  ScanSearch,
+  Timer,
+  Coins,
+  CalendarCheck,
+  Presentation,
   ALargeSmall,
   Scissors,
   Calendar,
@@ -33,8 +38,6 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  FileText,
-  Calculator,
   Check,
   AlertTriangle
 } from 'lucide-react';
@@ -686,18 +689,18 @@ export default function App() {
 
   const navItems = [
     { id: 'summary', label: 'Dashboard Summary', icon: LayoutDashboard, section: 'KPI' },
-    { id: 'productivity', label: 'Productivity Detail', icon: Activity, section: 'KPI' },
-    { id: 'qa', label: 'QA Agent 360', icon: UserCircle, section: 'KPI' },
+    { id: 'productivity', label: 'Productivity Detail', icon: Gauge, section: 'KPI' },
+    { id: 'qa', label: 'QA Agent 360', icon: ClipboardCheck, section: 'KPI' },
     { id: 'csat_official', label: 'CSAT Official', icon: Star, section: 'CSAT' },
-    { id: 'csat', label: 'CSAT Room (Survey)', icon: Star, section: 'CSAT' },
-    { id: 'csat_rca', label: 'CSAT Root Cause', icon: FileText, section: 'CSAT' },
+    { id: 'csat', label: 'CSAT Room (Survey)', icon: MessageSquareHeart, section: 'CSAT' },
+    { id: 'csat_rca', label: 'CSAT Root Cause', icon: ScanSearch, section: 'CSAT' },
     { id: 'takeout_sim', label: 'Simulasi Takeout', icon: Scissors, section: 'CSAT' },
-    { id: 'sla', label: 'SLA / WHU Monitor', icon: CheckCircle, section: 'Service' },
+    { id: 'sla', label: 'SLA / WHU Monitor', icon: Timer, section: 'Service' },
     // Leaderboard hidden per 1 Sep 2026 — Simulasi Insentif (live period) is the primary Team view.
     // { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, section: 'Team' },
-    { id: 'incentive', label: 'Simulasi Insentif', icon: Calculator, section: 'Team' },
-    { id: 'schedule', label: 'Jadwal & Kehadiran', icon: Calendar, section: 'Team' },
-    { id: 'weekly_export', label: 'Ekspor Slide', icon: ImageDown, section: 'Laporan' },
+    { id: 'incentive', label: 'Simulasi Insentif', icon: Coins, section: 'Team' },
+    { id: 'schedule', label: 'Jadwal & Kehadiran', icon: CalendarCheck, section: 'Team' },
+    { id: 'weekly_export', label: 'Ekspor Slide', icon: Presentation, section: 'Laporan' },
     ...(isAdmin ? [{ id: 'files', label: 'File Center', icon: FolderDown, section: 'Data' }] : []),
   ];
 
