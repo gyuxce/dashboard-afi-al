@@ -24,6 +24,7 @@ import {
   X,
   RefreshCw,
   Zap,
+  Scissors,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -54,6 +55,7 @@ const loadTab = {
   csat_official: () => import('./components/csat/CsatOfficialMonitor'),
   csat: () => import('./components/csat/CsatRoom'),
   csat_rca: () => import('./components/csat/CsatRcaMonitor'),
+  takeout_sim: () => import('./components/csat/CsatTakeoutSim'),
   sla: () => import('./components/sla/SlaWhuMonitor'),
   qa: () => import('./components/qa/QaAgent360'),
   leaderboard: () => import('./components/team/Leaderboard'),
@@ -71,6 +73,7 @@ const DashboardSummary = React.lazy(() => loadTab.summary().then(module => ({ de
 const ProductivityDetail = React.lazy(() => loadTab.productivity().then(module => ({ default: module.ProductivityDetail })));
 const CsatOfficialMonitor = React.lazy(() => loadTab.csat_official().then(module => ({ default: module.CsatOfficialMonitor })));
 const CsatRoom = React.lazy(() => loadTab.csat().then(module => ({ default: module.CsatRoom })));
+const CsatTakeoutSim = React.lazy(() => loadTab.takeout_sim().then(module => ({ default: module.CsatTakeoutSim })));
 const CsatRcaMonitor = React.lazy(() => loadTab.csat_rca().then(module => ({ default: module.CsatRcaMonitor })));
 const SlaWhuMonitor = React.lazy(() => loadTab.sla().then(module => ({ default: module.SlaWhuMonitor })));
 const QaAgent360 = React.lazy(() => loadTab.qa().then(module => ({ default: module.QaAgent360 })));
@@ -669,6 +672,7 @@ export default function App() {
     { id: 'csat_official', label: 'CSAT Official', icon: Star, section: 'CSAT' },
     { id: 'csat', label: 'CSAT Room (Survey)', icon: Star, section: 'CSAT' },
     { id: 'csat_rca', label: 'CSAT Root Cause', icon: FileText, section: 'CSAT' },
+    { id: 'takeout_sim', label: 'Simulasi Takeout', icon: Scissors, section: 'CSAT' },
     { id: 'sla', label: 'SLA / WHU Monitor', icon: CheckCircle, section: 'Service' },
     // Leaderboard hidden per 1 Sep 2026 — Simulasi Insentif (live period) is the primary Team view.
     // { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, section: 'Team' },
@@ -861,7 +865,7 @@ export default function App() {
                   onFocus={() => prefetchTab(item.id)}
                   onTouchStart={() => prefetchTab(item.id)}
                   className={cn(
-                    "no-press group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[14px] text-[14.5px] font-medium transition-colors duration-150 cursor-pointer",
+                    "no-press group relative w-full flex items-center gap-2.5 px-2.5 py-1 rounded-[14px] text-[14.5px] font-medium transition-colors duration-150 cursor-pointer",
                     isActive
                       ? "bg-card text-sidebar-text-active ring-1 ring-primary/25 shadow-sm"
                       : "text-sidebar-text hover:bg-sidebar-bg-hover hover:text-sidebar-text-hover",
@@ -1188,6 +1192,7 @@ export default function App() {
                   {shownTab === 'csat_official' && <CsatOfficialMonitor data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
                   {shownTab === 'csat' && <CsatRoom data={kpiData} previousData={previousKpiData} previousData2={previousKpiData2} previousData3={previousKpiData3} weekCompare={weekCompare} />}
                   {shownTab === 'csat_rca' && <CsatRcaMonitor data={kpiData} />}
+                  {shownTab === 'takeout_sim' && <CsatTakeoutSim data={kpiData} />}
                   {(shownTab === 'sla' || shownTab === 'whu') && <SlaWhuMonitor data={kpiData} />}
                   {shownTab === 'qa' && <QaAgent360 data={kpiData} />}
                   {shownTab === 'schedule' && <ScheduleAttendance data={kpiData} />}
