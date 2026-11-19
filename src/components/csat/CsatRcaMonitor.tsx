@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { chartAnimation } from '../../lib/perfMode';
 import type { AgentKPI } from '../../lib/dataProcessor';
 import { buildRcaStats, filterRcaAgents, hasRcaData as detectRcaData, type IssueCategoryRow } from '../../lib/csatRcaStats';
 import { PageHeader } from '../ui/PageHeader';
@@ -77,7 +78,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
         </div>
         <div className="ui-stat-value ui-stat-md mt-1 tabular-nums text-text-primary">{count}</div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-muted">
-          <div className="h-full rounded-full bg-primary" style={{ width: `${share}%` }} />
+          <div className="bar-fill h-full rounded-full bg-primary" style={{ width: `${share}%` }} />
         </div>
 
         <div className="mt-3 border-t border-border pt-3">
@@ -93,7 +94,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                     <span className="shrink-0 text-[11px] font-semibold tabular-nums text-text-primary">{issue.count}</span>
                   </div>
                   <div className="h-1 overflow-hidden rounded-full bg-surface-muted">
-                    <div className="h-full rounded-full bg-primary/50" style={{ width: `${(issue.count / maxIssue) * 100}%` }} />
+                    <div className="bar-fill h-full rounded-full bg-primary/50" style={{ width: `${(issue.count / maxIssue) * 100}%` }} />
                   </div>
                 </li>
               ))}
@@ -136,7 +137,7 @@ export const CsatRcaMonitor: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                 contentStyle={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 11 }}
                 formatter={(value: any) => [value, 'Kasus']}
               />
-              <Bar isAnimationActive={false} dataKey="count" fill={color} radius={[0, 6, 6, 0]} maxBarSize={20}>
+              <Bar {...chartAnimation()} dataKey="count" fill={color} radius={[0, 6, 6, 0]} maxBarSize={20}>
                 <LabelList dataKey="count" position="right" style={{ fontSize: 11, fill: 'var(--color-text-primary)', fontWeight: 700 }} />
               </Bar>
             </BarChart>

@@ -473,9 +473,9 @@ export const IncentiveSimulation: React.FC<{
                             className="flex h-2 overflow-hidden rounded-full bg-surface-muted"
                             title={`QC ${item.qcPts.toFixed(1)} · CSAT ${item.csatPts.toFixed(1)} · Prod ${item.prodPts.toFixed(1)}`}
                           >
-                            <span className="tint-bar tint-blue" style={{ width: `${item.qcPts}%` }} />
-                            <span className="tint-bar tint-orange" style={{ width: `${item.csatPts}%` }} />
-                            <span className="tint-bar tint-green" style={{ width: `${item.prodPts}%` }} />
+                            <span className="bar-fill tint-bar tint-blue" style={{ width: `${item.qcPts}%` }} />
+                            <span className="bar-fill tint-bar tint-orange" style={{ width: `${item.csatPts}%` }} />
+                            <span className="bar-fill tint-bar tint-green" style={{ width: `${item.prodPts}%` }} />
                             <span className="bg-border" style={{ width: `${rest}%` }} />
                           </span>
                           <span className="truncate text-[11px] tabular-nums text-text-secondary">

@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef } from "react";
+import { chartAnimation } from '../../lib/perfMode';
 import { AgentKPI } from "../../lib/dataProcessor";
 import {
   formatNum,
@@ -219,7 +220,7 @@ export const ProductivityDetail: React.FC<{
           sub={`kuota ${formatNum(totalQuota, 0)}`}
           footer={
             <div className="h-2 overflow-hidden rounded-full bg-black/[0.07]">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(0, Math.min(quotaAchievement, 100))}%` }} />
+              <div className="bar-fill h-full rounded-full bg-primary" style={{ width: `${Math.max(0, Math.min(quotaAchievement, 100))}%` }} />
             </div>
           }
         />
@@ -269,10 +270,10 @@ export const ProductivityDetail: React.FC<{
                   }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
-                <Line isAnimationActive={false} type="monotone" name={weekCompare ? weekCompare.labels[0] : comparisonMode === "mom" ? "Bulan Ini" : "Minggu Ini"} dataKey="total" stroke={chart.primary} strokeWidth={3} dot={{ r: 3, cursor: "pointer", onClick: handleChartIntervalClick }} activeDot={{ r: 5, cursor: "pointer", onClick: handleChartIntervalClick }} />
-                <Line isAnimationActive={false} type="monotone" name={weekCompare ? weekCompare.labels[1] : comparisonMode === "mom" ? "Bulan Lalu" : "Minggu Lalu"} dataKey="prev" stroke={chart.secondary} strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                {previousData2.length > 0 && <Line isAnimationActive={false} type="monotone" name={weekCompare ? weekCompare.labels[2] : comparisonMode === "mom" ? "2 Bulan Lalu" : "2 Minggu Lalu"} dataKey="prev2" stroke={chart.muted} strokeWidth={2} strokeDasharray="3 3" dot={false} />}
-                {previousData3.length > 0 && <Line isAnimationActive={false} type="monotone" name={weekCompare ? weekCompare.labels[3] : comparisonMode === "mom" ? "3 Bulan Lalu" : "3 Minggu Lalu"} dataKey="prev3" stroke={chart.disabled} strokeWidth={2} strokeDasharray="2 2" dot={false} />}
+                <Line {...chartAnimation()} type="monotone" name={weekCompare ? weekCompare.labels[0] : comparisonMode === "mom" ? "Bulan Ini" : "Minggu Ini"} dataKey="total" stroke={chart.primary} strokeWidth={3} dot={{ r: 3, cursor: "pointer", onClick: handleChartIntervalClick }} activeDot={{ r: 5, cursor: "pointer", onClick: handleChartIntervalClick }} />
+                <Line {...chartAnimation()} type="monotone" name={weekCompare ? weekCompare.labels[1] : comparisonMode === "mom" ? "Bulan Lalu" : "Minggu Lalu"} dataKey="prev" stroke={chart.secondary} strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                {previousData2.length > 0 && <Line {...chartAnimation()} type="monotone" name={weekCompare ? weekCompare.labels[2] : comparisonMode === "mom" ? "2 Bulan Lalu" : "2 Minggu Lalu"} dataKey="prev2" stroke={chart.muted} strokeWidth={2} strokeDasharray="3 3" dot={false} />}
+                {previousData3.length > 0 && <Line {...chartAnimation()} type="monotone" name={weekCompare ? weekCompare.labels[3] : comparisonMode === "mom" ? "3 Bulan Lalu" : "3 Minggu Lalu"} dataKey="prev3" stroke={chart.disabled} strokeWidth={2} strokeDasharray="2 2" dot={false} />}
               </LineChart>
             ) : (
               <BarChart data={hourlyDataWow} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -293,7 +294,7 @@ export const ProductivityDetail: React.FC<{
                     return null;
                   }}
                 />
-                <Bar isAnimationActive={false} dataKey="total" radius={[4, 4, 0, 0]} onClick={handleChartIntervalClick}>
+                <Bar {...chartAnimation()} dataKey="total" radius={[4, 4, 0, 0]} onClick={handleChartIntervalClick}>
                   {hourlyDataWow.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
@@ -447,7 +448,7 @@ export const ProductivityDetail: React.FC<{
                       {avg !== null ? (
                         <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-black/[0.07]" title={`${formatNum(avg, 0)} dari target ${PROD_TARGET}`}>
                           <div
-                            className={`h-full rounded-full ${avgStat === "miss" ? "bg-danger" : avgStat === "watch" ? "bg-warning" : "bg-primary"}`}
+                            className={`bar-fill h-full rounded-full ${avgStat === "miss" ? "bg-danger" : avgStat === "watch" ? "bg-warning" : "bg-primary"}`}
                             style={{ width: `${Math.max(0, Math.min(avg / PROD_TARGET, 1)) * 100}%` }}
                           />
                         </div>

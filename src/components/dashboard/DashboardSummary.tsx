@@ -3,6 +3,7 @@ import { AgentKPI } from "../../lib/dataProcessor";
 import { formatNum, getKpiStatus, KPI_TARGETS, type KpiType } from "../../lib/utils";
 import { TrendingUp, Info, Download, ClipboardCopy } from "lucide-react";
 import { Card } from "../ui/Card";
+import { AnimatedNumber } from "../ui/AnimatedNumber";
 import { PageHeader } from "../ui/PageHeader";
 import { Pill } from "../ui/Pill";
 import { SearchField } from "../ui/SearchField";
@@ -420,7 +421,7 @@ const StatCard = ({
       </div>
 
       <div className={`ui-stat-value ui-stat-md flex items-baseline tabular-nums ${numberColor}`}>
-        {value}
+        <AnimatedNumber value={value} />
         {unit && <span className="ui-stat-unit">{unit}</span>}
       </div>
 
@@ -446,7 +447,7 @@ const StatCard = ({
       {progress !== null && (
         <div className="mt-auto" aria-label={`Capaian terhadap target: ${formatNum(progress, 0)}%`}>
           <div className="h-2 overflow-hidden rounded-full bg-black/[0.07]">
-            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${progress}%` }} />
+            <div className={`bar-fill h-full rounded-full ${barColor}`} style={{ width: `${progress}%` }} />
           </div>
           <div className="mt-1.5 text-right text-[11.5px] tabular-nums text-text-muted">{progress >= 100 ? 'Target tercapai' : `${formatNum(progress, 0)}% dari target`}</div>
         </div>

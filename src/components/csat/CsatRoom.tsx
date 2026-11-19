@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { chartAnimation } from '../../lib/perfMode';
 import { AgentKPI, CSATEntry, isCsatTakeoutCategory, isValidCsatScScore, normalizeDateStr } from '../../lib/dataProcessor';
 import {
   agentRoomPct,
@@ -669,7 +670,7 @@ export const CsatRoom: React.FC<{ data: AgentKPI[], previousData?: AgentKPI[], p
                         {pct !== null ? (
                           <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-black/[0.07]" title={`${formatNum(pct)}% dari target ${csatTarget}%`}>
                             <div
-                              className={`h-full rounded-full ${status === 'miss' ? 'bg-danger' : status === 'watch' ? 'bg-warning' : 'bg-primary'}`}
+                              className={`bar-fill h-full rounded-full ${status === 'miss' ? 'bg-danger' : status === 'watch' ? 'bg-warning' : 'bg-primary'}`}
                               style={{ width: `${Math.max(0, Math.min(pct / csatTarget, 1)) * 100}%` }}
                             />
                           </div>
@@ -1118,10 +1119,10 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekL
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: 'var(--color-surface-muted)', opacity: 0.4 }} contentStyle={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: any) => formatNum(Number(v), 2)} />
-                <Bar isAnimationActive={false} dataKey="SC Full" fill={chart.muted} radius={[4, 4, 0, 0]} maxBarSize={40}>
+                <Bar {...chartAnimation()} dataKey="SC Full" fill={chart.muted} radius={[4, 4, 0, 0]} maxBarSize={40}>
                   <LabelList dataKey="SC Full" position="top" style={{ fontSize: 9, fontWeight: 700, fill: 'var(--color-text-muted)' }} formatter={(v: any) => (Number(v) > 0 ? formatNum(Number(v), 2) : '')} />
                 </Bar>
-                <Bar isAnimationActive={false} dataKey="SC After Takeout" fill={chart.kpiCsat} radius={[4, 4, 0, 0]} maxBarSize={40}>
+                <Bar {...chartAnimation()} dataKey="SC After Takeout" fill={chart.kpiCsat} radius={[4, 4, 0, 0]} maxBarSize={40}>
                   <LabelList dataKey="SC After Takeout" position="top" style={{ fontSize: 10, fontWeight: 700, fill: 'var(--color-text-primary)' }} formatter={(v: any) => (Number(v) > 0 ? formatNum(Number(v), 2) : '')} />
                 </Bar>
               </BarChart>
@@ -1157,10 +1158,10 @@ const WoWChartPanel = ({ data, previousData, previousData2, previousData3, weekL
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} minTickGap={8} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: 'var(--color-surface-muted)', opacity: 0.4 }} contentStyle={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: any) => formatNum(Number(v), 2)} />
-                <Bar isAnimationActive={false} dataKey="SC Full" fill={chart.muted} radius={[3, 3, 0, 0]} maxBarSize={26}>
+                <Bar {...chartAnimation()} dataKey="SC Full" fill={chart.muted} radius={[3, 3, 0, 0]} maxBarSize={26}>
                   <LabelList dataKey="SC Full" position="top" style={{ fontSize: 9, fontWeight: 700, fill: 'var(--color-text-muted)' }} formatter={(v: any) => (Number(v) > 0 ? formatNum(Number(v), 2) : '')} />
                 </Bar>
-                <Bar isAnimationActive={false} dataKey="SC After Takeout" fill={chart.kpiCsat} radius={[3, 3, 0, 0]} maxBarSize={26}>
+                <Bar {...chartAnimation()} dataKey="SC After Takeout" fill={chart.kpiCsat} radius={[3, 3, 0, 0]} maxBarSize={26}>
                   <LabelList dataKey="SC After Takeout" position="top" style={{ fontSize: 10, fontWeight: 700, fill: 'var(--color-text-primary)' }} formatter={(v: any) => (Number(v) > 0 ? formatNum(Number(v), 2) : '')} />
                 </Bar>
               </BarChart>
@@ -1688,7 +1689,7 @@ const RespondentChartPanel = ({ data, previousData, previousData2, previousData3
                 <XAxis dataKey="date" tick={{fontSize: 11}} axisLine={false} tickLine={false} minTickGap={10} />
                 <YAxis tick={{fontSize: 11}} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} cursor={{stroke: 'rgba(0,0,0,0.1)', strokeWidth: 2}} />
-                <Area isAnimationActive={false} type="monotone" dataKey="Respondents" stroke={chart.kpiCsat} strokeWidth={3} fillOpacity={1} fill="url(#colorResp)">
+                <Area {...chartAnimation()} type="monotone" dataKey="Respondents" stroke={chart.kpiCsat} strokeWidth={3} fillOpacity={1} fill="url(#colorResp)">
                   <LabelList dataKey="Respondents" position="top" style={{fontSize: '11px', fontWeight: 'bold', fill: chart.kpiCsat}} />
                 </Area>
               </AreaChart>

@@ -185,7 +185,7 @@ export const QaAgent360: React.FC<{ data: AgentKPI[] }> = ({ data }) => {
                         {avg !== null ? (
                           <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-black/[0.07]" title={`${formatNum(avg, 2)} dari target ${QA_TARGET}`}>
                             <div
-                              className={`h-full rounded-full ${vsStatus === 'miss' ? 'bg-danger' : vsStatus === 'watch' ? 'bg-warning' : 'bg-primary'}`}
+                              className={`bar-fill h-full rounded-full ${vsStatus === 'miss' ? 'bg-danger' : vsStatus === 'watch' ? 'bg-warning' : 'bg-primary'}`}
                               style={{ width: `${Math.max(0, Math.min(avg / QA_TARGET, 1)) * 100}%` }}
                             />
                           </div>
