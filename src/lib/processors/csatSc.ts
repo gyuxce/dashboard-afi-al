@@ -11,6 +11,7 @@ import {
   ticketOccurrenceKey,
   transactionKey,
 } from '../dataProcessor';
+import type { CSATEntry } from '../dataProcessor';
 import type { ProcessorContext } from './context';
 
 /**
@@ -39,6 +40,11 @@ export function processCsatSc(
   const { getAgent, isWithin } = ctx;
 
   if (csatData.length <= 1) return;
+
+  // Chats nobody rated make up ~85% of the rows. Nothing reads their ticket / chat / comment, only how many there were per
+  // day, so they are folded into one entry per agent + day + takeout flag (`count`). This keeps the payload sent from the
+  // worker to the page, and the memory it takes, a fraction of what one entry per chat would need.
+  const foldedNoSurvey = new Map<string, CSATEntry>();
 
   const headerRow = csatData[0] || [];
   const csatColumns = resolveCsatScColumns(headerRow);
@@ -132,7 +138,32 @@ export function processCsatSc(
 
     const isTakeoutRecord = isCsatTakeoutCategory(category);
 
-    if (dateStr) {
+    const hasRca = !!(rcaAgent || rcaCustomer || rcaAkulaku);
+    const noSurvey = !Number.isFinite(score) || score === 0;
+    if (dateStr && noSurvey && !hasRca) {
+      const foldKey = `${agent.csId}|${normDate ?? ''}|${targetDateLabel}|${isTakeoutRecord ? 1 : 0}`;
+      const folded = foldedNoSurvey.get(foldKey);
+      if (folded) {
+        folded.count = (folded.count ?? 1) + 1;
+      } else {
+        const entry: CSATEntry = {
+          date: targetDateLabel,
+          normDate,
+          ticketId: '',
+          chatId: '',
+          uid: '',
+          score: 0,
+          category: '',
+          response: '',
+          isTakeout: isTakeoutRecord,
+          agentName: agent.name,
+          csId: agent.csId,
+          count: 1,
+        };
+        foldedNoSurvey.set(foldKey, entry);
+        agent.csatHistory.push(entry);
+      }
+    } else if (dateStr) {
       agent.csatHistory.push({
         date: targetDateLabel,
         normDate,

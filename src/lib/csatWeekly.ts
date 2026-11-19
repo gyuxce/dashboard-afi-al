@@ -47,7 +47,7 @@ export function respondentStats(rows: Csat[], mode: CsatMode): RespondentStats {
   let respondents = 0;
   rows.forEach((a) => {
     const histories = (a.csatHistory || []).filter((h) => mode === 'full' || !h.isTakeout);
-    processed += histories.length;
+    processed += histories.reduce((n, h) => n + (h.count ?? 1), 0);
     histories.forEach((h) => {
       if (h.score >= 1 && h.score <= 5) {
         respondents += 1;

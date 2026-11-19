@@ -1398,7 +1398,7 @@ const RespondentChartPanel = ({ data, previousData, previousData2, previousData3
       const histories = a.csatHistory.filter(
         h => viewMode === 'full' || !h.isTakeout,
       );
-      totalProcessed += histories.length;
+      totalProcessed += histories.reduce((n, h) => n + (h.count ?? 1), 0);
       histories.forEach(h => {
         if (h.score >= 1 && h.score <= 5) {
           totalRespondents += 1;
@@ -1440,7 +1440,7 @@ const RespondentChartPanel = ({ data, previousData, previousData2, previousData3
         .forEach(h => {
         if (!dates.has(h.date)) dates.set(h.date, { processed: 0, respondents: 0, s5:0, s4:0, s3:0, s2:0, s1:0 });
         const dInfo = dates.get(h.date)!;
-        dInfo.processed += 1;
+        dInfo.processed += h.count ?? 1;
         if (h.score >= 1 && h.score <= 5) {
           dInfo.respondents += 1;
           if (h.score === 5) dInfo.s5++;
@@ -1533,7 +1533,7 @@ const RespondentChartPanel = ({ data, previousData, previousData2, previousData3
           const k = toDayKey(h.date);
           if (!week.minKey || k < week.minKey) week.minKey = k;
           if (k > week.maxKey) week.maxKey = k;
-          week.processed += 1;
+          week.processed += h.count ?? 1;
           if (h.score >= 1 && h.score <= 5) {
             week.respondents += 1;
             if (h.score === 5) week.s5++;

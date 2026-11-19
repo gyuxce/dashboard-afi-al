@@ -29,6 +29,8 @@ export interface CSATEntry {
   rcaAkulaku?: string;
   agentName?: string;
   csId?: string;
+  /** How many chats this entry stands for; absent = 1. Only chats without a survey are folded together (per agent, day and takeout flag). */
+  count?: number;
 }
 
 export interface QAEntry {
