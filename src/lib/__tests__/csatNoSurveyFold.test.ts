@@ -28,7 +28,7 @@ describe('chats without a survey are folded per day', () => {
     row({ score: '' }), row({ score: '' }), row({ score: '' }),
     row({ score: '5.0' }),
     row({ score: '', date: '2 Agustus 2026' }),
-    row({ score: '', category: 'Kendala Qris' }), // takeout: folded apart from the normal ones
+    row({ score: '', category: 'Pengajuan Limit Kredit Ditolak' }), // takeout: folded apart from the normal ones
   ]);
 
   it('keeps one entry per day and takeout flag, with the number of chats', () => {

@@ -64,22 +64,18 @@ describe('splitTicketAndUid', () => {
 });
 
 describe('CSAT takeout categories', () => {
-  it('covers the original three plus Kendala Qris, Chat/call Terputus and Grey Out Problem', () => {
+  it('covers exactly the three agreed categories (candidates live in the takeout simulation, not here)', () => {
     for (const c of [
       'Tidak Bisa Transaksi Namun Memiliki Limit',
       'Pengajuan Limit Kredit Ditolak',
-      'Pertanyaan Belum Bisa Diidentifikasi',
-      'Kendala Qris',
-      'chat/call terputus',
-      '  Grey Out  Problem ',
+      '  Pertanyaan Belum  Bisa Diidentifikasi ',
     ]) expect(isCsatTakeoutCategory(c)).toBe(true);
-    expect(isCsatTakeoutCategory('Informasi Tentang Limit')).toBe(false);
-    expect(isCsatTakeoutCategory('Blokir Permanen/hapus Akun')).toBe(false);
+    for (const c of ['Kendala Qris', 'Chat/call Terputus', 'Grey Out Problem', 'Informasi Tentang Limit']) expect(isCsatTakeoutCategory(c)).toBe(false);
   });
 
   it('leaves takeout categories out of Fair but keeps them in Full', () => {
     const agent = run([
-      row({ chat: '2-1111111111-3-1_1', uid: '1111111111', ticket: '24500001', score: '1.0', category: 'Kendala Qris' }),
+      row({ chat: '2-1111111111-3-1_1', uid: '1111111111', ticket: '24500001', score: '1.0', category: 'Pengajuan Limit Kredit Ditolak' }),
       row({ chat: '2-2222222222-3-1_1', uid: '2222222222', ticket: '24500002', score: '5.0', category: 'Informasi Terkait Pembayaran' }),
     ]);
     expect(agent.csatScFullCount).toBe(2);

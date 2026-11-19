@@ -64,10 +64,6 @@ export const CSAT_TAKEOUT_CATEGORIES = [
   "tidak bisa transaksi namun memiliki limit",
   "pengajuan limit kredit ditolak",
   "pertanyaan belum bisa diidentifikasi",
-  // Added Nov 2026 at the CSAT team's request: the outcome is set by the system / connection, not by the agent.
-  "kendala qris",
-  "chat/call terputus",
-  "grey out problem",
 ] as const;
 
 const normalizeCsatCategory = (value: unknown) =>

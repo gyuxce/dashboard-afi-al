@@ -15,16 +15,13 @@ Chat dengan timestamp **sebelum 07:00** diatribusikan ke **hari kalender sebelum
 
 ## 2. CSAT Takeout
 
-6 kategori berikut dikecualikan dari skor **"Fair / After Takeout"** (daftar di `CSAT_TAKEOUT_CATEGORIES`):
+3 kategori berikut dikecualikan dari skor **"Fair / After Takeout"** (daftar di `CSAT_TAKEOUT_CATEGORIES`):
 
 1. Tidak bisa transaksi namun memiliki limit
 2. Pengajuan limit kredit ditolak
 3. Pertanyaan belum bisa diidentifikasi
-4. Kendala Qris *(ditambah 19 Nov 2026)*
-5. Chat/call terputus *(ditambah 19 Nov 2026)*
-6. Grey out problem *(ditambah 19 Nov 2026)*
 
-Dasar pemilihan: hasil kasus ditentukan kebijakan, sistem, atau koneksi, bukan oleh agent. Kandidat lain (user dengan DSAT berulang, DSAT ber-RCA non-agent, chat ditutup pelanggan) sudah dihitung dampaknya tetapi **tidak** dipakai.
+**Kandidat takeout tambahan belum berlaku** (19 Nov 2026, menunggu keputusan): Kendala Qris, Chat/call terputus, Grey out problem, dan user negatif (DSAT berulang). Dampaknya hanya bisa dilihat di menu **Simulasi Takeout** (`lib/csatTakeoutSim.ts`); angka resmi Fair di semua tab tetap memakai 3 kategori di atas.
 
 - **Full**: semua rating valid (1, 2, 4, 5) dihitung
 - **Fair**: rating dengan kategori takeout di atas dikecualikan
