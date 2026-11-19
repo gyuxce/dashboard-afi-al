@@ -25,6 +25,8 @@ import {
   X,
   RefreshCw,
   Zap,
+  Headset,
+  ALargeSmall,
   Scissors,
   Calendar,
   ChevronLeft,
@@ -44,7 +46,8 @@ import { TabSkeleton } from './components/ui/TabSkeleton';
 import { BootLoadingPanel } from './components/ui/BootLoadingPanel';
 import { TabErrorBoundary } from './components/ui/TabErrorBoundary';
 import { useProcessedKpis } from './hooks/useProcessedKpis';
-import { usePerfLite, usePerfPreference } from './hooks/usePerfLite';
+import { usePerfLite, usePerfPreference, useUiScale } from './hooks/usePerfLite';
+import { UI_SCALE_LABEL, nextUiScale, setUiScale } from './lib/uiScale';
 import { setPerfPreference, type PerfPreference } from './lib/perfMode';
 
 // Each tab is its own chunk. `loadTab` lets us start fetching a chunk before the user clicks (hover / idle),
@@ -252,6 +255,7 @@ export default function App() {
   // on screen until the new one is ready instead of flashing the loading fallback (which it also holds for ~300 ms).
   const shownTab = React.useDeferredValue(activeTab);
   const isTabPending = shownTab !== activeTab;
+  const uiScale = useUiScale();
   const perfLite = usePerfLite();
   const perfPreference = usePerfPreference();
   const cyclePerfMode = () => {
@@ -810,12 +814,12 @@ export default function App() {
   })();
 
   return (
-    <div className="app-canvas flex h-[100dvh] w-full bg-background font-sans text-text-primary overflow-hidden relative transition-colors duration-300">
+    <div className="app-canvas flex w-full bg-background font-sans text-text-primary overflow-hidden relative transition-colors duration-300">
       
       {/* Mobile Top Bar */}
       <div className="md:hidden glass flex items-center justify-between p-4 text-sidebar-text border-b border-sidebar-border absolute top-0 left-0 w-full z-40 transition-colors duration-300">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-[10px] bg-gradient-to-b from-brand/85 to-brand shadow-[0_2px_6px_rgb(var(--brand)/0.35)] flex items-center justify-center text-white font-semibold shrink-0 text-sm">LC</div>
+          <div className="w-8 h-8 rounded-[10px] bg-text-primary flex items-center justify-center text-white shrink-0"><Headset className="h-[17px] w-[17px]" aria-hidden /></div>
           <span className="font-semibold text-sidebar-text-hover tracking-tight text-sm">Live Dashboard</span>
         </div>
         <button 
@@ -855,7 +859,7 @@ export default function App() {
 
         <div className={cn("px-4 pt-5 pb-2 overflow-hidden", isSidebarMinimized ? "md:px-4" : "")}>
         <div className={cn("flex items-center gap-3 relative z-10 group cursor-default", isSidebarMinimized ? "md:justify-center" : "")}>
-          <div className="w-[42px] h-[42px] rounded-[13px] bg-gradient-to-b from-brand/85 to-brand shadow-[0_6px_16px_rgb(var(--brand)/0.32)] flex items-center justify-center text-white font-bold shrink-0 text-[15px]">LC</div>
+          <div className="w-[42px] h-[42px] rounded-[13px] bg-text-primary shadow-sm flex items-center justify-center text-white shrink-0"><Headset className="h-[22px] w-[22px]" aria-hidden /></div>
           <div className={cn("min-w-0 whitespace-nowrap transition-all duration-300", isSidebarMinimized ? "md:opacity-0 md:w-0" : "opacity-100")}>
             <div className="text-[17px] font-bold tracking-tight text-sidebar-text-hover leading-tight">Live Dashboard</div>
             <div className="text-[13px] text-text-secondary leading-tight mt-0.5">KPI Live Chat · AFI</div>
@@ -876,6 +880,7 @@ export default function App() {
                 {isFirstOfSection && isSidebarMinimized && idx > 0 && <div className="mx-3 my-2 h-px bg-sidebar-border" />}
                 <button
                   onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
+                  data-active={isActive}
                   onMouseEnter={() => prefetchTab(item.id)}
                   onFocus={() => prefetchTab(item.id)}
                   onTouchStart={() => prefetchTab(item.id)}
@@ -1152,6 +1157,16 @@ export default function App() {
                     <AlertTriangle size={12} />
                   )}
                   <span>{dataQuality.label}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUiScale(nextUiScale(uiScale))}
+                  aria-label={`Ukuran tampilan: ${UI_SCALE_LABEL[uiScale]}`}
+                  title={`Ukuran tampilan: ${UI_SCALE_LABEL[uiScale]}. Otomatis mengecilkan tampilan di layar laptop kecil. Klik untuk ganti: Otomatis, 100%, 88%, 78%.`}
+                  className="no-press flex h-7 shrink-0 items-center gap-1 rounded-lg border border-border bg-card px-2 text-[11px] font-medium text-text-muted transition-colors hover:text-text-primary"
+                >
+                  <ALargeSmall size={13} />
+                  <span className="hidden xl:inline">{UI_SCALE_LABEL[uiScale]}</span>
                 </button>
                 <button
                   type="button"

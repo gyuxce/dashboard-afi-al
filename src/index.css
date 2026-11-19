@@ -225,7 +225,10 @@ main h2 { letter-spacing: -0.012em; }
 .tint-ico svg { color: rgb(var(--tint)); }
 .tint-bar { background: rgb(var(--tint)); }
 .tint-spark { color: rgb(var(--tint)); }
-.navico { background: linear-gradient(160deg, rgb(var(--tint) / 0.88), rgb(var(--tint))); color: #fff; box-shadow: 0 2px 6px rgb(var(--tint) / 0.35); }
+/* Sidebar icons stay quiet: plain line icons, and only the open page gets a soft blue chip (colour is kept for status). */
+.navico { background: transparent; color: rgb(var(--sidebar-text)); transition: background-color 0.15s, color 0.15s; }
+button:hover > .navico { color: rgb(var(--sidebar-text-hover)); }
+button[data-active="true"] > .navico { background: rgb(var(--primary) / 0.12); color: rgb(var(--primary)); }
 
 /* Every button gets a quick, springy press. */
 button:not(:disabled) { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-timing-function: var(--ease-apple); }
@@ -252,6 +255,26 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea {
 /* `backwards` (not `both`): once finished the animation must not hold `transform`, otherwise the
    wrapper becomes the containing block of every `position: fixed` modal inside a tab. */
 .tab-enter { animation: tab-enter 0.16s ease-out backwards; }
+
+/* Small laptop screens (11-13 inch, often 1280-1366 px wide after Windows scaling): the layout is drawn for ~1500 px and would read
+   as "zoomed in", so it is scaled down automatically instead of making everyone zoom the browser out. The width and height steps
+   combine (the smaller one wins); phones and tablets keep their own layout. Override: html[data-ui-scale]. */
+:root { --ui-zoom: 1; }
+@media (min-width: 1024px) {
+  :root { --zoom-w: 1; --zoom-h: 1; --ui-zoom: min(var(--zoom-w), var(--zoom-h)); }
+  @media (max-width: 1499px) { :root { --zoom-w: 0.95; } }
+  @media (max-width: 1366px) { :root { --zoom-w: 0.88; } }
+  @media (max-width: 1280px) { :root { --zoom-w: 0.8; } }
+  @media (max-height: 780px) { :root { --zoom-h: 0.95; } }
+  @media (max-height: 700px) { :root { --zoom-h: 0.88; } }
+  @media (max-height: 620px) { :root { --zoom-h: 0.8; } }
+}
+html[data-ui-scale="large"] { --ui-zoom: 1; }
+html[data-ui-scale="medium"] { --ui-zoom: 0.88; }
+html[data-ui-scale="small"] { --ui-zoom: 0.78; }
+html { zoom: var(--ui-zoom); }
+/* The app fills the window: a zoomed element is that much shorter, so ask for the matching extra height. */
+.app-canvas { height: calc(100dvh / var(--ui-zoom)); }
 
 /* Progress bars: grow from the left when they appear (compositor-only transform) and glide when the value changes. */
 @keyframes bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }

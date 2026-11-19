@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatAnimatedNumber, parseAnimatedNumber } from '../animatedNumber';
 import { isLowEndDevice, parsePerfPreference, resolvePerfLite } from '../perfMode';
+import { nextUiScale, parseUiScale } from '../uiScale';
 
 describe('parseAnimatedNumber', () => {
   it('reads Indonesian numbers with their prefix, decimals and suffix', () => {
@@ -47,5 +48,20 @@ describe('perf mode', () => {
     expect(resolvePerfLite('full', true)).toBe(false);
     expect(parsePerfPreference('lite')).toBe('lite');
     expect(parsePerfPreference('nonsense')).toBe('auto');
+  });
+});
+
+describe('ui scale', () => {
+  it('parses a saved choice and falls back to auto', () => {
+    expect(parseUiScale('medium')).toBe('medium');
+    expect(parseUiScale('huge')).toBe('auto');
+    expect(parseUiScale(null)).toBe('auto');
+  });
+
+  it('cycles auto, 100%, 88%, 78% and back', () => {
+    expect(nextUiScale('auto')).toBe('large');
+    expect(nextUiScale('large')).toBe('medium');
+    expect(nextUiScale('medium')).toBe('small');
+    expect(nextUiScale('small')).toBe('auto');
   });
 });
