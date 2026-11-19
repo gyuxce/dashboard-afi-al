@@ -23,6 +23,7 @@ import {
   Menu,
   X,
   RefreshCw,
+  Zap,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -891,15 +892,6 @@ export default function App() {
             </div>
             <div className="mt-1 text-[13px] text-text-secondary tabular-nums">{syncCard.clock}</div>
             <p className="mt-1.5 text-[12px] leading-snug text-text-muted [@media(max-height:860px)]:hidden">{syncCard.note}</p>
-            <button
-              type="button"
-              onClick={cyclePerfMode}
-              className="no-press mt-2 flex w-full items-center justify-between gap-2 rounded-lg bg-black/[0.05] px-2.5 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-black/[0.08]"
-              title="Mode ringan mematikan efek buram, bayangan besar, dan animasi panjang agar dashboard lebih lancar di laptop dengan spek rendah. Klik untuk ganti: Otomatis, Hidup, Mati."
-            >
-              <span>Mode ringan</span>
-              <span className="font-semibold text-text-primary">{perfLabel}</span>
-            </button>
           </div>
         </div>
       </aside>
@@ -1138,6 +1130,19 @@ export default function App() {
                     <AlertTriangle size={12} />
                   )}
                   <span>{dataQuality.label}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={cyclePerfMode}
+                  aria-label={`Mode ringan: ${perfLabel}`}
+                  title={`Mode ringan: ${perfLabel}. Mematikan efek buram, bayangan besar, dan animasi panjang agar lebih lancar di laptop spek rendah. Klik untuk ganti: Otomatis, Hidup, Mati.`}
+                  className={cn(
+                    "no-press flex h-7 shrink-0 items-center gap-1 rounded-lg border px-2 text-[11px] font-medium transition-colors",
+                    perfLite ? "border-primary/30 bg-primary-soft text-primary" : "border-border bg-card text-text-muted hover:text-text-primary"
+                  )}
+                >
+                  <Zap size={11} />
+                  <span className="hidden xl:inline">{perfPreference === 'auto' ? 'Ringan: otomatis' : perfLite ? 'Ringan: hidup' : 'Ringan: mati'}</span>
                 </button>
                 {import.meta.env.VITE_SHEETS_API_KEY && (
                   <button
