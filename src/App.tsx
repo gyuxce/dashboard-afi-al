@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useStore } from './store';
 import { getPreviousMonthPeriodToDate, getPreviousPeriod } from './lib/dataProcessor';
 import { planComparison, planTabOf } from './lib/comparisonPlan';
+import { historyNeeds } from './lib/historyNeeds';
 import { buildWeekCompare } from './lib/weekCompare';
 import { isAdminMode } from './lib/adminMode';
 import { formatRelativeTime, isStaleSync, countDataRows, extractCsIds, getProductivityDuplicateCount } from './lib/dataQuality';
@@ -298,7 +299,7 @@ export default function App() {
     startDate, endDate, selectedBpo, selectedTL, selectedGlobalAgent, agentDictionary, agentDictionaryByMonth, selectedSheetMonth,
     setDateRange, setSelectedBpo, setSelectedTL, setSelectedGlobalAgent, setSelectedSheetMonth,
     isHydrating, hydrateFromStorage,
-    isFetchingSheets, fetchFromSheets, lastSyncTime, sheetsFetchError, sheetsSyncProgress, activeMonthRowCounts, activeMonthLastDates, missingHistoryMonths,
+    isFetchingSheets, fetchFromSheets, ensureSheetsHistory, sheetsLoaded, lastSyncTime, sheetsFetchError, sheetsSyncProgress, activeMonthRowCounts, activeMonthLastDates, missingHistoryMonths,
     isComparisonEnabled, setIsComparisonEnabled, comparisonMode, setComparisonMode,
     pendingTab, clearPendingTab,
   } = useStore(useShallow((s) => ({
@@ -325,6 +326,8 @@ export default function App() {
     hydrateFromStorage: s.hydrateFromStorage,
     isFetchingSheets: s.isFetchingSheets,
     fetchFromSheets: s.fetchFromSheets,
+    ensureSheetsHistory: s.ensureSheetsHistory,
+    sheetsLoaded: s.sheetsLoaded,
     lastSyncTime: s.lastSyncTime,
     sheetsFetchError: s.sheetsFetchError,
     sheetsSyncProgress: s.sheetsSyncProgress,
@@ -518,6 +521,18 @@ export default function App() {
     return planComparison({ tab: planTab, isComparisonEnabled, comparisonMode, startDate, endDate, productivityLastDate, todayIso });
   }, [planTab, isComparisonEnabled, comparisonMode, startDate, endDate, productivityLastDate]);
   const { comparisonTabs, needsComparisonData, passivePrevMonth, weekRanges, monthRanges } = plan;
+
+  // Load history only when the screen needs it (comparison, slide export, Simulasi Insentif's next month), not on every sync.
+  const needs = useMemo(
+    () => historyNeeds({ selectedMonth: selectedSheetMonth, tab: planTab, isIncentiveTab: activeTab === 'incentive', startDate, endDate, plan }),
+    [selectedSheetMonth, planTab, activeTab, startDate, endDate, plan],
+  );
+  useEffect(() => {
+    if (!import.meta.env.VITE_SHEETS_API_KEY || isHydrating) return;
+    void ensureSheetsHistory({ depth: needs.depth, scheduleDepth: needs.scheduleDepth, nextMonth: needs.nextMonth });
+  }, [needs.depth, needs.scheduleDepth, needs.nextMonth, selectedSheetMonth, isHydrating, ensureSheetsHistory]);
+  const historyCatchingUp = !!sheetsLoaded
+    && getSheetMonthHistoryKeys(selectedSheetMonth, needs.depth).some((key) => !sheetsLoaded.months.includes(key));
   const previousPeriods = useMemo(() => ({ prev1: plan.prev1, prev2: plan.prev2, prev3: plan.prev3 }), [plan]);
 
   // Auto-disable comparison when switching to a tab that doesn't support it.
@@ -777,7 +792,7 @@ export default function App() {
 
   const historyGapHint = (() => {
     if (!isComparisonEnabled || !missingHistoryMonths?.length) return null;
-    const expected = Math.max(0, getSheetMonthHistoryKeys(selectedSheetMonth).length - 1);
+    const expected = Math.max(0, getSheetMonthHistoryKeys(selectedSheetMonth, needs.depth).length - 1);
     const labels = missingHistoryMonths.map((k) => getSheetMonthOption(k).label).join(', ');
     return `Perbandingan: ${missingHistoryMonths.length} dari ${expected} bulan riwayat tidak tersedia (${labels}).`;
   })();
@@ -1070,6 +1085,9 @@ export default function App() {
                   <span className="font-medium text-primary">
                     Bandingkan · {comparisonHint}
                   </span>
+                ) : null}
+                {isComparisonEnabled && historyCatchingUp ? (
+                  <span className="font-medium text-text-secondary">Memuat riwayat untuk perbandingan…</span>
                 ) : null}
                 {historyGapHint ? (
                   <span className="inline-flex items-center gap-1.5 font-medium text-warning">

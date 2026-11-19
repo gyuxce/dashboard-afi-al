@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { saveData, loadData, clearAllData, listKeys, SHEETS_SNAPSHOT_REVISION } from './lib/storage';
 import { countDataRows, ValidationResult } from './lib/csvValidator';
-import { type AllSheetsData, fetchAllSheets, getCurrentSheetMonthKey, getSheetMonthHistoryKeys, getNextSheetMonthKey, isFutureSheetMonth, getSheetConfigForMonth, getSheetMonthOption, getSpreadsheetIdForMonth, getSpreadsheetIdCandidatesForMonth, mergeAllSheetsData, sheetDataToParseResult, emptyAllSheetsData, isAbortError, isTransientNetworkError, getDateRangeForSheetMonth } from './lib/sheetsApi';
+import { type AllSheetsData, fetchAllSheets, getCurrentSheetMonthKey, getSheetMonthHistoryKeys, getNextSheetMonthKey, isFutureSheetMonth, getSheetConfigForMonth, getSheetMonthOption, getSpreadsheetIdForMonth, getSpreadsheetIdCandidatesForMonth, mergeAllSheetsData, sheetDataToParseResult, emptyAllSheetsData, isAbortError, isTransientNetworkError, getDateRangeForSheetMonth, sheetMonthOrdinal } from './lib/sheetsApi';
 import { buildAgentDictionary, isAgentDictionaryPopulated } from './lib/csid';
 import { getCurrentMonthRange } from './lib/dates';
 import { lastDataDate, lastDatesForAllSources, type SourceLastDates } from './lib/sourceFreshness';
@@ -12,6 +12,35 @@ let hydratePromise: Promise<void> | null = null;
 let inFlightSheetsFetch: { month: string; promise: Promise<void> } | null = null;
 let storageEpoch = 0;
 let sheetsPersistChain: Promise<void> = Promise.resolve();
+
+/**
+ * How much history a sync loads. Only what the current screen needs (see lib/historyNeeds.ts): Summary needs last month for
+ * its delta chips, comparisons and the slide export need more. `ensureSheetsHistory` raises these on demand; picking another
+ * month resets them. Loading less keeps the download, the memory and every processKPIs scan small on weak laptops.
+ */
+let requestedHistoryDepth = 1;
+let requestedScheduleDepth = 2;
+let requestedNextMonth = false;
+
+/**
+ * Every month fetched in this session, so a later sync rebuilds the dataset from memory instead of the network and
+ * going back to a month you already looked at is instant. The running month goes stale quickly, closed months barely change.
+ */
+/** `scheduleOnly` = only the Schedule tab was loaded (the month before a period start, for the shift-22 boundary day). */
+const monthCache = new Map<string, { data: AllSheetsData; at: number; scheduleOnly?: boolean }>();
+const RUNNING_MONTH_FRESH_MS = 5 * 60 * 1000;
+const MAX_CACHED_MONTHS = 6;
+const monthIsFresh = (monthKey: string, at: number) =>
+  Date.now() - at < (monthKey === getCurrentSheetMonthKey() ? RUNNING_MONTH_FRESH_MS : HISTORY_MONTH_CACHE_MAX_AGE_MS);
+/** Keeps memory bounded: drop the oldest cached months beyond the limit, never the ones the current sync needs. */
+const trimMonthCache = (keep: Set<string>) => {
+  if (monthCache.size <= MAX_CACHED_MONTHS) return;
+  [...monthCache.entries()]
+    .filter(([key]) => !keep.has(key))
+    .sort((a, b) => a[1].at - b[1].at)
+    .slice(0, monthCache.size - MAX_CACHED_MONTHS)
+    .forEach(([key]) => monthCache.delete(key));
+};
 
 /** A cached Sheets snapshot older than this is ignored on boot. */
 const SHEETS_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
@@ -42,6 +71,8 @@ export interface AppState {
   /** History month keys (e.g. `JUN_2026`) whose tabs could not be fetched this sync. */
   missingHistoryMonths: string[];
   sheetsSnapshotRevision: number | null;
+  /** Which sheet months the dataset holds (`roster` = loaded with their CSID tab), so a screen asks for more only when something is missing. */
+  sheetsLoaded: { months: string[]; roster: string[]; scheduleOnly: string[] } | null;
   
   // Sheet configuration
   sheetsConfig: {
@@ -96,7 +127,9 @@ export interface AppState {
   hydrateFromStorage: () => Promise<void>;
   
   // Sheet actions
-  fetchFromSheets: () => Promise<void>;
+  fetchFromSheets: (opts?: { reuseCurrentMonth?: boolean }) => Promise<void>;
+  /** Loads more history / the next month when the current screen needs it; never loads less. */
+  ensureSheetsHistory: (needs: { depth: number; scheduleDepth: number; nextMonth: boolean }) => Promise<void>;
   setSelectedSheetMonth: (monthKey: string) => void;
   setDataSource: (mode: 'sheets' | 'csv') => void;
   setIsComparisonEnabled: (enabled: boolean) => void;
@@ -119,6 +152,7 @@ export const useStore = create<AppState>((set, get) => ({
   activeMonthLastDates: null,
   missingHistoryMonths: [],
   sheetsSnapshotRevision: null,
+  sheetsLoaded: null,
   sheetsConfig: null,
 
   productivityFile: null,
@@ -237,10 +271,12 @@ export const useStore = create<AppState>((set, get) => ({
       lastSyncTime: null,
       dataSource: 'csv',
       sheetsSnapshotRevision: null,
+      sheetsLoaded: null,
       isFetchingSheets: false,
       sheetsSyncProgress: null,
       sheetsFetchError: null,
     }));
+    monthCache.clear();
     
     await clearAllData();
   },
@@ -322,6 +358,16 @@ export const useStore = create<AppState>((set, get) => ({
             if (typeof meta.sheetsSnapshotRevision === 'number') {
               fileData.sheetsSnapshotRevision = meta.sheetsSnapshotRevision;
             }
+            if (meta.selectedSheetMonth) {
+              // Snapshots from before on-demand history always held three months back and the next month.
+              const keys = getSheetMonthHistoryKeys(meta.selectedSheetMonth);
+              const next = getNextSheetMonthKey(meta.selectedSheetMonth);
+              fileData.sheetsLoaded = {
+                months: Array.isArray(meta.loadedMonths) ? meta.loadedMonths : [...keys, ...(next ? [next] : [])],
+                roster: Array.isArray(meta.rosterMonths) ? meta.rosterMonths : keys,
+                scheduleOnly: Array.isArray(meta.scheduleOnlyMonths) ? meta.scheduleOnlyMonths : [],
+              };
+            }
           }
         }
 
@@ -382,9 +428,15 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setDataSource: (mode) => set({ dataSource: mode }),
-  setSelectedSheetMonth: (monthKey) => set({ selectedSheetMonth: monthKey }),
+  setSelectedSheetMonth: (monthKey) => {
+    // A different month starts from the small default again; the screen asks for more through ensureSheetsHistory.
+    requestedHistoryDepth = 1;
+    requestedScheduleDepth = 2;
+    requestedNextMonth = false;
+    set({ selectedSheetMonth: monthKey });
+  },
 
-  fetchFromSheets: async () => {
+  fetchFromSheets: async (opts) => {
     const selectedMonth = get().selectedSheetMonth;
     if (inFlightSheetsFetch && inFlightSheetsFetch.month === selectedMonth) {
       return inFlightSheetsFetch.promise;
@@ -407,7 +459,7 @@ export const useStore = create<AppState>((set, get) => ({
       type StepState = 'pending' | 'active' | 'done' | 'error';
       const sourceSteps: Array<{ id: string; label: string; state: StepState }> = [
         { id: 'month', label: 'Data bulan aktif', state: 'pending' },
-        { id: 'history', label: 'Riwayat 3 bulan sebelumnya', state: 'pending' },
+        { id: 'history', label: 'Riwayat bulan sebelumnya', state: 'pending' },
         { id: 'master', label: 'Master CSID', state: 'pending' },
         { id: 'productivity', label: 'Productivity', state: 'pending' },
         { id: 'csat', label: 'CSAT SC', state: 'pending' },
@@ -446,11 +498,28 @@ export const useStore = create<AppState>((set, get) => ({
       try {
         const sheetConfig = getSheetConfigForMonth(selectedMonth);
         const monthOption = getSheetMonthOption(selectedMonth);
-        const historyMonthKeys = getSheetMonthHistoryKeys(selectedMonth);
+        const depthForRun = requestedHistoryDepth;
+        const nextMonthKey = requestedNextMonth ? getNextSheetMonthKey(selectedMonth) : null;
+        const fullKeys = new Set(getSheetMonthHistoryKeys(selectedMonth, depthForRun));
+        // The dataset keeps every month already in memory (going back to a month you viewed is instant) plus the months
+        // this screen needs. Earlier months and the selected one feed the roster; later months bring only the data tabs.
+        const wanted = new Set<string>(getSheetMonthHistoryKeys(selectedMonth, Math.max(depthForRun, requestedScheduleDepth)));
+        if (nextMonthKey && !isFutureSheetMonth(nextMonthKey)) wanted.add(nextMonthKey);
+        monthCache.forEach((_entry, key) => wanted.add(key));
+        wanted.add(selectedMonth);
+        const selectedOrdinal = sheetMonthOrdinal(selectedMonth);
+        const orderedKeys = [...wanted].sort((x, y) => sheetMonthOrdinal(x) - sheetMonthOrdinal(y));
+        const historyMonthKeys = orderedKeys.filter((key) => sheetMonthOrdinal(key) <= selectedOrdinal);
+        const laterMonthKeys = orderedKeys.filter((key) => sheetMonthOrdinal(key) > selectedOrdinal);
 
         // History tabs are optional. A missing JUN/legacy sheet must not fail the
         // first boot of the selected month.
         const loadHistoryMonth = async (monthKey: string) => {
+          const inMemory = monthCache.get(monthKey);
+          const needsFull = fullKeys.has(monthKey);
+          // A month held without its data tabs is good enough unless the screen needs it in full.
+          if (inMemory && monthIsFresh(monthKey, inMemory.at) && (!inMemory.scheduleOnly || !needsFull)) return inMemory.data;
+          if (!needsFull) return loadScheduleOnlyMonth(monthKey);
           const cached = await loadData(historyCacheKey(monthKey));
           if (
             cached
@@ -458,10 +527,12 @@ export const useStore = create<AppState>((set, get) => ({
             && cached.data
             && Date.now() - Number(cached.savedAt || 0) <= HISTORY_MONTH_CACHE_MAX_AGE_MS
           ) {
+            monthCache.set(monthKey, { data: cached.data as AllSheetsData, at: Number(cached.savedAt) || Date.now() });
             return cached.data as AllSheetsData;
           }
           const fresh = await fetchHistoryMonthFromSheets(monthKey);
           if (fresh) {
+            monthCache.set(monthKey, { data: fresh, at: Date.now() });
             void saveData(historyCacheKey(monthKey), {
               revision: SHEETS_SNAPSHOT_REVISION,
               savedAt: Date.now(),
@@ -486,24 +557,43 @@ export const useStore = create<AppState>((set, get) => ({
           return null;
         };
 
-        // The month after a closed month is loaded too (everything except the roster):
+        const loadScheduleOnlyMonth = async (monthKey: string) => {
+          for (const spreadsheetId of getSpreadsheetIdCandidatesForMonth(monthKey, selectedMonth)) {
+            try {
+              const only = await fetchAllSheets(getSheetConfigForMonth(monthKey), spreadsheetId, signal, ['schedule']);
+              if (only.schedule.length > 1) {
+                monthCache.set(monthKey, { data: only, at: Date.now(), scheduleOnly: true });
+                return only;
+              }
+            } catch (error) {
+              if (isAbortError(error) || signal.aborted) throw error;
+            }
+          }
+          return null;
+        };
+
+        // Months after the selected one are loaded for their data tabs only (everything except the roster):
         //  - QA: Simulasi Insentif buckets QA by Tanggal Case, so cases of a closed month
         //    that were checked the month after live in the NEXT month's QA tab.
         //  - Weekly Performance Report: Monday–Sunday weeks cross month boundaries
         //    (W5 Okt = 26 Okt–1 Nov), so 1 Nov productivity/CSAT/SLA/schedule must be present.
-        const loadNextMonth = async () => {
-          const nextMonthKey = getNextSheetMonthKey(selectedMonth);
-          if (!nextMonthKey || isFutureSheetMonth(nextMonthKey)) return null;
-          const nextConfig = getSheetConfigForMonth(nextMonthKey);
-          for (const spreadsheetId of getSpreadsheetIdCandidatesForMonth(nextMonthKey, selectedMonth)) {
+        const loadLaterMonth = async (monthKey: string) => {
+          const inMemory = monthCache.get(monthKey);
+          if (inMemory && monthIsFresh(monthKey, inMemory.at)) return inMemory.data;
+          if (isFutureSheetMonth(monthKey)) return null;
+          const laterConfig = getSheetConfigForMonth(monthKey);
+          for (const spreadsheetId of getSpreadsheetIdCandidatesForMonth(monthKey, selectedMonth)) {
             try {
-              const next = await fetchAllSheets(
-                nextConfig,
+              const later = await fetchAllSheets(
+                laterConfig,
                 spreadsheetId,
                 signal,
                 ['productivity', 'csatSc', 'sla', 'schedule', 'qa'],
               );
-              if (next.qa.length > 1 || next.productivity.length > 1) return next;
+              if (later.qa.length > 1 || later.productivity.length > 1) {
+                monthCache.set(monthKey, { data: later, at: Date.now() });
+                return later;
+              }
             } catch (error) {
               if (isAbortError(error) || signal.aborted) throw error;
             }
@@ -514,17 +604,26 @@ export const useStore = create<AppState>((set, get) => ({
         // Start everything at once: the active month is shown as soon as it is
         // ready, history catches up in the background.
         patchProgress(`Mengambil data ${monthOption.label}...`, { month: 'active' });
-        const currentMonthPromise = fetchAllSheets(
-          sheetConfig,
-          getSpreadsheetIdForMonth(selectedMonth),
-          signal,
-        );
+        const heldCurrent = monthCache.get(selectedMonth);
+        const reusableCurrent = opts?.reuseCurrentMonth && heldCurrent && monthIsFresh(selectedMonth, heldCurrent.at)
+          ? heldCurrent.data
+          : null;
+        const currentMonthPromise = reusableCurrent
+          ? Promise.resolve(reusableCurrent)
+          : fetchAllSheets(
+            sheetConfig,
+            getSpreadsheetIdForMonth(selectedMonth),
+            signal,
+          ).then((data) => {
+            monthCache.set(selectedMonth, { data, at: Date.now() });
+            return data;
+          });
         const historyPromises = historyMonthKeys.map((monthKey) =>
           monthKey === selectedMonth ? currentMonthPromise : loadHistoryMonth(monthKey),
         );
-        const nextMonthPromise = loadNextMonth();
+        const laterPromises = laterMonthKeys.map((monthKey) => loadLaterMonth(monthKey));
         // Avoid unhandled rejections if the active month fails first.
-        [...historyPromises, nextMonthPromise].forEach((promise) => { promise.catch(() => undefined); });
+        [...historyPromises, ...laterPromises].forEach((promise) => { promise.catch(() => undefined); });
 
         const currentMonthData = await currentMonthPromise;
         if (gen !== sheetsSyncGeneration) return;
@@ -555,6 +654,7 @@ export const useStore = create<AppState>((set, get) => ({
         });
 
         const syncedAt = new Date();
+        let loadedSummary: { months: string[]; roster: string[]; scheduleOnly: string[] } = { months: [], roster: [], scheduleOnly: [] };
 
         /** Assemble the dataset and push it to the store. `final` = history is
          *  complete: finish the sync and persist the snapshot. */
@@ -562,18 +662,20 @@ export const useStore = create<AppState>((set, get) => ({
           historicalSheets: Array<typeof currentMonthData>,
           missingHistoryMonths: string[],
           final: boolean,
-          nextMonth: typeof currentMonthData | null = null,
+          laterSheets: Array<typeof currentMonthData> = [],
         ) => {
           const mergedHistory = historicalSheets.reduce(
             (merged, monthData) =>
               merged ? mergeAllSheetsData(merged, monthData) : monthData,
             null as typeof currentMonthData | null,
           ) || currentMonthData;
-          const allData = nextMonth
-            ? mergeAllSheetsData(mergedHistory, { ...emptyAllSheetsData(), ...nextMonth, csid: [] })
-            : mergedHistory;
-          const loadedMonthLabel = final && historyMonthKeys.length > 1
-            ? `${getSheetMonthOption(historyMonthKeys[0]).label} - ${monthOption.label}`
+          const allData = laterSheets.reduce(
+            (merged, later) => mergeAllSheetsData(merged, { ...emptyAllSheetsData(), ...later, csid: [] }),
+            mergedHistory,
+          );
+          const firstFullKey = historyMonthKeys.find((key) => !monthCache.get(key)?.scheduleOnly) ?? selectedMonth;
+          const loadedMonthLabel = final && firstFullKey !== selectedMonth
+            ? `${getSheetMonthOption(firstFullKey).label} - ${monthOption.label}`
             : monthOption.label;
 
           const csvCsid = sheetDataToParseResult(allData.csid);
@@ -624,7 +726,7 @@ export const useStore = create<AppState>((set, get) => ({
             activeMonthLastDates: currentMonthLastDates,
             missingHistoryMonths,
             lastSyncTime: syncedAt,
-            ...(final ? { isFetchingSheets: false, sheetsSyncProgress: null } : {}),
+            ...(final ? { isFetchingSheets: false, sheetsSyncProgress: null, sheetsLoaded: loadedSummary } : {}),
             dataSource: 'sheets',
             sheetsSnapshotRevision: SHEETS_SNAPSHOT_REVISION,
             fileNames,
@@ -655,6 +757,9 @@ export const useStore = create<AppState>((set, get) => ({
                   agentDictionaryByMonth,
                   fileNames,
                   sheetsSnapshotRevision: SHEETS_SNAPSHOT_REVISION,
+                  loadedMonths: loadedSummary.months,
+                  rosterMonths: loadedSummary.roster,
+                  scheduleOnlyMonths: loadedSummary.scheduleOnly,
                 }),
               ]);
               if (persistGen !== sheetsSyncGeneration) return;
@@ -667,31 +772,44 @@ export const useStore = create<AppState>((set, get) => ({
           });
         };
 
-        // 1) Show the active month right away (history still loading).
-        if (historyMonthKeys.length > 1) {
+        // 1) Show the active month right away (history still loading). Months already in memory are included, so growing
+        //    the history of a month on screen never drops what is loaded for a moment.
+        const stillToLoad = historyMonthKeys.some((monthKey) => monthKey !== selectedMonth && !monthCache.has(monthKey));
+        if (historyMonthKeys.length > 1 && stillToLoad && !reusableCurrent) {
           commitSnapshot(
             historyMonthKeys.map((monthKey) =>
-              monthKey === selectedMonth ? currentMonthData : emptyAllSheetsData(),
+              monthKey === selectedMonth ? currentMonthData : monthCache.get(monthKey)?.data ?? emptyAllSheetsData(),
             ),
             [],
             false,
+            laterMonthKeys.map((monthKey) => monthCache.get(monthKey)?.data).filter((d): d is typeof currentMonthData => !!d),
           );
           patchProgress('Mengambil riwayat bulan sebelumnya...', { history: 'active' });
         }
 
         // 2) History complete → final snapshot, persisted for the next boot.
         const historyResults = await Promise.all(historyPromises);
-        const nextMonth = await nextMonthPromise;
+        const laterResults = await Promise.all(laterPromises);
         if (gen !== sheetsSyncGeneration) return;
         patchProgress('Dataset siap', { history: 'done', assemble: 'done' });
 
         const missingHistoryMonths: string[] = [];
         const historicalSheets = historyResults.map((result, index) => {
           if (result) return result;
-          missingHistoryMonths.push(historyMonthKeys[index]);
+          // Only months that were meant to be complete count as missing; a schedule-only month that failed is not worth a warning.
+          if (fullKeys.has(historyMonthKeys[index])) missingHistoryMonths.push(historyMonthKeys[index]);
           return emptyAllSheetsData();
         });
-        commitSnapshot(historicalSheets, missingHistoryMonths, true, nextMonth);
+        const isScheduleOnly = (monthKey: string) => !!monthCache.get(monthKey)?.scheduleOnly;
+        // `months` lists every month that was tried, found or not (a tab that does not exist must not be asked for again on every
+        // screen change); `roster` only those that actually loaded.
+        loadedSummary = {
+          months: [...historyMonthKeys, ...laterMonthKeys],
+          roster: historyMonthKeys.filter((key, index) => historyResults[index] && !isScheduleOnly(key)),
+          scheduleOnly: historyMonthKeys.filter((key, index) => historyResults[index] && isScheduleOnly(key)),
+        };
+        trimMonthCache(new Set(historyMonthKeys.slice(-(Math.max(depthForRun, requestedScheduleDepth) + 1))));
+        commitSnapshot(historicalSheets, missingHistoryMonths, true, laterResults.filter((d): d is typeof currentMonthData => !!d));
 
       } catch (error) {
         if (gen !== sheetsSyncGeneration) return;
@@ -717,5 +835,31 @@ export const useStore = create<AppState>((set, get) => ({
     } finally {
       if (inFlightSheetsFetch?.promise === wrapper) inFlightSheetsFetch = null;
     }
-  }
+  },
+
+  ensureSheetsHistory: async ({ depth, scheduleDepth, nextMonth }) => {
+    if (get().dataSource !== 'sheets') return;
+    requestedHistoryDepth = Math.max(requestedHistoryDepth, depth);
+    requestedScheduleDepth = Math.max(requestedScheduleDepth, scheduleDepth, requestedHistoryDepth);
+    requestedNextMonth = requestedNextMonth || nextMonth;
+    const isCovered = () => {
+      const selected = get().selectedSheetMonth;
+      const loaded = get().sheetsLoaded;
+      if (!loaded || !loaded.roster.includes(selected)) return false;
+      const full = getSheetMonthHistoryKeys(selected, depth);
+      const next = nextMonth ? getNextSheetMonthKey(selected) : null;
+      if (next && !isFutureSheetMonth(next)) full.push(next);
+      const withSchedule = getSheetMonthHistoryKeys(selected, scheduleDepth);
+      return full.every((key) => loaded.months.includes(key) && !loaded.scheduleOnly.includes(key))
+        && withSchedule.every((key) => loaded.months.includes(key));
+    };
+    if (isCovered()) return;
+    // A sync already running was started with a smaller request: let it finish, then load what is still missing.
+    while (inFlightSheetsFetch) {
+      await inFlightSheetsFetch.promise.catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    if (isCovered()) return;
+    await get().fetchFromSheets({ reuseCurrentMonth: true });
+  },
 }));

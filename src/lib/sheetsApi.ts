@@ -286,6 +286,14 @@ export function getNextSheetMonthKey(monthKey: string): string | null {
   return `${MONTHS[monthIndex + 1].code}_${year}`;
 }
 
+/** Position of a sheet month on the calendar (`legacy` = Mei 2026), for ordering and comparing month keys. */
+export function sheetMonthOrdinal(monthKey: string): number {
+  if (!monthKey || monthKey === 'legacy') return 2026 * 12 + 4;
+  const [monthCode, yearValue] = monthKey.split('_');
+  const monthIndex = MONTHS.findIndex((month) => month.code === monthCode);
+  return Number(yearValue) * 12 + monthIndex;
+}
+
 /** True when the sheet month is after the current calendar month (its tab cannot exist yet). */
 export function isFutureSheetMonth(monthKey: string): boolean {
   const toOrdinal = (key: string) => {
